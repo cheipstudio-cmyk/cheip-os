@@ -1,0 +1,143 @@
+import { Theme } from "theme.slint";
+import { Sys } from "data.slint";
+
+// Icone a tratto in viewbox 24x24
+export global Icons {
+    out property <string> signal: "M4 20v-3M9 20v-7M14 20v-11M19 20V4";
+    out property <string> plus: "M12 5v14M5 12h14";
+    out property <string> back: "M15 6l-6 6 6 6";
+    out property <string> fwd: "M9 6l6 6-6 6";
+    out property <string> close: "M6 6l12 12M18 6L6 18";
+    out property <string> search: "M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-4-4";
+    out property <string> torch: "M8 2h8l-1 6H9zM9 8h6v13H9zM12 12v3";
+    out property <string> camera: "M3 8h4l2-3h6l2 3h4v12H3zM12 9a4 4 0 1 0 0 8a4 4 0 1 0 0-8";
+    out property <string> flash: "M13 2L4 14h7l-1 8 9-12h-7z";
+    out property <string> flip: "M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4";
+    out property <string> pin: "M9 3h6l-1 6 3 3H7l3-3zM12 12v9";
+    out property <string> trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13";
+}
+
+export component Icon inherits Path {
+    in property <string> d;
+    in property <color> tint: Theme.text;
+    in property <length> size: 20px;
+    width: self.size;
+    height: self.size;
+    commands: self.d;
+    viewbox-width: 24;
+    viewbox-height: 24;
+    stroke: self.tint;
+    stroke-width: 2px;
+    fill: transparent;
+}
+
+export component StatusBar inherits Rectangle {
+    in property <bool> show-time: true;
+    height: 24px;
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        spacing: 8px;
+        if root.show-time: Text {
+            text: Sys.time;
+            color: #d0d0d0;
+            font-family: Theme.body;
+            font-size: 12px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+        Rectangle { }
+        Icon { d: Icons.signal; size: 14px; tint: #d0d0d0; y: 5px; }
+        Text {
+            text: (Sys.charging ? "+" : "") + Sys.battery + "%";
+            color: #d0d0d0;
+            font-family: Theme.body;
+            font-size: 12px;
+            font-weight: 600;
+            vertical-alignment: center;
+        }
+    }
+}
+
+export component Badge inherits Rectangle {
+    background: Theme.accent;
+    border-radius: 3px;
+    width: 14px;
+    height: 14px;
+    Text {
+        text: "A";
+        color: #000;
+        font-family: Theme.body;
+        font-size: 10px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+}
+
+export component RoundButton inherits Rectangle {
+    in property <string> icon;
+    in property <color> fill: transparent;
+    in property <color> tint: Theme.text;
+    in property <bool> outlined: true;
+    in property <length> size: 44px;
+    callback clicked();
+    width: self.size;
+    height: self.size;
+    border-radius: self.size / 2;
+    background: ta.pressed ? Theme.raised : self.fill;
+    border-width: self.outlined ? 1px : 0px;
+    border-color: Theme.line;
+    animate background { duration: Theme.fast; }
+    Icon { d: root.icon; tint: root.tint; }
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+export component PillButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> active: false;
+    in property <bool> solid: false;
+    in property <length> pad: 14px;
+    callback clicked();
+    height: 34px;
+    width: txt.preferred-width + 2 * self.pad;
+    border-radius: self.height / 2;
+    background: root.solid ? Theme.accent : (root.active ? Theme.text : transparent);
+    border-width: (root.active || root.solid) ? 0px : 1px;
+    border-color: Theme.line;
+    opacity: ta.pressed ? 0.7 : 1;
+    animate background { duration: Theme.fast; }
+    txt := Text {
+        text: root.label;
+        color: (root.active || root.solid) ? #000 : Theme.text;
+        font-family: Theme.body;
+        font-size: 13px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+export component AppHeader inherits Rectangle {
+    in property <string> title;
+    height: 44px;
+    Text {
+        x: 0;
+        text: root.title;
+        color: Theme.text;
+        font-family: Theme.display;
+        font-weight: 700;
+        font-size: 28px;
+        letter-spacing: -0.5px;
+        vertical-alignment: center;
+    }
+    @children
+}
+
+export component Card inherits Rectangle {
+    border-radius: 16px;
+    border-width: 1px;
+    border-color: Theme.line;
+    background: Theme.bg;
+}

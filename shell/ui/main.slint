@@ -1,0 +1,105 @@
+import { Theme } from "theme.slint";
+import { Sys, Shell, Cal, Notes, Cam, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem } from "data.slint";
+import { LockScreen, HomeScreen, ControlsPanel, SwitcherScreen } from "screens.slint";
+import { CalendarApp, NotesApp, CameraApp, SettingsApp } from "apps.slint";
+
+export { Theme, Sys, Shell, Cal, Notes, Cam, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem }
+
+export component AppWindow inherits Window {
+    title: "Cheip OS";
+    preferred-width: 360px;
+    preferred-height: 640px;
+    background: #000;
+    default-font-family: "Inter";
+
+    property <bool> unlocked: Shell.screen != ScreenId.lock;
+
+    // Home, sempre sotto
+    home := HomeScreen {
+        width: root.width; height: root.height;
+        opacity: (Shell.app-open || Shell.screen == ScreenId.switcher) ? 0.25 : 1;
+        y: Shell.app-open ? -12px : 0px;
+        animate opacity, y { duration: Theme.slow; easing: Theme.ease; }
+    }
+
+    // Finestra app: si espande dalla riga toccata
+    host := Rectangle {
+        property <bool> live: Shell.app-open || self.height > 52px;
+        x: Shell.app-open ? 0px : 16px;
+        y: Shell.app-open ? 0px : Shell.from-y;
+        width: Shell.app-open ? root.width : root.width - 32px;
+        height: Shell.app-open ? root.height : 48px;
+        border-radius: Shell.app-open ? 0px : 14px;
+        visible: self.live;
+        clip: true;
+        background: Theme.surface;
+        animate x, y, width, height, border-radius { duration: Theme.slow; easing: Theme.ease; }
+
+        Rectangle {
+            x: -host.x; y: -host.y;
+            width: root.width; height: root.height;
+            opacity: Shell.app-open ? 1 : 0;
+            animate opacity { duration: 260ms; delay: Shell.app-open ? 120ms : 0ms; easing: ease-out; }
+            if Shell.app-id == "calendar": CalendarApp { }
+            if Shell.app-id == "notes": NotesApp { }
+            if Shell.app-id == "camera": CameraApp { }
+            if Shell.app-id == "settings": SettingsApp { }
+            if Shell.app-id != "calendar" && Shell.app-id != "notes" && Shell.app-id != "camera" && Shell.app-id != "settings": Rectangle {
+                background: Theme.surface;
+                Text {
+                    width: parent.width - 48px;
+                    text: "Le app Android arrivano con la 0.2, quando la shell diventa compositor Wayland.";
+                    color: Theme.muted; font-family: Theme.body; font-size: 14px;
+                    wrap: word-wrap; horizontal-alignment: center;
+                }
+            }
+        }
+    }
+
+    switcher := SwitcherScreen {
+        width: root.width; height: root.height;
+        y: Shell.screen == ScreenId.switcher ? 0px : root.height;
+        animate y { duration: Theme.slow; easing: Theme.ease; }
+    }
+
+    // Bordo alto: tira giù i Controlli
+    if root.unlocked: TouchArea {
+        y: 0; height: 28px;
+        pointer-event(ev) => {
+            if (ev.kind == PointerEventKind.up && self.mouse-y - self.pressed-y > 60px) {
+                Shell.controls-open = true;
+            }
+        }
+    }
+
+    // Barra gesti: su corto = home, su lungo = app aperte
+    if root.unlocked: Rectangle {
+        y: root.height - 24px; height: 24px;
+        Rectangle { width: 96px; height: 4px; border-radius: 2px; background: #5a5a5a; }
+        TouchArea {
+            pointer-event(ev) => {
+                if (ev.kind == PointerEventKind.up) {
+                    if (self.pressed-y - self.mouse-y > 220px) {
+                        Shell.close-app();
+                        Shell.screen = ScreenId.switcher;
+                    } else if (self.pressed-y - self.mouse-y > 30px) {
+                        Shell.close-app();
+                        Shell.screen = ScreenId.home;
+                    }
+                }
+            }
+        }
+    }
+
+    controls := ControlsPanel {
+        width: root.width; height: root.height;
+        y: Shell.controls-open ? 0px : -root.height;
+        animate y { duration: Theme.slow; easing: Theme.ease; }
+    }
+
+    lock := LockScreen {
+        width: root.width; height: root.height;
+        y: Shell.screen == ScreenId.lock ? 0px : -root.height;
+        animate y { duration: Theme.slow; easing: Theme.ease; }
+    }
+}

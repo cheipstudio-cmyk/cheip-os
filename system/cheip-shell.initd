@@ -1,0 +1,25 @@
+#!/sbin/openrc-run
+# Servizio OpenRC della shell. supervise-daemon la riavvia se crasha.
+
+name="Cheip OS shell"
+description="Interfaccia di sistema di Cheip OS"
+
+: ${cheip_user:=$(getent group wheel | cut -d: -f4 | cut -d, -f1)}
+
+supervisor=supervise-daemon
+command="/usr/libexec/cheip/cheip-session"
+command_user="${cheip_user}"
+respawn_delay=1
+respawn_max=0
+
+depend() {
+	need localmount
+	after udev networkmanager
+}
+
+start_pre() {
+	if [ -z "$cheip_user" ]; then
+		eerror "Nessun utente nel gruppo wheel: imposta cheip_user in /etc/conf.d/cheip-shell"
+		return 1
+	fi
+}

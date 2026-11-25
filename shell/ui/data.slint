@@ -1,0 +1,81 @@
+// Strutture e global riempiti dal codice Rust
+
+export struct AppEntry { id: string, name: string, android: bool }
+export struct NotifItem { app: string, time: string, text: string, android: bool }
+export struct ToggleItem { id: string, label: string, sub: string, on: bool }
+export struct RecentItem { id: string, name: string, mem: int, state: string, android: bool }
+export struct DayCell { n: int, col: int, row: int, in-month: bool, today: bool, selected: bool, has-events: bool }
+export struct EventItem { time: string, title: string }
+export struct NoteItem { id: int, title: string, body: string, pinned: bool, col: int, row: int }
+
+export enum ScreenId { lock, home, switcher }
+
+export global Sys {
+    in property <string> time: "22:51";
+    in property <string> hours: "22";
+    in property <string> minutes: "51";
+    in property <string> date: "mercoledì 25 novembre";
+    in property <int> battery: 78;
+    in property <bool> charging: false;
+    in property <int> mem-used: 612;
+    in property <int> mem-total: 1024;
+    in property <int> mem-android: 0;
+    in property <string> android-state: "Non installato";
+    in property <bool> android-running: false;
+    in property <[NotifItem]> notifications;
+    in property <[ToggleItem]> toggles;
+    in-out property <float> brightness: 0.55;
+    in property <string> model: "Nokia Lumia 735";
+    in property <string> kernel: "";
+    in property <string> version: "0.1.0";
+    in property <string> update-state: "";
+    in property <bool> update-available: false;
+    in property <string> update-version: "";
+    callback toggle(string);
+    callback brightness-changed(float);
+    callback check-update();
+    callback install-update();
+    callback android-toggle();
+}
+
+export global Shell {
+    in-out property <ScreenId> screen: ScreenId.lock;
+    in-out property <bool> controls-open: false;
+    in-out property <bool> app-open: false;
+    in-out property <string> app-id: "";
+    in-out property <length> from-y: 200px;
+    in property <[AppEntry]> apps;
+    in property <[RecentItem]> recents;
+    callback open-app(string, length);
+    callback close-app();
+    callback unlock();
+    callback search(string);
+    callback close-recent(string);
+    callback close-all();
+}
+
+export global Cal {
+    in property <string> month-label: "Novembre 2026";
+    in property <[DayCell]> cells;
+    in property <string> selected-label: "";
+    in property <[EventItem]> events;
+    callback prev-month();
+    callback next-month();
+    callback select(int);
+    callback add-event(string, string);
+}
+
+export global Notes {
+    in property <[NoteItem]> notes;
+    in property <int> rows: 3;
+    in-out property <int> filter: 0;
+    callback set-filter(int);
+    callback save(int, string, string);
+    callback toggle-pin(int);
+    callback remove(int);
+}
+
+export global Cam {
+    in property <bool> available: false;
+    in property <string> message: "Sensore non ancora supportato su questo modello";
+}

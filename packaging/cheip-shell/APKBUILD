@@ -1,0 +1,43 @@
+# Maintainer: Eugenio Casale <cheipstudio@gmail.com>
+pkgname=cheip-shell
+pkgver=0.1.0
+pkgrel=0
+pkgdesc="Shell di Cheip OS: home, controlli, app di sistema, OTA"
+url="https://cheipstudio.org"
+arch="armv7 aarch64 x86_64"
+license="GPL-3.0-or-later"
+depends="doas mesa-dri-gallium networkmanager-cli rfkill"
+makedepends="cargo eudev-dev libinput-dev libdrm-dev mesa-dev libxkbcommon-dev fontconfig-dev"
+install="$pkgname.post-install"
+options="net"
+# Il tarball lo crea la CI con git archive dal tag
+source="cheip-os-$pkgver.tar.gz"
+builddir="$srcdir/cheip-os-$pkgver"
+
+prepare() {
+	default_prepare
+	cd shell
+	cargo fetch --target="$CTARGET" --locked
+}
+
+build() {
+	cd shell
+	cargo build --frozen --release --no-default-features --features device --bin cheip-shell
+}
+
+check() {
+	cd shell
+	cargo test --frozen --release --no-default-features --features device --lib
+}
+
+package() {
+	install -Dm755 shell/target/release/cheip-shell "$pkgdir"/usr/bin/cheip-shell
+	install -Dm755 system/cheip-session "$pkgdir"/usr/libexec/cheip/cheip-session
+	install -Dm755 system/cheip-helper "$pkgdir"/usr/libexec/cheip/cheip-helper
+	install -Dm755 system/cheip-shell.initd "$pkgdir"/etc/init.d/cheip-shell
+	install -Dm600 system/cheip.doas.conf "$pkgdir"/etc/doas.d/cheip.conf
+	install -Dm644 system/90-cheip.rules "$pkgdir"/usr/lib/udev/rules.d/90-cheip.rules
+	install -Dm644 system/update.json "$pkgdir"/etc/cheip/update.json
+}
+
+sha512sums="SKIP"

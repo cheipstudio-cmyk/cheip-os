@@ -1,0 +1,54 @@
+[package]
+name = "cheip-shell"
+version = "0.1.0"
+edition = "2021"
+description = "Shell di Cheip OS per i Lumia MSM8x26"
+license = "GPL-3.0-or-later"
+build = "build.rs"
+
+[lib]
+name = "cheip_shell"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cheip-shell"
+path = "src/main.rs"
+
+[[bin]]
+name = "cheip-screens"
+path = "src/bin/screens.rs"
+required-features = ["screens"]
+
+[features]
+default = ["desktop"]
+# Sviluppo su PC: finestra 360x640
+desktop = ["slint/backend-winit", "slint/renderer-femtovg", "slint/renderer-software", "slint/software-renderer-path"]
+# Telefono: DRM/KMS diretto, niente compositor. GLES con freedreno, software su simpledrm
+device = [
+    "slint/backend-linuxkms",
+    "slint/backend-linuxkms-libinput",
+    "slint/backend-linuxkms-noseat",
+    "slint/renderer-femtovg",
+    "slint/renderer-software",
+    "slint/software-renderer-path",
+]
+# Screenshot headless delle schermate
+screens = ["slint/renderer-software", "slint/software-renderer-path", "slint/software-renderer-systemfonts", "dep:image"]
+
+[dependencies]
+slint = { version = "1.19", default-features = false, features = ["std", "compat-1-2"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+ureq = { version = "2", default-features = false, features = ["tls", "json"] }
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
+
+[build-dependencies]
+slint-build = "1.19"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "abort"

@@ -1,0 +1,34 @@
+#!/bin/sh
+# Azioni privilegiate richieste dalla shell, via doas.
+# Accetta solo i comandi elencati qui sotto, con argomenti fissi.
+
+set -eu
+
+case "${1:-}" in
+	update)
+		apk update
+		apk upgrade --available
+		# Riavvio staccato: questo script è figlio della shell che sta per morire
+		setsid sh -c 'sleep 2; rc-service cheip-shell restart' >/dev/null 2>&1 &
+		;;
+	governor)
+		case "${2:-}" in
+			powersave|schedutil|ondemand|performance) ;;
+			*) echo "governor non valido" >&2; exit 2 ;;
+		esac
+		for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+			[ -w "$f" ] && echo "$2" > "$f" || true
+		done
+		;;
+	android)
+		case "${2:-}" in
+			start) rc-service waydroid-container start ;;
+			stop) rc-service waydroid-container stop ;;
+			*) echo "uso: android start|stop" >&2; exit 2 ;;
+		esac
+		;;
+	*)
+		echo "uso: cheip-helper update | governor <nome> | android start|stop" >&2
+		exit 2
+		;;
+esac

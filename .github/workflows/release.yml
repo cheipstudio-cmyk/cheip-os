@@ -1,0 +1,136 @@
+name: Release Cheip OS
+
+# Push di un tag vX.Y.Z (anche da Termux): pacchetti armv7, immagine per i Lumia
+# MSM8x26, repository OTA firmato su Cloudflare R2, release GitHub.
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  DEVICE: qcom-msm8226
+  CHANNEL: stable
+  # Cartella pubblica su R2 servita da updates.cheipstudio.org
+  OTA_PREFIX: cheip-os/stable
+  R2_BUCKET: ${{ secrets.R2_BUCKET }}
+  CHEIP_APK_KEY: ${{ secrets.CHEIP_APK_KEY }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versione dal tag
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          echo "VER=$VER" >> "$GITHUB_ENV"
+          sed -i "0,/^version = .*/s//version = \"$VER\"/" shell/Cargo.toml
+          sed -i "s/^pkgver=.*/pkgver=$VER/" packaging/*/APKBUILD
+          test -f keys/cheip-os.rsa.pub || { echo "Manca keys/cheip-os.rsa.pub: lancia scripts/gen-key.sh"; exit 1; }
+          test -n "$CHEIP_APK_KEY" || { echo "Manca il secret CHEIP_APK_KEY"; exit 1; }
+
+      - name: Commit locale della versione (serve a git archive)
+        run: |
+          (cd shell && cargo metadata --format-version 1 > /dev/null)
+          git -c user.name=ci -c user.email=ci@cheipstudio.org commit -qam "release $VER"
+
+      - name: Installa pmbootstrap
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq git openssl python3 kpartx
+          git clone --depth 1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git "$HOME/pmbootstrap"
+          mkdir -p "$HOME/.local/bin"
+          ln -s "$HOME/pmbootstrap/pmbootstrap.py" "$HOME/.local/bin/pmbootstrap"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          sudo modprobe loop || true
+
+      - name: Configura pmbootstrap
+        run: |
+          yes "" | pmbootstrap init || true
+          pmbootstrap config device "$DEVICE"
+          pmbootstrap config user cheip
+          pmbootstrap config hostname cheip-os
+          pmbootstrap config timezone Europe/Rome
+          pmbootstrap config locale it_IT.UTF-8
+          WORK="$(pmbootstrap config work)"
+          echo "WORK=$WORK" >> "$GITHUB_ENV"
+          echo "APORTS=$(pmbootstrap config aports)" >> "$GITHUB_ENV"
+
+      - name: Chiave di firma OTA
+        # pmbootstrap firma pacchetti e indice con la chiave in config_abuild:
+        # mettendoci la nostra, il repository è subito verificabile dai telefoni.
+        run: |
+          mkdir -p "$WORK/config_abuild" "$WORK/config_apk_keys"
+          printf '%s\n' "$CHEIP_APK_KEY" > "$WORK/config_abuild/cheip-os.rsa"
+          cp keys/cheip-os.rsa.pub "$WORK/config_abuild/cheip-os.rsa.pub"
+          cp keys/cheip-os.rsa.pub "$WORK/config_apk_keys/cheip-os.rsa.pub"
+          echo 'PACKAGER_PRIVKEY="/home/pmos/.abuild/cheip-os.rsa"' > "$WORK/config_abuild/abuild.conf"
+          chmod 600 "$WORK/config_abuild/cheip-os.rsa"
+
+      - name: Pacchetti Cheip nei pmaports
+        run: |
+          mkdir -p "$APORTS/cheip"
+          cp -r packaging/cheip-shell packaging/postmarketos-ui-cheip "$APORTS/cheip/"
+          git archive --format=tar.gz --prefix="cheip-os-$VER/" -o "$APORTS/cheip/cheip-shell/cheip-os-$VER.tar.gz" HEAD
+          cp keys/cheip-os.rsa.pub "$APORTS/cheip/postmarketos-ui-cheip/"
+          pmbootstrap checksum cheip-shell postmarketos-ui-cheip
+          pmbootstrap config ui cheip
+
+      - name: Build armv7
+        run: pmbootstrap build --arch armv7 cheip-shell postmarketos-ui-cheip
+
+      - name: Immagine
+        run: |
+          pmbootstrap -y install --zap --password 147147
+          mkdir -p out
+          pmbootstrap export out
+          for f in out/*.img; do xz -T0 -6 -c "$(readlink -f "$f")" > "dist-$(basename "$f").xz"; done
+          ls -la dist-* || true
+
+      - name: Repository OTA
+        run: |
+          mkdir -p ota/armv7
+          PKGDIR="$(ls -d "$WORK"/packages/*/armv7 | head -1)"
+          cp "$PKGDIR"/cheip-shell-*.apk "$PKGDIR"/postmarketos-ui-cheip-*.apk ota/armv7/
+          # Indice firmato con la nostra chiave, dentro il chroot di pmbootstrap
+          sudo cp -r ota/armv7 "$WORK/chroot_native/tmp/ota"
+          pmbootstrap chroot -- sh -c 'cd /tmp/ota && apk index --allow-untrusted -o APKINDEX.tar.gz *.apk && abuild-sign -k /home/pmos/.abuild/cheip-os.rsa APKINDEX.tar.gz'
+          sudo cp "$WORK/chroot_native/tmp/ota/APKINDEX.tar.gz" ota/armv7/
+          sudo chown -R "$USER" ota
+          NOTES="$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")"
+          python3 - "$VER" "$NOTES" > ota/manifest.json <<'PY'
+          import json, sys
+          print(json.dumps({
+              "version": sys.argv[1],
+              "notes": sys.argv[2],
+              "devices": ["microsoft,superman-lte", "microsoft,dempsey", "microsoft,makepeace",
+                          "microsoft,moneypenny", "microsoft,tesla"],
+          }, indent=2))
+          PY
+          cat ota/manifest.json
+
+      - name: Upload su Cloudflare R2
+        if: env.R2_BUCKET != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+        run: |
+          EP="https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com"
+          # Prima i pacchetti, l'indice e il manifest per ultimi: nessun telefono vede un repo a metà
+          aws s3 cp ota/armv7/ "s3://$R2_BUCKET/$OTA_PREFIX/armv7/" --recursive --exclude APKINDEX.tar.gz --endpoint-url "$EP"
+          aws s3 cp ota/armv7/APKINDEX.tar.gz "s3://$R2_BUCKET/$OTA_PREFIX/armv7/APKINDEX.tar.gz" --endpoint-url "$EP"
+          aws s3 cp ota/manifest.json "s3://$R2_BUCKET/$OTA_PREFIX/manifest.json" --endpoint-url "$EP" --cache-control "no-cache"
+
+      - name: Release GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-*.xz
+            ota/armv7/*.apk
+            ota/manifest.json
+
+      - name: Log pmbootstrap in caso di errore
+        if: failure()
+        run: tail -n 200 "$WORK/log.txt" || true

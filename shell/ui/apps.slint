@@ -1,0 +1,308 @@
+import { Theme } from "theme.slint";
+import { Sys, Shell, Cal, Notes, Cam } from "data.slint";
+import { Icon, Icons, StatusBar, Badge, RoundButton, PillButton, Card } from "components.slint";
+
+component Field inherits Rectangle {
+    in property <string> placeholder;
+    in-out property <string> text <=> input.text;
+    in property <bool> multi: false;
+    height: 44px;
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: input.has-focus ? Theme.accent : Theme.line;
+    animate border-color { duration: Theme.fast; }
+    Text {
+        x: 12px; y: root.multi ? 12px : 0px;
+        height: root.multi ? self.preferred-height : parent.height;
+        text: root.placeholder;
+        visible: input.text == "";
+        color: Theme.faint; font-family: Theme.body; font-size: 14px;
+        vertical-alignment: center;
+    }
+    input := TextInput {
+        x: 12px; y: root.multi ? 12px : 0px;
+        width: parent.width - 24px;
+        height: root.multi ? parent.height - 24px : parent.height;
+        color: Theme.text; font-family: Theme.body; font-size: 14px;
+        vertical-alignment: root.multi ? top : center;
+        single-line: !root.multi;
+        wrap: word-wrap;
+    }
+}
+
+// ---------- Calendario ----------
+export component CalendarApp inherits Rectangle {
+    background: Theme.bg;
+    property <bool> adding: false;
+    property <length> cell-w: (root.width - 32px) / 7;
+
+    StatusBar { y: 0; width: parent.width; }
+
+    Text {
+        x: 16px; y: 30px;
+        text: Cal.month-label;
+        color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 22px; letter-spacing: -0.5px;
+        height: 44px; vertical-alignment: center;
+    }
+    RoundButton { x: root.width - 156px; y: 30px; icon: Icons.back; clicked => { Cal.prev-month(); } }
+    RoundButton { x: root.width - 108px; y: 30px; icon: Icons.fwd; clicked => { Cal.next-month(); } }
+    RoundButton { x: root.width - 60px; y: 30px; icon: Icons.plus; fill: Theme.accent; tint: #000; outlined: false; clicked => { root.adding = !root.adding; } }
+
+    for d[i] in ["L", "M", "M", "G", "V", "S", "D"]: Text {
+        x: 16px + i * root.cell-w; y: 88px; width: root.cell-w;
+        text: d; color: Theme.muted; font-family: Theme.body; font-size: 11px;
+        horizontal-alignment: center;
+    }
+
+    for c in Cal.cells: Rectangle {
+        x: 16px + c.col * root.cell-w + (root.cell-w - 40px) / 2;
+        y: 108px + c.row * 42px;
+        width: 40px; height: 40px;
+        visible: c.in-month;
+        border-radius: 20px;
+        background: c.selected ? Theme.accent : transparent;
+        animate background { duration: Theme.fast; }
+        Text {
+            y: 9px;
+            text: c.n;
+            color: c.selected ? #000 : (c.today ? Theme.accent : Theme.text);
+            font-family: Theme.body; font-size: 14px;
+            font-weight: (c.selected || c.today) ? 600 : 400;
+            horizontal-alignment: center; width: parent.width;
+        }
+        Rectangle {
+            y: 29px; width: 4px; height: 4px; border-radius: 2px;
+            background: c.has-events ? (c.selected ? #000 : Theme.muted) : transparent;
+        }
+        TouchArea { clicked => { Cal.select(c.n); root.adding = false; } }
+    }
+
+    Rectangle { x: 16px; y: 366px; width: parent.width - 32px; height: 1px; background: #1f1f1f; }
+
+    if !root.adding: VerticalLayout {
+        x: 16px; y: 378px; width: parent.width - 32px;
+        spacing: 8px; alignment: start;
+        Text { text: Cal.selected-label; color: Theme.muted; font-family: Theme.body; font-size: 13px; }
+        for e in Cal.events: Card {
+            height: 44px;
+            HorizontalLayout {
+                padding-left: 12px; spacing: 12px;
+                Text { width: 44px; text: e.time; color: Theme.accent; font-family: Theme.display; font-weight: 500; font-size: 15px; vertical-alignment: center; }
+                Text { text: e.title; color: Theme.text; font-family: Theme.body; font-size: 14px; vertical-alignment: center; overflow: elide; }
+            }
+        }
+        if Cal.events.length == 0: Text { text: "Giornata libera"; color: Theme.faint; font-family: Theme.body; font-size: 14px; }
+    }
+
+    if root.adding: VerticalLayout {
+        x: 16px; y: 378px; width: parent.width - 32px;
+        spacing: 8px; alignment: start;
+        Text { text: "Nuovo evento · " + Cal.selected-label; color: Theme.muted; font-family: Theme.body; font-size: 13px; }
+        title := Field { placeholder: "Titolo"; }
+        when := Field { placeholder: "Ora, es. 18:30"; }
+        HorizontalLayout {
+            alignment: end; spacing: 8px;
+            PillButton { label: "Annulla"; clicked => { root.adding = false; } }
+            PillButton { label: "Salva"; solid: true; clicked => { Cal.add-event(when.text, title.text); root.adding = false; } }
+        }
+    }
+}
+
+// ---------- Note ----------
+export component NotesApp inherits Rectangle {
+    background: Theme.bg;
+    property <int> editing: -2;
+    property <string> draft-title;
+    property <string> draft-body;
+    property <length> card-w: (root.width - 40px) / 2;
+
+    StatusBar { y: 0; width: parent.width; }
+    Text {
+        x: 16px; y: 34px;
+        text: "Note";
+        color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 28px; letter-spacing: -0.5px;
+    }
+
+    HorizontalLayout {
+        x: 16px; y: 84px; height: 34px;
+        spacing: 8px; alignment: start;
+        PillButton { label: "Tutte"; active: Notes.filter == 0; clicked => { Notes.set-filter(0); } }
+        PillButton { label: "Fissate"; active: Notes.filter == 1; clicked => { Notes.set-filter(1); } }
+    }
+
+    Flickable {
+        x: 16px; y: 130px; width: parent.width - 32px; height: parent.height - 130px;
+        content-height: Notes.rows * 112px + 90px;
+        for n in Notes.notes: Card {
+            x: n.col * (root.card-w + 8px);
+            y: n.row * 112px;
+            width: root.card-w; height: 104px;
+            VerticalLayout {
+                padding: 12px; spacing: 6px; alignment: start;
+                HorizontalLayout {
+                    spacing: 6px;
+                    Text { text: n.title; color: Theme.text; font-family: Theme.display; font-weight: 500; font-size: 15px; overflow: elide; }
+                    if n.pinned: Rectangle { width: 8px; height: 8px; y: 5px; border-radius: 4px; background: Theme.accent; }
+                }
+                Text { text: n.body; color: Theme.muted; font-family: Theme.body; font-size: 12px; wrap: word-wrap; overflow: elide; height: 50px; }
+            }
+            TouchArea {
+                clicked => {
+                    root.draft-title = n.title;
+                    root.draft-body = n.body;
+                    root.editing = n.id;
+                }
+            }
+        }
+    }
+
+    RoundButton {
+        x: root.width - 72px; y: root.height - 80px; size: 56px;
+        icon: Icons.plus; fill: Theme.accent; tint: #000; outlined: false;
+        clicked => { root.draft-title = ""; root.draft-body = ""; root.editing = -1; }
+    }
+
+    // Editor a schermo intero
+    editor := Rectangle {
+        y: root.editing > -2 ? 0px : root.height;
+        height: root.height;
+        background: Theme.surface;
+        animate y { duration: Theme.slow; easing: Theme.ease; }
+        StatusBar { y: 0; width: parent.width; }
+        RoundButton {
+            x: 16px; y: 32px; icon: Icons.back;
+            clicked => {
+                if (t.text != "" || b.text != "") { Notes.save(root.editing, t.text, b.text); }
+                root.editing = -2;
+            }
+        }
+        if root.editing >= 0: RoundButton { x: root.width - 116px; y: 32px; icon: Icons.pin; clicked => { Notes.toggle-pin(root.editing); } }
+        if root.editing >= 0: RoundButton { x: root.width - 60px; y: 32px; icon: Icons.trash; clicked => { Notes.remove(root.editing); root.editing = -2; } }
+        t := TextInput {
+            x: 20px; y: 92px; width: parent.width - 40px; height: 40px;
+            text: root.draft-title;
+            color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 26px;
+            single-line: true;
+        }
+        b := TextInput {
+            x: 20px; y: 140px; width: parent.width - 40px; height: parent.height - 160px;
+            text: root.draft-body;
+            color: Theme.text; font-family: Theme.body; font-size: 15px;
+            single-line: false; wrap: word-wrap;
+        }
+    }
+}
+
+// ---------- Fotocamera ----------
+export component CameraApp inherits Rectangle {
+    background: Theme.bg;
+    property <int> mode: 0;
+    property <bool> rec: false;
+
+    RoundButton { x: 12px; y: 6px; icon: Icons.flash; outlined: false; }
+    Text { y: 6px; height: 44px; width: parent.width; text: "5 MP · 4:3"; color: Theme.muted; font-family: Theme.body; font-size: 12px; horizontal-alignment: center; vertical-alignment: center; }
+
+    Rectangle {
+        x: 8px; y: 56px; width: parent.width - 16px; height: 360px;
+        border-radius: 12px; background: #161616; clip: true;
+        Rectangle { x: parent.width / 3; width: 1px; background: #2c2c2c; }
+        Rectangle { x: parent.width * 2 / 3; width: 1px; background: #2c2c2c; }
+        Rectangle { y: parent.height / 3; height: 1px; background: #2c2c2c; }
+        Rectangle { y: parent.height * 2 / 3; height: 1px; background: #2c2c2c; }
+        Rectangle { width: 64px; height: 64px; border-width: 1.5px; border-color: Theme.accent; border-radius: 10px; }
+        if !Cam.available: Text {
+            y: parent.height - 40px; width: parent.width;
+            text: Cam.message; color: Theme.muted; font-family: Theme.body; font-size: 12px;
+            horizontal-alignment: center;
+        }
+        if root.rec: Rectangle {
+            y: 12px; width: 70px; height: 24px; border-radius: 12px; background: #000;
+            Text { text: "● REC"; color: #ff3b30; font-family: Theme.body; font-size: 12px; font-weight: 600; }
+        }
+    }
+
+    HorizontalLayout {
+        y: 444px; height: 32px;
+        alignment: center; spacing: 4px;
+        PillButton { label: "Foto"; solid: root.mode == 0; clicked => { root.mode = 0; root.rec = false; } }
+        PillButton { label: "Video"; solid: root.mode == 1; clicked => { root.mode = 1; root.rec = false; } }
+        PillButton { label: "Ritratto"; solid: root.mode == 2; clicked => { root.mode = 2; root.rec = false; } }
+    }
+
+    Rectangle {
+        x: 32px; y: 518px; width: 44px; height: 44px; border-radius: 10px;
+        background: #262626; border-width: 1px; border-color: #3a3a3a;
+    }
+    shutter := Rectangle {
+        x: (root.width - 72px) / 2; y: 504px; width: 72px; height: 72px;
+        border-radius: 36px; border-width: 3px; border-color: Theme.text;
+        core := Rectangle {
+            width: root.rec ? 26px : (sh.pressed ? 50px : 58px);
+            height: self.width;
+            border-radius: root.rec ? 6px : self.width / 2;
+            background: root.mode == 1 ? #ff3b30 : Theme.text;
+            animate width, border-radius { duration: 220ms; easing: Theme.ease; }
+        }
+        sh := TouchArea { clicked => { if (root.mode == 1) { root.rec = !root.rec; } } }
+    }
+    RoundButton { x: root.width - 76px; y: 518px; icon: Icons.flip; }
+}
+
+// ---------- Impostazioni ----------
+export component SettingsApp inherits Rectangle {
+    background: Theme.bg;
+    StatusBar { y: 0; width: parent.width; }
+    Text {
+        x: 16px; y: 34px;
+        text: "Impostazioni";
+        color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 28px; letter-spacing: -0.5px;
+    }
+
+    VerticalLayout {
+        x: 16px; y: 92px; width: parent.width - 32px;
+        spacing: 10px; alignment: start;
+
+        Text { text: "Colore accento"; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
+        HorizontalLayout {
+            spacing: 12px; alignment: start; height: 44px;
+            for c in [#c6ff3d, #ff7a1a, #3da9ff, #ff4fa3]: Rectangle {
+                width: 44px; height: 44px; border-radius: 22px;
+                background: c;
+                border-width: Theme.accent == c ? 3px : 0px;
+                border-color: Theme.text;
+                TouchArea { clicked => { Theme.accent = c; } }
+            }
+        }
+
+        Rectangle { height: 8px; }
+        Text { text: "Telefono"; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
+        Card {
+            height: 132px;
+            VerticalLayout {
+                padding: 14px; spacing: 8px;
+                HorizontalLayout { Text { text: "Modello"; color: Theme.muted; font-family: Theme.body; font-size: 13px; } Rectangle { } Text { text: Sys.model; color: Theme.text; font-family: Theme.body; font-size: 13px; } }
+                HorizontalLayout { Text { text: "Cheip OS"; color: Theme.muted; font-family: Theme.body; font-size: 13px; } Rectangle { } Text { text: Sys.version; color: Theme.text; font-family: Theme.body; font-size: 13px; } }
+                HorizontalLayout { Text { text: "Kernel"; color: Theme.muted; font-family: Theme.body; font-size: 13px; } Rectangle { } Text { text: Sys.kernel; color: Theme.text; font-family: Theme.body; font-size: 13px; overflow: elide; } }
+                HorizontalLayout { Text { text: "Memoria"; color: Theme.muted; font-family: Theme.body; font-size: 13px; } Rectangle { } Text { text: Sys.mem-total + " MB"; color: Theme.text; font-family: Theme.body; font-size: 13px; } }
+            }
+        }
+
+        Rectangle { height: 8px; }
+        Text { text: "Aggiornamenti"; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
+        Card {
+            height: 64px;
+            VerticalLayout {
+                x: 14px; width: parent.width - 120px;
+                alignment: center; spacing: 2px;
+                Text { text: Sys.update-available ? "Disponibile la " + Sys.update-version : "Versione " + Sys.version; color: Theme.text; font-family: Theme.body; font-size: 13px; font-weight: 600; }
+                Text { text: Sys.update-state; color: Theme.muted; font-family: Theme.body; font-size: 12px; overflow: elide; }
+            }
+            PillButton {
+                x: parent.width - self.width - 14px; y: 15px;
+                label: Sys.update-available ? "Installa" : "Controlla";
+                solid: Sys.update-available;
+                clicked => { if (Sys.update-available) { Sys.install-update(); } else { Sys.check-update(); } }
+            }
+        }
+    }
+}

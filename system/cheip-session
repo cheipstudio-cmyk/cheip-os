@@ -1,0 +1,21 @@
+#!/bin/sh
+# Avvio della shell Cheip OS direttamente su DRM/KMS, senza compositor.
+# Con la GPU attiva (freedreno crea /dev/dri/renderD128) si usa GLES,
+# altrimenti il renderer software su simpledrm.
+
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+mkdir -p "$XDG_RUNTIME_DIR" 2>/dev/null
+chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null
+
+if [ -z "$SLINT_BACKEND" ]; then
+	if [ -e /dev/dri/renderD128 ]; then
+		export SLINT_BACKEND=linuxkms-femtovg
+	else
+		export SLINT_BACKEND=linuxkms-software
+	fi
+fi
+
+# 720x1280 a densità 2x: 360x640 punti logici come nel design
+export SLINT_SCALE_FACTOR="${SLINT_SCALE_FACTOR:-2}"
+
+exec /usr/bin/cheip-shell

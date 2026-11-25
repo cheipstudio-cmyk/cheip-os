@@ -1,0 +1,26 @@
+name: Shell (test e screenshot)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: shell
+      - name: Test
+        working-directory: shell
+        run: cargo test --no-default-features --features screens --lib
+      - name: Screenshot 720x1280
+        working-directory: shell
+        run: cargo run --release --no-default-features --features screens --bin cheip-screens -- ../screens
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screens
+          path: screens/*.png

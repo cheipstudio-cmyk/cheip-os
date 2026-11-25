@@ -1,0 +1,20 @@
+# Maintainer: Eugenio Casale <cheipstudio@gmail.com>
+# Pacchetto UI per pmbootstrap: "pmbootstrap config ui cheip"
+pkgname=postmarketos-ui-cheip
+pkgver=0.1.0
+pkgrel=0
+pkgdesc="Cheip OS: interfaccia leggera per telefoni con 1 GB di RAM"
+url="https://cheipstudio.org"
+arch="noarch"
+license="GPL-3.0-or-later"
+depends="cheip-shell networkmanager networkmanager-wifi wpa_supplicant"
+install="$pkgname.post-install"
+# Repository OTA firmato e chiave pubblica per verificarlo
+source="cheip-os.rsa.pub"
+options="!check"
+
+package() {
+	install -Dm644 "$srcdir"/cheip-os.rsa.pub "$pkgdir"/etc/apk/keys/cheip-os.rsa.pub
+}
+
+sha512sums="SKIP"

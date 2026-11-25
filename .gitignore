@@ -1,0 +1,6 @@
+shell/target/
+*.rsa
+!keys/*.rsa.pub
+dist-*
+ota/
+out/
