@@ -9,6 +9,6 @@ fn main() -> Result<(), slint::PlatformError> {
     let ui = AppWindow::new()?;
     let store = Store::open(Store::data_dir());
     let _state = controller::wire(&ui, store, chrono::Local::now().naive_local(), true);
-    let _timers = controller::start_timers(&ui);
+    let _timers = controller::start_timers(&ui, &_state);
     ui.run()
 }

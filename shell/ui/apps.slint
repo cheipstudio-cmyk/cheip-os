@@ -1,34 +1,6 @@
 import { Theme } from "theme.slint";
 import { Sys, Shell, Cal, Notes, Cam } from "data.slint";
-import { Icon, Icons, StatusBar, Badge, RoundButton, PillButton, Card } from "components.slint";
-
-component Field inherits Rectangle {
-    in property <string> placeholder;
-    in-out property <string> text <=> input.text;
-    in property <bool> multi: false;
-    height: 44px;
-    border-radius: 12px;
-    border-width: 1px;
-    border-color: input.has-focus ? Theme.accent : Theme.line;
-    animate border-color { duration: Theme.fast; }
-    Text {
-        x: 12px; y: root.multi ? 12px : 0px;
-        height: root.multi ? self.preferred-height : parent.height;
-        text: root.placeholder;
-        visible: input.text == "";
-        color: Theme.faint; font-family: Theme.body; font-size: 14px;
-        vertical-alignment: center;
-    }
-    input := TextInput {
-        x: 12px; y: root.multi ? 12px : 0px;
-        width: parent.width - 24px;
-        height: root.multi ? parent.height - 24px : parent.height;
-        color: Theme.text; font-family: Theme.body; font-size: 14px;
-        vertical-alignment: root.multi ? top : center;
-        single-line: !root.multi;
-        wrap: word-wrap;
-    }
-}
+import { Icon, Icons, StatusBar, Badge, RoundButton, PillButton, Card, Field } from "components.slint";
 
 // ---------- Calendario ----------
 export component CalendarApp inherits Rectangle {
@@ -248,61 +220,3 @@ export component CameraApp inherits Rectangle {
     RoundButton { x: root.width - 76px; y: 518px; icon: Icons.flip; }
 }
 
-// ---------- Impostazioni ----------
-export component SettingsApp inherits Rectangle {
-    background: Theme.bg;
-    StatusBar { y: 0; width: parent.width; }
-    Text {
-        x: 16px; y: 34px;
-        text: "Impostazioni";
-        color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 28px; letter-spacing: -0.5px;
-    }
-
-    VerticalLayout {
-        x: 16px; y: 92px; width: parent.width - 32px;
-        spacing: 10px; alignment: start;
-
-        Text { text: "Colore accento"; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
-        HorizontalLayout {
-            spacing: 12px; alignment: start; height: 44px;
-            for c in [#c6ff3d, #ff7a1a, #3da9ff, #ff4fa3]: Rectangle {
-                width: 44px; height: 44px; border-radius: 22px;
-                background: c;
-                border-width: Theme.accent == c ? 3px : 0px;
-                border-color: Theme.text;
-                TouchArea { clicked => { Theme.accent = c; } }
-            }
-        }
-
-        Rectangle { height: 8px; }
-        Text { text: "Telefono"; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
-        Card {
-            height: 132px;
-            VerticalLayout {
-                padding: 14px; spacing: 8px;
-                HorizontalLayout { Text { text: "Modello"; color: Theme.muted; font-family: Theme.body; font-size: 13px; } Rectangle { } Text { text: Sys.model; color: Theme.text; font-family: Theme.body; font-size: 13px; } }
-                HorizontalLayout { Text { text: "Cheip OS"; color: Theme.muted; font-family: Theme.body; font-size: 13px; } Rectangle { } Text { text: Sys.version; color: Theme.text; font-family: Theme.body; font-size: 13px; } }
-                HorizontalLayout { Text { text: "Kernel"; color: Theme.muted; font-family: Theme.body; font-size: 13px; } Rectangle { } Text { text: Sys.kernel; color: Theme.text; font-family: Theme.body; font-size: 13px; overflow: elide; } }
-                HorizontalLayout { Text { text: "Memoria"; color: Theme.muted; font-family: Theme.body; font-size: 13px; } Rectangle { } Text { text: Sys.mem-total + " MB"; color: Theme.text; font-family: Theme.body; font-size: 13px; } }
-            }
-        }
-
-        Rectangle { height: 8px; }
-        Text { text: "Aggiornamenti"; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
-        Card {
-            height: 64px;
-            VerticalLayout {
-                x: 14px; width: parent.width - 120px;
-                alignment: center; spacing: 2px;
-                Text { text: Sys.update-available ? "Disponibile la " + Sys.update-version : "Versione " + Sys.version; color: Theme.text; font-family: Theme.body; font-size: 13px; font-weight: 600; }
-                Text { text: Sys.update-state; color: Theme.muted; font-family: Theme.body; font-size: 12px; overflow: elide; }
-            }
-            PillButton {
-                x: parent.width - self.width - 14px; y: 15px;
-                label: Sys.update-available ? "Installa" : "Controlla";
-                solid: Sys.update-available;
-                clicked => { if (Sys.update-available) { Sys.install-update(); } else { Sys.check-update(); } }
-            }
-        }
-    }
-}

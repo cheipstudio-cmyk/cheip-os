@@ -1,9 +1,15 @@
 import { Theme } from "theme.slint";
-import { Sys, Shell, Cal, Notes, Cam, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem } from "data.slint";
+import { Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow } from "data.slint";
 import { LockScreen, HomeScreen, ControlsPanel, SwitcherScreen } from "screens.slint";
-import { CalendarApp, NotesApp, CameraApp, SettingsApp } from "apps.slint";
+import { CalendarApp, NotesApp, CameraApp } from "apps.slint";
+import { PhoneApp, CallOverlay } from "phone.slint";
+import { MessagesApp } from "messages.slint";
+import { BrowserApp } from "browser.slint";
+import { FilesApp } from "files.slint";
+import { SettingsApp } from "settings.slint";
+import { Icon, Icons } from "components.slint";
 
-export { Theme, Sys, Shell, Cal, Notes, Cam, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem }
+export { Theme, Icons, Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow }
 
 export component AppWindow inherits Window {
     title: "Cheip OS";
@@ -13,23 +19,22 @@ export component AppWindow inherits Window {
     default-font-family: "Inter";
 
     property <bool> unlocked: Shell.screen != ScreenId.lock;
+    property <bool> system-app: Shell.app-id == "calendar" || Shell.app-id == "notes" || Shell.app-id == "camera" || Shell.app-id == "settings" || Shell.app-id == "phone" || Shell.app-id == "messages" || Shell.app-id == "browser" || Shell.app-id == "files";
 
-    // Home, sempre sotto
     home := HomeScreen {
         width: root.width; height: root.height;
-        opacity: (Shell.app-open || Shell.screen == ScreenId.switcher) ? 0.25 : 1;
-        y: Shell.app-open ? -12px : 0px;
-        animate opacity, y { duration: Theme.slow; easing: Theme.ease; }
+        opacity: (Shell.app-open || Shell.screen == ScreenId.switcher) ? 0.2 : 1;
+        animate opacity { duration: Theme.slow; easing: Theme.ease; }
     }
 
-    // Finestra app: si espande dalla riga toccata
+    // Finestra app: nasce dall'icona toccata e si espande a tutto schermo
     host := Rectangle {
-        property <bool> live: Shell.app-open || self.height > 52px;
-        x: Shell.app-open ? 0px : 16px;
+        property <bool> live: Shell.app-open || self.width > Shell.from-size + 4px;
+        x: Shell.app-open ? 0px : Shell.from-x;
         y: Shell.app-open ? 0px : Shell.from-y;
-        width: Shell.app-open ? root.width : root.width - 32px;
-        height: Shell.app-open ? root.height : 48px;
-        border-radius: Shell.app-open ? 0px : 14px;
+        width: Shell.app-open ? root.width : Shell.from-size;
+        height: Shell.app-open ? root.height : Shell.from-size;
+        border-radius: Shell.app-open ? 0px : Shell.from-size / 2;
         visible: self.live;
         clip: true;
         background: Theme.surface;
@@ -39,16 +44,21 @@ export component AppWindow inherits Window {
             x: -host.x; y: -host.y;
             width: root.width; height: root.height;
             opacity: Shell.app-open ? 1 : 0;
-            animate opacity { duration: 260ms; delay: Shell.app-open ? 120ms : 0ms; easing: ease-out; }
+            animate opacity { duration: 240ms; delay: Shell.app-open ? 110ms : 0ms; easing: ease-out; }
+            if Shell.app-id == "phone": PhoneApp { }
+            if Shell.app-id == "messages": MessagesApp { }
+            if Shell.app-id == "browser": BrowserApp { }
+            if Shell.app-id == "files": FilesApp { }
             if Shell.app-id == "calendar": CalendarApp { }
             if Shell.app-id == "notes": NotesApp { }
             if Shell.app-id == "camera": CameraApp { }
             if Shell.app-id == "settings": SettingsApp { }
-            if Shell.app-id != "calendar" && Shell.app-id != "notes" && Shell.app-id != "camera" && Shell.app-id != "settings": Rectangle {
+            if !root.system-app: Rectangle {
                 background: Theme.surface;
+                Icon { y: 240px; d: Icons.android; size: 56px; tint: Theme.faint; weight: 1.4px; }
                 Text {
-                    width: parent.width - 48px;
-                    text: "Le app Android arrivano con la 0.2, quando la shell diventa compositor Wayland.";
+                    y: 320px; x: 32px; width: parent.width - 64px;
+                    text: "Le finestre delle app Android arrivano quando la shell diventa compositor Wayland.";
                     color: Theme.muted; font-family: Theme.body; font-size: 14px;
                     wrap: word-wrap; horizontal-alignment: center;
                 }
@@ -84,6 +94,7 @@ export component AppWindow inherits Window {
                         Shell.screen = ScreenId.switcher;
                     } else if (self.pressed-y - self.mouse-y > 30px) {
                         Shell.close-app();
+                        Shell.searching = false;
                         Shell.screen = ScreenId.home;
                     }
                 }
@@ -100,6 +111,12 @@ export component AppWindow inherits Window {
     lock := LockScreen {
         width: root.width; height: root.height;
         y: Shell.screen == ScreenId.lock ? 0px : -root.height;
+        animate y { duration: Theme.slow; easing: Theme.ease; }
+    }
+
+    call := CallOverlay {
+        width: root.width; height: root.height;
+        y: (Phone.in-call || Phone.incoming) ? 0px : root.height;
         animate y { duration: Theme.slow; easing: Theme.ease; }
     }
 }

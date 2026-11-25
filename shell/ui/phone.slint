@@ -1,0 +1,213 @@
+import { Theme } from "theme.slint";
+import { Phone } from "data.slint";
+import { Icon, Icons, StatusBar, RoundButton, Card, Title, Avatar, Field } from "components.slint";
+
+component Key inherits Rectangle {
+    in property <string> digit;
+    in property <string> letters;
+    callback pressed-key(string);
+    width: 64px; height: 64px; border-radius: 32px;
+    background: ta.pressed ? #2a2a2a : Theme.raised;
+    animate background { duration: 90ms; }
+    Text {
+        y: root.letters == "" ? 0px : 8px;
+        height: root.letters == "" ? parent.height : 34px;
+        width: parent.width;
+        text: root.digit; color: Theme.text;
+        font-family: Theme.display; font-weight: 500; font-size: 28px;
+        horizontal-alignment: center; vertical-alignment: center;
+    }
+    if root.letters != "": Text {
+        y: 40px; width: parent.width;
+        text: root.letters; color: Theme.muted; font-family: Theme.body; font-size: 9px; letter-spacing: 1px;
+        horizontal-alignment: center;
+    }
+    ta := TouchArea { clicked => { root.pressed-key(root.digit); } }
+}
+
+component TabIcon inherits Rectangle {
+    in property <string> glyph;
+    in property <bool> active;
+    callback clicked();
+    width: 56px; height: 44px; border-radius: 22px;
+    background: root.active ? Theme.raised : transparent;
+    animate background { duration: Theme.fast; }
+    Icon { d: root.glyph; tint: root.active ? Theme.accent : Theme.muted; size: 22px; }
+    TouchArea { clicked => { root.clicked(); } }
+}
+
+export component PhoneApp inherits Rectangle {
+    background: Theme.bg;
+    property <bool> adding: false;
+    property <length> col-w: (root.width - 48px) / 3;
+
+    StatusBar { y: 0; width: parent.width; }
+
+    if !Phone.modem-ok: Rectangle {
+        x: (parent.width - self.width) / 2; y: 28px; height: 24px;
+        width: warn.preferred-width + 24px;
+        border-radius: 12px; background: Theme.raised;
+        warn := Text { text: Phone.modem-label; color: Theme.muted; font-family: Theme.body; font-size: 11px; }
+    }
+
+    // Tastiera
+    if Phone.tab == 0: Rectangle {
+        Text {
+            x: 24px; y: 62px; width: parent.width - 96px; height: 56px;
+            text: Phone.dial;
+            color: Theme.text; font-family: Theme.display; font-weight: 500; font-size: Phone.dial.character-count > 11 ? 26px : 34px;
+            horizontal-alignment: center; vertical-alignment: center; overflow: elide;
+        }
+        if Phone.dial != "": RoundButton {
+            x: parent.width - 64px; y: 68px; icon: Icons.back; outlined: false; tint: Theme.muted;
+            clicked => { Phone.dial = ""; }
+        }
+        for k[i] in [
+            {d: "1", l: ""}, {d: "2", l: "ABC"}, {d: "3", l: "DEF"},
+            {d: "4", l: "GHI"}, {d: "5", l: "JKL"}, {d: "6", l: "MNO"},
+            {d: "7", l: "PQRS"}, {d: "8", l: "TUV"}, {d: "9", l: "WXYZ"},
+            {d: "*", l: ""}, {d: "0", l: "+"}, {d: "#", l: ""}
+        ]: Key {
+            x: 24px + mod(i, 3) * root.col-w + (root.col-w - 64px) / 2;
+            y: 134px + floor(i / 3) * 76px;
+            digit: k.d; letters: k.l;
+            pressed-key(d) => { Phone.dial += d; }
+        }
+        Rectangle {
+            x: (parent.width - 64px) / 2; y: 446px; width: 64px; height: 64px; border-radius: 32px;
+            background: Phone.dial == "" ? Theme.raised : Theme.accent;
+            animate background { duration: Theme.fast; }
+            accessible-role: button; accessible-label: "Chiama";
+            Icon { d: Icons.phone; tint: Phone.dial == "" ? Theme.muted : #000; size: 24px; }
+            TouchArea { clicked => { if (Phone.dial != "") { Phone.call(Phone.dial); } } }
+        }
+    }
+
+    // Recenti
+    if Phone.tab == 1: Rectangle {
+        Title { x: 16px; y: 56px; text: "Recenti"; }
+        Flickable {
+            x: 16px; y: 104px; width: parent.width - 32px; height: 430px;
+            content-height: Phone.recents.length * 60px;
+            for c[i] in Phone.recents: Rectangle {
+                y: i * 60px; height: 60px;
+                background: rta.pressed ? Theme.raised : transparent;
+                Rectangle {
+                    x: 0; width: 40px; height: 40px; border-radius: 20px; background: Theme.raised;
+                    Icon {
+                        d: c.dir == "out" ? Icons.out-arrow : Icons.in-arrow;
+                        tint: c.dir == "missed" ? #ff6b6b : Theme.muted; size: 16px;
+                    }
+                }
+                VerticalLayout {
+                    x: 52px; width: parent.width - 120px; alignment: center; spacing: 2px;
+                    Text { text: c.name; color: c.dir == "missed" ? #ff6b6b : Theme.text; font-family: Theme.body; font-size: 15px; overflow: elide; }
+                    Text { text: c.number; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
+                }
+                Text { x: parent.width - self.width; height: parent.height; text: c.when; color: Theme.faint; font-family: Theme.body; font-size: 12px; vertical-alignment: center; }
+                rta := TouchArea { clicked => { Phone.call(c.number); } }
+            }
+        }
+        if Phone.recents.length == 0: Icon { x: (parent.width - 48px) / 2; y: 240px; d: Icons.history; size: 48px; tint: Theme.faint; weight: 1.5px; }
+    }
+
+    // Contatti
+    if Phone.tab == 2: Rectangle {
+        Title { x: 16px; y: 56px; text: "Contatti"; }
+        RoundButton {
+            x: parent.width - 60px; y: 54px; icon: root.adding ? Icons.close : Icons.plus;
+            clicked => { root.adding = !root.adding; }
+        }
+        if root.adding: VerticalLayout {
+            x: 16px; y: 108px; width: parent.width - 32px; spacing: 8px; alignment: start;
+            name := Field { placeholder: "Nome"; }
+            num := Field { placeholder: "Numero"; kind: InputType.number; }
+            Rectangle {
+                height: 44px; border-radius: 22px; background: Theme.accent;
+                Text { text: "Salva"; color: #000; font-family: Theme.body; font-size: 14px; font-weight: 600; }
+                TouchArea {
+                    clicked => {
+                        if (name.text != "" && num.text != "") {
+                            Phone.add-contact(name.text, num.text);
+                            root.adding = false;
+                        }
+                    }
+                }
+            }
+        }
+        if !root.adding: Flickable {
+            x: 16px; y: 104px; width: parent.width - 32px; height: 430px;
+            content-height: Phone.contacts.length * 60px;
+            for c[i] in Phone.contacts: Rectangle {
+                y: i * 60px; height: 60px;
+                background: cta.pressed ? Theme.raised : transparent;
+                Avatar { x: 0; initial: c.initial; size: 40px; }
+                VerticalLayout {
+                    x: 52px; width: parent.width - 60px; alignment: center; spacing: 2px;
+                    Text { text: c.name; color: Theme.text; font-family: Theme.body; font-size: 15px; }
+                    Text { text: c.number; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
+                }
+                cta := TouchArea { clicked => { Phone.call(c.number); } }
+            }
+        }
+        if !root.adding && Phone.contacts.length == 0: Icon { x: (parent.width - 48px) / 2; y: 240px; d: Icons.user; size: 48px; tint: Theme.faint; weight: 1.5px; }
+    }
+
+    // Barra schede, solo icone
+    HorizontalLayout {
+        y: parent.height - 84px; height: 44px;
+        alignment: center; spacing: 24px;
+        TabIcon { glyph: Icons.keypad; active: Phone.tab == 0; clicked => { Phone.tab = 0; } }
+        TabIcon { glyph: Icons.history; active: Phone.tab == 1; clicked => { Phone.tab = 1; } }
+        TabIcon { glyph: Icons.user; active: Phone.tab == 2; clicked => { Phone.tab = 2; } }
+    }
+}
+
+// Chiamata in corso o in arrivo: sopra a tutto, anche al blocco
+export component CallOverlay inherits Rectangle {
+    background: Theme.surface;
+    TouchArea { }
+    Avatar {
+        x: (parent.width - 96px) / 2; y: 120px; size: 96px;
+        initial: Phone.call-initial;
+    }
+    Text {
+        y: 240px; width: parent.width;
+        text: Phone.call-name;
+        color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 30px;
+        horizontal-alignment: center;
+    }
+    Text {
+        y: 284px; width: parent.width;
+        text: Phone.call-number;
+        color: Theme.muted; font-family: Theme.body; font-size: 15px;
+        horizontal-alignment: center;
+    }
+    Text {
+        y: 314px; width: parent.width;
+        text: Phone.incoming ? "Chiamata in arrivo" : (Phone.call-time != "" ? Phone.call-time : Phone.call-state);
+        color: Theme.accent; font-family: Theme.body; font-size: 14px; font-weight: 600;
+        horizontal-alignment: center;
+    }
+    if Phone.incoming: Rectangle {
+        x: 64px; y: parent.height - 160px; width: 72px; height: 72px; border-radius: 36px;
+        background: #ff4d4d;
+        accessible-role: button; accessible-label: "Rifiuta";
+        Icon { d: Icons.hangup; tint: #fff; size: 28px; }
+        TouchArea { clicked => { Phone.hangup(); } }
+    }
+    if Phone.incoming: Rectangle {
+        x: parent.width - 136px; y: parent.height - 160px; width: 72px; height: 72px; border-radius: 36px;
+        background: Theme.accent;
+        accessible-role: button; accessible-label: "Rispondi";
+        Icon { d: Icons.phone; tint: #000; size: 28px; }
+        TouchArea { clicked => { Phone.answer(); } }
+    }
+    if !Phone.incoming: Rectangle {
+        x: (parent.width - 72px) / 2; y: parent.height - 160px; width: 72px; height: 72px; border-radius: 36px;
+        background: #ff4d4d;
+        accessible-role: button; accessible-label: "Chiudi chiamata";
+        Icon { d: Icons.hangup; tint: #fff; size: 28px; }
+        TouchArea { clicked => { Phone.hangup(); } }
+    }
+}

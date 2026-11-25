@@ -1,0 +1,114 @@
+import { Theme } from "theme.slint";
+import { Files } from "data.slint";
+import { Icon, Icons, StatusBar, RoundButton, Title, Field, Card, PillButton } from "components.slint";
+
+export component FilesApp inherits Rectangle {
+    background: Theme.bg;
+    property <bool> creating: false;
+    property <int> confirm: -1;
+    property <string> new-name;
+
+    StatusBar { y: 0; width: parent.width; }
+
+    if Files.can-up: RoundButton { x: 8px; y: 30px; icon: Icons.back; outlined: false; clicked => { Files.up(); } }
+    Text {
+        x: Files.can-up ? 56px : 16px; y: 30px; height: 44px; width: parent.width - self.x - 70px;
+        text: Files.path-label;
+        color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 24px;
+        vertical-alignment: center; overflow: elide;
+    }
+    RoundButton {
+        x: parent.width - 60px; y: 30px; icon: root.creating ? Icons.close : Icons.plus;
+        clicked => { root.creating = !root.creating; }
+    }
+    Text { x: 16px; y: 78px; text: Files.storage; color: Theme.faint; font-family: Theme.body; font-size: 11px; }
+
+    if root.creating: HorizontalLayout {
+        x: 16px; y: 100px; width: parent.width - 32px; height: 44px; spacing: 8px;
+        Field { placeholder: "Nome cartella"; text <=> root.new-name; }
+        RoundButton {
+            icon: Icons.folder; fill: Theme.accent; tint: #000; outlined: false;
+            clicked => { Files.mkdir(root.new-name); root.new-name = ""; root.creating = false; }
+        }
+    }
+
+    Flickable {
+        x: 16px; y: root.creating ? 156px : 100px; width: parent.width - 32px;
+        height: parent.height - self.y - 32px;
+        content-height: Files.entries.length * 60px;
+        for e[i] in Files.entries: Rectangle {
+            y: i * 60px; height: 60px;
+            background: ta.pressed ? Theme.raised : transparent;
+            Rectangle {
+                x: 0; width: 40px; height: 40px; border-radius: 20px;
+                background: e.kind == 0 ? Theme.accent : Theme.raised;
+                Icon {
+                    d: e.kind == 0 ? Icons.folder : (e.kind == 2 ? Icons.picture : Icons.file);
+                    tint: e.kind == 0 ? #000 : Theme.text; size: 18px;
+                }
+            }
+            VerticalLayout {
+                x: 52px; width: parent.width - 104px; alignment: center; spacing: 2px;
+                Text { text: e.name; color: Theme.text; font-family: Theme.body; font-size: 15px; overflow: elide; }
+                Text { text: e.info; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
+            }
+            ta := TouchArea { clicked => { Files.open(i); } }
+            RoundButton {
+                x: parent.width - 44px; y: 8px; icon: Icons.trash; outlined: false; tint: Theme.faint; icon-size: 18px;
+                clicked => { root.confirm = i; }
+            }
+        }
+    }
+    if Files.entries.length == 0: Icon { x: (parent.width - 48px) / 2; y: 240px; d: Icons.folder; size: 48px; tint: Theme.faint; weight: 1.5px; }
+
+    // Conferma eliminazione
+    if root.confirm >= 0: Rectangle {
+        background: #000000b0;
+        TouchArea { clicked => { root.confirm = -1; } }
+        Card {
+            x: 24px; y: (parent.height - 150px) / 2; width: parent.width - 48px; height: 150px;
+            background: Theme.surface;
+            Text {
+                x: 20px; y: 20px; width: parent.width - 40px;
+                text: "Eliminare " + Files.entries[root.confirm].name + "?";
+                color: Theme.text; font-family: Theme.body; font-size: 15px; font-weight: 600; wrap: word-wrap;
+            }
+            HorizontalLayout {
+                x: 20px; y: 96px; width: parent.width - 40px; height: 34px; spacing: 8px; alignment: end;
+                PillButton { label: "Annulla"; clicked => { root.confirm = -1; } }
+                PillButton { label: "Elimina"; solid: true; clicked => { Files.remove(root.confirm); root.confirm = -1; } }
+            }
+        }
+    }
+
+    // Anteprima
+    if Files.preview-open: Rectangle {
+        background: Theme.surface;
+        TouchArea { }
+        StatusBar { y: 0; width: parent.width; }
+        RoundButton { x: 8px; y: 30px; icon: Icons.close; outlined: false; clicked => { Files.close-preview(); } }
+        Text {
+            x: 56px; y: 30px; height: 44px; width: parent.width - 72px;
+            text: Files.preview-name; color: Theme.text; font-family: Theme.body; font-size: 15px; font-weight: 600;
+            vertical-alignment: center; overflow: elide;
+        }
+        if Files.preview-kind == 1: Flickable {
+            x: 16px; y: 84px; width: parent.width - 32px; height: parent.height - 108px;
+            content-height: pt.preferred-height + 24px;
+            pt := Text {
+                y: 0; width: parent.width;
+                text: Files.preview-text; wrap: word-wrap;
+                color: Theme.text; font-family: Theme.body; font-size: 13px;
+            }
+        }
+        if Files.preview-kind == 2: Image {
+            x: 0; y: 84px; width: parent.width; height: parent.height - 108px;
+            source: Files.preview-image; image-fit: contain;
+        }
+        if Files.preview-kind == 3: Text {
+            y: 260px; width: parent.width;
+            text: "Anteprima non disponibile per questo tipo di file";
+            color: Theme.muted; font-family: Theme.body; font-size: 13px; horizontal-alignment: center;
+        }
+    }
+}

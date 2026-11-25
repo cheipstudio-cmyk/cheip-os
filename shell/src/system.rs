@@ -162,8 +162,9 @@ pub fn waydroid_running() -> bool {
         .unwrap_or(false)
 }
 
-/// App Android installate: Waydroid crea un .desktop per ognuna
-pub fn android_apps() -> Vec<(String, String)> {
+/// App Android installate: Waydroid crea un .desktop per ognuna.
+/// (pacchetto, nome, percorso icona)
+pub fn android_apps() -> Vec<(String, String, Option<PathBuf>)> {
     let mut out = Vec::new();
     let Some(home) = std::env::var_os("HOME") else { return out };
     let dir = Path::new(&home).join(".local/share/applications");
@@ -177,9 +178,155 @@ pub fn android_apps() -> Vec<(String, String)> {
                 .find_map(|l| l.strip_prefix("Name="))
                 .unwrap_or(pkg)
                 .to_string();
-            out.push((pkg.to_string(), name));
+            let icon = content
+                .lines()
+                .find_map(|l| l.strip_prefix("Icon="))
+                .map(PathBuf::from)
+                .filter(|p| p.is_absolute() && p.exists());
+            out.push((pkg.to_string(), name, icon));
         }
     }
     out.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
     out
+}
+
+// ---------- Wi-Fi ----------
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct WifiNet {
+    pub ssid: String,
+    pub signal: i32,
+    pub secure: bool,
+    pub active: bool,
+}
+
+/// nmcli -t usa ':' come separatore e '\:' per i due punti dentro i valori
+pub fn split_terse(line: &str) -> Vec<String> {
+    let mut out = vec![String::new()];
+    let mut esc = false;
+    for c in line.chars() {
+        if esc {
+            out.last_mut().unwrap().push(c);
+            esc = false;
+        } else if c == '\\' {
+            esc = true;
+        } else if c == ':' {
+            out.push(String::new());
+        } else {
+            out.last_mut().unwrap().push(c);
+        }
+    }
+    out
+}
+
+/// Output di: nmcli -t -f IN-USE,SSID,SIGNAL,SECURITY dev wifi list
+pub fn parse_wifi(s: &str) -> Vec<WifiNet> {
+    let mut v: Vec<WifiNet> = Vec::new();
+    for line in s.lines() {
+        let f = split_terse(line);
+        if f.len() < 4 || f[1].is_empty() {
+            continue;
+        }
+        let net = WifiNet {
+            active: f[0].trim() == "*",
+            ssid: f[1].clone(),
+            signal: f[2].parse().unwrap_or(0),
+            secure: !f[3].trim().is_empty() && f[3].trim() != "--",
+        };
+        // Stessa rete su più access point: teniamo il segnale migliore
+        match v.iter_mut().find(|n| n.ssid == net.ssid) {
+            Some(n) => {
+                n.signal = n.signal.max(net.signal);
+                n.active |= net.active;
+            }
+            None => v.push(net),
+        }
+    }
+    v.sort_by(|a, b| b.active.cmp(&a.active).then(b.signal.cmp(&a.signal)));
+    v
+}
+
+pub fn wifi_scan() -> Vec<WifiNet> {
+    Command::new("nmcli")
+        .args(["-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "dev", "wifi", "list", "--rescan", "yes"])
+        .output()
+        .map(|o| parse_wifi(&String::from_utf8_lossy(&o.stdout)))
+        .unwrap_or_default()
+}
+
+pub fn wifi_connect(ssid: &str, password: &str) -> Result<(), String> {
+    let mut args = vec!["dev", "wifi", "connect", ssid];
+    if !password.is_empty() {
+        args.push("password");
+        args.push(password);
+    }
+    let out = Command::new("nmcli").args(&args).output().map_err(|_| "NetworkManager non disponibile".to_string())?;
+    if out.status.success() {
+        Ok(())
+    } else if String::from_utf8_lossy(&out.stderr).contains("Secrets were required") {
+        Err("Password errata".into())
+    } else {
+        Err("Connessione non riuscita".into())
+    }
+}
+
+// ---------- Audio ----------
+
+/// Volume ALSA 0..1 (la shell gira fuori dalla sessione utente, niente PipeWire)
+pub fn volume() -> Option<f32> {
+    let out = Command::new("amixer").args(["-M", "get", "Master"]).output().ok()?;
+    parse_volume(&String::from_utf8_lossy(&out.stdout))
+}
+
+pub fn parse_volume(s: &str) -> Option<f32> {
+    let start = s.find('[')?;
+    let end = s[start..].find("%]")? + start;
+    s[start + 1..end].parse::<f32>().ok().map(|v| v / 100.0)
+}
+
+pub fn set_volume(v: f32) {
+    run("amixer", &["-q", "-M", "set", "Master", &format!("{}%", (v.clamp(0.0, 1.0) * 100.0).round())]);
+}
+
+// ---------- Bluetooth ----------
+
+pub fn bt_paired() -> Vec<String> {
+    Command::new("bluetoothctl")
+        .args(["devices", "Paired"])
+        .output()
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .filter_map(|l| l.strip_prefix("Device ").and_then(|r| r.split_once(' ')).map(|(_, n)| n.to_string()))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+pub fn timezone() -> String {
+    fs::read_link("/etc/localtime")
+        .ok()
+        .and_then(|p| p.to_str().and_then(|s| s.split("zoneinfo/").nth(1)).map(|s| s.to_string()))
+        .unwrap_or_else(|| "Europe/Rome".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wifi_parse() {
+        let s = "*:Casa Casale:82:WPA2\n :Casa Casale:40:WPA2\n :Bar\\:Centro:55:\n :FASTWEB-12:61:WPA1 WPA2\n ::30:WPA2\n";
+        let v = parse_wifi(s);
+        assert_eq!(v.len(), 3);
+        assert_eq!(v[0], WifiNet { ssid: "Casa Casale".into(), signal: 82, secure: true, active: true });
+        assert_eq!(v[2].ssid, "Bar:Centro");
+        assert!(!v[2].secure);
+    }
+
+    #[test]
+    fn volume_parse() {
+        let s = "Simple mixer control 'Master',0\n  Mono: Playback 42 [65%] [on]";
+        assert_eq!(parse_volume(s), Some(0.65));
+    }
 }

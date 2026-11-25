@@ -1,6 +1,6 @@
 import { Theme } from "theme.slint";
-import { Sys, Shell, AppEntry, RecentItem, ScreenId } from "data.slint";
-import { Icon, Icons, StatusBar, Badge, RoundButton, PillButton, Card } from "components.slint";
+import { Sys, Shell, Settings, AppEntry, RecentItem, ScreenId } from "data.slint";
+import { Icon, Icons, StatusBar, Badge, AppIcon, Dot, RoundButton, PillButton, Card, Title } from "components.slint";
 
 // ---------- Blocco ----------
 export component LockScreen inherits Rectangle {
@@ -67,180 +67,217 @@ export component LockScreen inherits Rectangle {
             }
         }
 
-        Text {
-            y: parent.height - 44px; width: parent.width;
-            text: "Scorri in alto per sbloccare";
-            color: Theme.muted; font-family: Theme.body; font-size: 13px;
-            horizontal-alignment: center;
+        Icon {
+            x: (parent.width - 22px) / 2; y: parent.height - 48px;
+            d: Icons.up; size: 22px; tint: Theme.muted;
         }
     }
 
     RoundButton { x: 24px; y: root.height - 112px; size: 48px; icon: Icons.torch; clicked => { Sys.toggle("torcia"); } }
-    RoundButton { x: root.width - 72px; y: root.height - 112px; size: 48px; icon: Icons.camera; clicked => { Shell.unlock(); Shell.open-app("camera", root.height - 112px); } }
-}
-
-// ---------- Home ----------
-component AppRow inherits Rectangle {
-    in property <AppEntry> app;
-    callback activated(length);
-    height: 44px;
-    Text {
-        x: 0;
-        text: root.app.name;
-        color: ta.pressed ? Theme.accent : Theme.text;
-        font-family: Theme.display; font-weight: 500; font-size: 26px; letter-spacing: -0.5px;
-        vertical-alignment: center;
-        animate color { duration: Theme.fast; }
+    RoundButton {
+        x: root.width - 72px; y: root.height - 112px; size: 48px; icon: Icons.camera;
+        clicked => { Shell.unlock(); Shell.open-app("camera", self.absolute-position.x, self.absolute-position.y, 48px); }
     }
-    if root.app.android: Badge { x: parent.width - 14px; }
-    ta := TouchArea { clicked => { root.activated(root.absolute-position.y); } }
 }
 
+// ---------- Home: griglia di icone e dock, niente testo ----------
 export component HomeScreen inherits Rectangle {
     background: Theme.bg;
+    property <length> col-w: (root.width - 32px) / 4;
+    property <length> dock-y: root.height - 24px - 84px;
 
     StatusBar { y: 0; width: parent.width; }
 
-    VerticalLayout {
-        x: 24px; y: 48px; width: parent.width - 48px;
-        spacing: 4px;
-        alignment: start;
+    // Orologio, sostituito dal campo di ricerca quando si cerca
+    Rectangle {
+        y: 40px; height: 140px;
+        opacity: Shell.searching ? 0 : 1;
+        animate opacity { duration: Theme.fast; }
         Text {
+            x: 24px; y: 8px;
             text: Sys.time;
             color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 68px; letter-spacing: -2px;
-            height: 70px;
         }
-        Text { text: Sys.date; color: Theme.muted; font-family: Theme.body; font-size: 15px; }
-        HorizontalLayout {
-            padding-top: 8px;
-            spacing: 8px;
-            alignment: start;
-            Rectangle { width: 8px; height: 8px; y: 5px; border-radius: 4px; background: Theme.accent; }
-            Text {
-                text: Sys.notifications.length == 0 ? "Nessuna notifica" : (Sys.notifications.length == 1 ? "1 notifica" : Sys.notifications.length + " notifiche");
-                color: Theme.text; font-family: Theme.body; font-size: 13px;
-            }
-        }
+        Text { x: 24px; y: 88px; text: Sys.date; color: Theme.muted; font-family: Theme.body; font-size: 15px; }
     }
 
-    list := Flickable {
-        x: 24px; y: 196px;
-        width: parent.width - 48px;
-        height: parent.height - 196px - 84px;
-        content-height: Shell.apps.length * 44px;
-        for a[i] in Shell.apps: AppRow {
-            y: i * 44px;
-            width: list.width;
-            app: a;
-            activated(ay) => { Shell.open-app(a.id, ay); }
-        }
-    }
-
-    search := Rectangle {
-        x: 16px; y: parent.height - 76px;
-        width: parent.width - 32px; height: 44px;
-        border-radius: 22px; border-width: 1px; border-color: Theme.line;
-        Icon { x: 16px; d: Icons.search; size: 16px; tint: Theme.muted; }
+    if Shell.searching: Rectangle {
+        x: 16px; y: 56px; width: parent.width - 32px; height: 48px;
+        border-radius: 24px; background: Theme.raised;
+        Icon { x: 16px; d: Icons.search; size: 18px; tint: Theme.muted; }
         Text {
-            x: 42px;
-            text: "Cerca app, file, impostazioni";
-            visible: input.text == "";
-            color: Theme.muted; font-family: Theme.body; font-size: 14px;
-            vertical-alignment: center; height: parent.height;
+            x: 46px; height: parent.height;
+            text: "Cerca";
+            visible: q.text == "";
+            color: Theme.faint; font-family: Theme.body; font-size: 15px;
+            vertical-alignment: center;
         }
-        input := TextInput {
-            x: 42px; width: parent.width - 58px; height: parent.height;
-            color: Theme.text; font-family: Theme.body; font-size: 14px;
+        q := TextInput {
+            x: 46px; width: parent.width - 100px; height: parent.height;
+            color: Theme.text; font-family: Theme.body; font-size: 15px;
             vertical-alignment: center; single-line: true;
             edited => { Shell.search(self.text); }
+            init => { self.focus(); }
+        }
+        RoundButton {
+            x: parent.width - 44px; y: 4px; size: 40px; outlined: false;
+            icon: Icons.close; tint: Theme.muted;
+            clicked => { q.text = ""; Shell.search(""); Shell.searching = false; }
+        }
+    }
+
+    grid := Flickable {
+        x: 16px; y: 196px;
+        width: parent.width - 32px;
+        height: root.dock-y - 196px - 12px;
+        content-height: ceil(Shell.apps.length / 4) * 80px;
+        for a[i] in Shell.apps: Rectangle {
+            x: mod(i, 4) * root.col-w + (root.col-w - 56px) / 2;
+            y: floor(i / 4) * 80px;
+            width: 56px; height: 56px;
+            AppIcon {
+                app: a;
+                activated(ax, ay, s) => { Shell.open-app(a.id, ax, ay, s); }
+            }
+            Dot { x: 40px; y: -2px; count: a.badge; }
+        }
+    }
+
+    // Dock stile shelf: ricerca + app fisse
+    dock := Rectangle {
+        property <length> item: 48px;
+        property <length> gap: 12px;
+        width: (Shell.dock.length + 1) * self.item + Shell.dock.length * self.gap + 24px;
+        height: 72px;
+        x: (root.width - self.width) / 2;
+        y: root.dock-y;
+        border-radius: 36px;
+        background: #111111;
+        border-width: 1px; border-color: Theme.line;
+        RoundButton {
+            x: 12px; y: 12px; size: dock.item; outlined: false; fill: Theme.raised;
+            icon: Icons.search; icon-size: 20px;
+            clicked => { Shell.searching = !Shell.searching; }
+        }
+        for a[i] in Shell.dock: Rectangle {
+            x: 12px + (i + 1) * (dock.item + dock.gap);
+            y: 12px;
+            width: dock.item; height: dock.item;
+            AppIcon {
+                app: a; size: dock.item;
+                activated(ax, ay, s) => { Shell.open-app(a.id, ax, ay, s); }
+            }
+            Dot { x: 32px; y: -4px; count: a.badge; }
         }
     }
 }
 
-// ---------- Controlli ----------
-component ToggleTile inherits Rectangle {
+// ---------- Controlli rapidi ----------
+component QuickToggle inherits Rectangle {
+    in property <string> glyph;
     in property <string> label;
-    in property <string> sub;
     in property <bool> on;
     callback clicked();
-    height: 60px;
-    border-radius: 16px;
-    border-width: 1px;
-    border-color: root.on ? Theme.accent : Theme.line;
-    background: root.on ? Theme.accent : Theme.bg;
-    animate background, border-color { duration: Theme.fast; easing: Theme.ease; }
-    VerticalLayout {
-        padding-left: 14px;
-        alignment: center;
-        spacing: 2px;
-        Text { text: root.label; color: root.on ? #000 : Theme.text; font-family: Theme.body; font-size: 14px; font-weight: 600; }
-        Text { text: root.sub; color: root.on ? #000000c0 : Theme.muted; font-family: Theme.body; font-size: 12px; }
-    }
+    width: 56px; height: 56px;
+    border-radius: 28px;
+    background: root.on ? Theme.accent : Theme.raised;
+    animate background { duration: Theme.fast; easing: Theme.ease; }
+    accessible-role: button;
+    accessible-label: root.label;
+    Icon { d: root.glyph; tint: root.on ? #000 : Theme.text; size: 22px; }
     TouchArea { clicked => { root.clicked(); } }
+}
+
+component PillSlider inherits Rectangle {
+    in property <string> glyph;
+    in-out property <float> value;
+    callback changed(float);
+    height: 40px;
+    border-radius: 20px;
+    background: Theme.raised;
+    clip: true;
+    Rectangle {
+        x: 0;
+        width: max(40px, parent.width * root.value);
+        border-radius: 20px;
+        background: Theme.text;
+    }
+    Icon { x: 12px; d: root.glyph; size: 18px; tint: #000; }
+    TouchArea {
+        moved => {
+            root.value = max(0.02, min(1.0, self.mouse-x / self.width));
+            root.changed(root.value);
+        }
+        pointer-event(ev) => {
+            if (ev.kind == PointerEventKind.down) {
+                root.value = max(0.02, min(1.0, self.mouse-x / self.width));
+                root.changed(root.value);
+            }
+        }
+    }
 }
 
 export component ControlsPanel inherits Rectangle {
     background: Theme.bg;
+    property <length> col-w: (root.width - 32px) / 4;
 
     StatusBar { y: 0; width: parent.width; }
 
+    // Riga in alto: blocco e impostazioni
+    RoundButton {
+        x: root.width - 108px; y: 32px; icon: Icons.lock;
+        clicked => { Shell.controls-open = false; Shell.close-app(); Shell.screen = ScreenId.lock; }
+    }
+    RoundButton {
+        x: root.width - 60px; y: 32px; icon: Icons.gear;
+        clicked => { Shell.controls-open = false; Settings.page = ""; Shell.open-app("settings", root.width - 60px, 32px, 44px); }
+    }
     Text {
-        x: 16px; y: 34px;
-        text: "Controlli";
-        color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 28px; letter-spacing: -0.5px;
+        x: 16px; y: 32px; height: 44px;
+        text: Sys.time;
+        color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 28px;
+        vertical-alignment: center;
     }
 
-    for t[i] in Sys.toggles: ToggleTile {
-        x: 16px + mod(i, 2) * ((root.width - 40px) / 2 + 8px);
-        y: 84px + floor(i / 2) * 68px;
-        width: (root.width - 40px) / 2;
-        label: t.label; sub: t.sub; on: t.on;
+    for t[i] in Sys.toggles: QuickToggle {
+        x: 16px + mod(i, 4) * root.col-w + (root.col-w - 56px) / 2;
+        y: 92px + floor(i / 4) * 72px;
+        glyph: t.glyph; label: t.label; on: t.on;
         clicked => { Sys.toggle(t.id); }
     }
 
-    // Luminosità
-    Text { x: 16px; y: 298px; text: "Luminosità"; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
-    bright := Rectangle {
-        x: 16px; y: 318px; width: parent.width - 32px; height: 28px;
-        Rectangle {
-            y: 10px; height: 8px; border-radius: 4px; background: #1c1c1c; clip: true;
-            Rectangle { x: 0; width: parent.width * Sys.brightness; background: Theme.text; }
-        }
-        TouchArea {
-            moved => {
-                Sys.brightness = max(0.05, min(1.0, self.mouse-x / self.width));
-                Sys.brightness-changed(Sys.brightness);
-            }
-            pointer-event(ev) => {
-                if (ev.kind == PointerEventKind.down) {
-                    Sys.brightness = max(0.05, min(1.0, self.mouse-x / self.width));
-                    Sys.brightness-changed(Sys.brightness);
-                }
-            }
-        }
+    PillSlider {
+        x: 16px; y: 252px; width: parent.width - 32px;
+        glyph: Icons.sun; value: Sys.brightness;
+        changed(v) => { Sys.brightness = v; Sys.brightness-changed(v); }
+    }
+    PillSlider {
+        x: 16px; y: 302px; width: parent.width - 32px;
+        glyph: Icons.speaker; value: Sys.volume;
+        changed(v) => { Sys.volume = v; Sys.volume-changed(v); }
     }
 
     // Memoria
     Card {
-        x: 16px; y: 360px; width: parent.width - 32px; height: 78px;
-        Text { x: 14px; y: 12px; text: "Memoria"; color: Theme.text; font-family: Theme.body; font-size: 13px; font-weight: 600; }
-        Text { x: parent.width - self.width - 14px; y: 12px; text: Sys.mem-used + " / " + Sys.mem-total + " MB"; color: Theme.muted; font-family: Theme.body; font-size: 13px; }
+        x: 16px; y: 358px; width: parent.width - 32px; height: 70px;
+        Icon { x: 14px; y: 14px; d: Icons.chip; size: 18px; tint: Theme.muted; }
+        Text { x: 40px; y: 14px; text: Sys.mem-used + " / " + Sys.mem-total + " MB"; color: Theme.text; font-family: Theme.body; font-size: 13px; font-weight: 600; }
         Rectangle {
-            x: 14px; y: 36px; width: parent.width - 28px; height: 6px; border-radius: 3px; background: #1c1c1c; clip: true;
+            x: 14px; y: 42px; width: parent.width - 28px; height: 6px; border-radius: 3px; background: #1c1c1c; clip: true;
             Rectangle { x: 0; width: parent.width * (Sys.mem-used - Sys.mem-android) / max(1, Sys.mem-total); background: Theme.text; animate width { duration: Theme.slow; easing: Theme.ease; } }
             Rectangle { x: parent.width * (Sys.mem-used - Sys.mem-android) / max(1, Sys.mem-total); width: parent.width * Sys.mem-android / max(1, Sys.mem-total); background: Theme.accent; }
         }
-        Text { x: 14px; y: 52px; text: "Sistema " + (Sys.mem-used - Sys.mem-android) + " MB    App Android " + Sys.mem-android + " MB"; color: Theme.muted; font-family: Theme.body; font-size: 11px; }
+        Text { x: parent.width - self.width - 14px; y: 14px; text: "Android " + Sys.mem-android + " MB"; color: Theme.accent; font-family: Theme.body; font-size: 12px; }
     }
 
     // Livello Android
     Card {
-        x: 16px; y: 446px; width: parent.width - 32px; height: 64px;
-        VerticalLayout {
-            x: 14px; width: parent.width - 120px;
-            alignment: center; spacing: 2px;
-            Text { text: "Livello Android"; color: Theme.text; font-family: Theme.body; font-size: 13px; font-weight: 600; }
-            Text { text: Sys.android-state; color: Theme.muted; font-family: Theme.body; font-size: 12px; overflow: elide; }
+        x: 16px; y: 438px; width: parent.width - 32px; height: 64px;
+        Icon { x: 14px; d: Icons.android; size: 20px; tint: Sys.android-running ? Theme.accent : Theme.muted; }
+        Text {
+            x: 44px; width: parent.width - 150px; height: parent.height;
+            text: Sys.android-state; color: Theme.muted; font-family: Theme.body; font-size: 12px;
+            vertical-alignment: center; wrap: word-wrap;
         }
         PillButton {
             x: parent.width - self.width - 14px; y: 15px;
@@ -252,11 +289,12 @@ export component ControlsPanel inherits Rectangle {
 
     // Aggiornamenti
     Card {
-        x: 16px; y: 518px; width: parent.width - 32px; height: 64px;
+        x: 16px; y: 512px; width: parent.width - 32px; height: 64px;
+        Icon { x: 14px; d: Icons.update; size: 20px; tint: Sys.update-available ? Theme.accent : Theme.muted; }
         VerticalLayout {
-            x: 14px; width: parent.width - 120px;
+            x: 44px; width: parent.width - 150px;
             alignment: center; spacing: 2px;
-            Text { text: Sys.update-available ? "Cheip OS " + Sys.update-version : "Cheip OS " + Sys.version; color: Theme.text; font-family: Theme.body; font-size: 13px; font-weight: 600; }
+            Text { text: "Cheip OS " + (Sys.update-available ? Sys.update-version : Sys.version); color: Theme.text; font-family: Theme.body; font-size: 13px; font-weight: 600; }
             Text { text: Sys.update-state; color: Theme.muted; font-family: Theme.body; font-size: 12px; overflow: elide; }
         }
         PillButton {
@@ -267,9 +305,9 @@ export component ControlsPanel inherits Rectangle {
         }
     }
 
-    // Maniglia: trascina su per chiudere
+    // Maniglia: tocca o trascina su per chiudere
     Rectangle {
-        y: parent.height - 24px; height: 24px;
+        y: parent.height - 32px; height: 32px;
         Rectangle { width: 96px; height: 4px; border-radius: 2px; background: #5a5a5a; }
         TouchArea {
             pointer-event(ev) => {
@@ -284,16 +322,14 @@ component RecentCard inherits Card {
     in property <RecentItem> item;
     callback open();
     callback close();
-    height: 84px;
-    Rectangle {
-        x: 14px; width: 40px; height: 60px; border-radius: 6px; background: #141414;
-        Rectangle { x: 6px; y: 10px; width: 28px; height: 4px; border-radius: 2px; background: #3a3a3a; }
-        Rectangle { x: 6px; y: 18px; width: 20px; height: 4px; border-radius: 2px; background: #3a3a3a; }
-        Rectangle { x: 6px; y: 26px; width: 24px; height: 4px; border-radius: 2px; background: #3a3a3a; }
-    }
+    height: 76px;
     TouchArea { clicked => { root.open(); } }
+    Rectangle {
+        x: 14px; width: 48px; height: 48px; border-radius: 24px; background: Theme.raised;
+        Icon { d: root.item.glyph; size: 20px; }
+    }
     VerticalLayout {
-        x: 66px; width: parent.width - 120px;
+        x: 76px; width: parent.width - 130px;
         alignment: center; spacing: 4px;
         HorizontalLayout {
             spacing: 6px; alignment: start;
@@ -303,7 +339,7 @@ component RecentCard inherits Card {
         Text { text: root.item.mem > 0 ? root.item.mem + " MB · " + root.item.state : root.item.state; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
     }
     RoundButton {
-        x: parent.width - 52px; y: 20px;
+        x: parent.width - 52px; y: 16px;
         icon: Icons.close; outlined: false; tint: Theme.muted;
         clicked => { root.close(); }
     }
@@ -312,38 +348,29 @@ component RecentCard inherits Card {
 export component SwitcherScreen inherits Rectangle {
     background: Theme.bg;
     StatusBar { y: 0; width: parent.width; }
-    Text {
-        x: 16px; y: 34px;
-        text: "App aperte";
-        color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 28px; letter-spacing: -0.5px;
-    }
-    Text {
-        x: parent.width - self.width - 16px; y: 46px;
-        text: Shell.recents.length + " app";
-        color: Theme.muted; font-family: Theme.body; font-size: 13px;
-    }
+    Title { x: 16px; y: 34px; text: "App aperte"; }
     Flickable {
-        x: 16px; y: 84px; width: parent.width - 32px; height: parent.height - 84px - 84px;
-        content-height: Shell.recents.length * 92px;
+        x: 16px; y: 84px; width: parent.width - 32px; height: parent.height - 84px - 92px;
+        content-height: Shell.recents.length * 84px;
         for r[i] in Shell.recents: RecentCard {
-            y: i * 92px;
+            y: i * 84px;
             width: parent.width;
             item: r;
             animate y { duration: Theme.slow; easing: Theme.ease; }
-            open => { Shell.screen = ScreenId.home; Shell.open-app(r.id, 200px); }
+            open => { Shell.screen = ScreenId.home; Shell.open-app(r.id, (root.width - 56px) / 2, 84px + i * 84px + 10px, 56px); }
             close => { Shell.close-recent(r.id); }
         }
     }
-    if Shell.recents.length == 0: Text {
-        y: 140px; width: parent.width;
-        text: "Nessuna app aperta";
-        color: Theme.faint; font-family: Theme.body; font-size: 14px;
-        horizontal-alignment: center;
+    if Shell.recents.length == 0: Icon {
+        x: (parent.width - 48px) / 2; y: 200px;
+        d: Icons.tabs; size: 48px; tint: Theme.faint; weight: 1.5px;
     }
     Rectangle {
-        x: 16px; y: parent.height - 72px; width: parent.width - 32px; height: 48px;
-        border-radius: 24px; background: ta.pressed ? #d0d0d0 : Theme.text;
-        Text { text: "Chiudi tutto e libera memoria"; color: #000; font-family: Theme.body; font-size: 14px; font-weight: 600; }
+        x: (parent.width - 64px) / 2; y: parent.height - 92px; width: 64px; height: 64px;
+        border-radius: 32px; background: ta.pressed ? #d0d0d0 : Theme.text;
+        accessible-role: button;
+        accessible-label: "Chiudi tutte le app";
+        Icon { d: Icons.close; tint: #000; size: 24px; }
         ta := TouchArea { clicked => { Shell.close-all(); } }
     }
 }

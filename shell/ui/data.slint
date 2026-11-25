@@ -1,12 +1,20 @@
 // Strutture e global riempiti dal codice Rust
 
-export struct AppEntry { id: string, name: string, android: bool }
+export struct AppEntry { id: string, name: string, initial: string, android: bool, glyph: string, picture: image, has-picture: bool, badge: int }
 export struct NotifItem { app: string, time: string, text: string, android: bool }
-export struct ToggleItem { id: string, label: string, sub: string, on: bool }
-export struct RecentItem { id: string, name: string, mem: int, state: string, android: bool }
+export struct ToggleItem { id: string, label: string, glyph: string, on: bool }
+export struct RecentItem { id: string, name: string, glyph: string, mem: int, state: string, android: bool }
 export struct DayCell { n: int, col: int, row: int, in-month: bool, today: bool, selected: bool, has-events: bool }
 export struct EventItem { time: string, title: string }
 export struct NoteItem { id: int, title: string, body: string, pinned: bool, col: int, row: int }
+export struct CallRow { name: string, number: string, when: string, dir: string }
+export struct ContactRow { name: string, number: string, initial: string }
+export struct ThreadRow { number: string, name: string, last: string, when: string, unread: int, initial: string }
+export struct Bubble { text: string, when: string, out: bool }
+export struct WebBlock { kind: int, text: string, href: string }
+export struct TabRow { title: string, url: string }
+export struct FileRow { name: string, info: string, kind: int }
+export struct WifiRow { ssid: string, signal: int, secure: bool, active: bool }
 
 export enum ScreenId { lock, home, switcher }
 
@@ -22,17 +30,23 @@ export global Sys {
     in property <int> mem-android: 0;
     in property <string> android-state: "Non installato";
     in property <bool> android-running: false;
+    in property <bool> eco-on: false;
+    in property <bool> wifi-on: true;
+    in property <bool> data-on: false;
+    in property <bool> bt-on: false;
     in property <[NotifItem]> notifications;
     in property <[ToggleItem]> toggles;
     in-out property <float> brightness: 0.55;
+    in-out property <float> volume: 0.6;
     in property <string> model: "Nokia Lumia 735";
     in property <string> kernel: "";
-    in property <string> version: "0.1.0";
+    in property <string> version: "0.2.0";
     in property <string> update-state: "";
     in property <bool> update-available: false;
     in property <string> update-version: "";
     callback toggle(string);
     callback brightness-changed(float);
+    callback volume-changed(float);
     callback check-update();
     callback install-update();
     callback android-toggle();
@@ -43,10 +57,14 @@ export global Shell {
     in-out property <bool> controls-open: false;
     in-out property <bool> app-open: false;
     in-out property <string> app-id: "";
-    in-out property <length> from-y: 200px;
+    in-out property <length> from-x: 152px;
+    in-out property <length> from-y: 300px;
+    in-out property <length> from-size: 56px;
+    in-out property <bool> searching: false;
     in property <[AppEntry]> apps;
+    in property <[AppEntry]> dock;
     in property <[RecentItem]> recents;
-    callback open-app(string, length);
+    callback open-app(string, length, length, length);
     callback close-app();
     callback unlock();
     callback search(string);
@@ -78,4 +96,95 @@ export global Notes {
 export global Cam {
     in property <bool> available: false;
     in property <string> message: "Sensore non ancora supportato su questo modello";
+}
+
+export global Phone {
+    in property <bool> modem-ok: false;
+    in property <string> modem-label: "Modem non disponibile";
+    in-out property <int> tab: 0;
+    in-out property <string> dial: "";
+    in property <[CallRow]> recents;
+    in property <[ContactRow]> contacts;
+    in property <bool> in-call: false;
+    in property <bool> incoming: false;
+    in property <string> call-name: "";
+    in property <string> call-initial: "";
+    in property <string> call-number: "";
+    in property <string> call-state: "";
+    in property <string> call-time: "";
+    callback call(string);
+    callback answer();
+    callback hangup();
+    callback add-contact(string, string);
+}
+
+export global Msg {
+    in property <bool> modem-ok: false;
+    in property <[ThreadRow]> threads;
+    in property <string> open-number: "";
+    in property <string> open-name: "";
+    in property <[Bubble]> messages;
+    in property <string> status: "";
+    callback open-thread(string);
+    callback close-thread();
+    callback send(string, string);
+}
+
+export global Web {
+    in property <string> url: "";
+    in property <string> title: "";
+    in property <bool> loading: false;
+    in property <string> error: "";
+    in property <[WebBlock]> blocks;
+    in property <[TabRow]> tabs;
+    in property <int> current-tab: 0;
+    in property <bool> bookmarked: false;
+    in property <bool> can-back: false;
+    in property <[TabRow]> bookmarks;
+    in property <int> scroll-reset: 0;
+    callback go(string);
+    callback back();
+    callback reload();
+    callback new-tab();
+    callback select-tab(int);
+    callback close-tab(int);
+    callback toggle-bookmark();
+}
+
+export global Files {
+    in property <string> path-label: "Home";
+    in property <bool> can-up: false;
+    in property <[FileRow]> entries;
+    in property <string> storage: "";
+    in property <bool> preview-open: false;
+    in property <int> preview-kind: 0;
+    in property <string> preview-name: "";
+    in property <string> preview-text: "";
+    in property <image> preview-image;
+    in property <string> status: "";
+    callback open(int);
+    callback up();
+    callback mkdir(string);
+    callback remove(int);
+    callback close-preview();
+}
+
+export global Settings {
+    in-out property <string> page: "";
+    in property <bool> wifi-on: true;
+    in property <[WifiRow]> networks;
+    in property <bool> wifi-busy: false;
+    in property <string> wifi-msg: "";
+    in property <bool> bt-on: false;
+    in property <[string]> bt-devices;
+    in property <string> storage-used: "";
+    in property <string> storage-total: "";
+    in property <float> storage-ratio: 0;
+    in property <string> modem-operator: "";
+    in property <string> modem-signal: "";
+    in property <string> modem-state: "";
+    in property <string> timezone: "Europe/Rome";
+    callback open-page(string);
+    callback wifi-scan();
+    callback wifi-connect(string, string);
 }

@@ -1,0 +1,151 @@
+import { Theme } from "theme.slint";
+import { Web } from "data.slint";
+import { Icon, Icons, StatusBar, RoundButton, Title, ListRow } from "components.slint";
+
+export component BrowserApp inherits Rectangle {
+    background: Theme.bg;
+    property <bool> show-tabs: false;
+    property <int> reset: Web.scroll-reset;
+    changed reset => { page.content-y = 0; }
+
+    StatusBar { y: 0; width: parent.width; }
+
+    // Barra indirizzo
+    if Web.can-back: RoundButton { x: 8px; y: 30px; icon: Icons.back; outlined: false; clicked => { Web.back(); } }
+    bar := Rectangle {
+        x: Web.can-back ? 56px : 12px; y: 30px; height: 44px;
+        width: parent.width - self.x - 108px;
+        border-radius: 22px; background: Theme.raised;
+        animate x, width { duration: Theme.fast; easing: Theme.ease; }
+        Icon { x: 14px; d: Icons.globe; size: 16px; tint: Theme.muted; }
+        Text {
+            x: 38px; width: parent.width - 50px; height: parent.height;
+            text: Web.url == "" ? "Cerca o scrivi un indirizzo" : Web.url;
+            visible: !addr.has-focus;
+            color: Web.url == "" ? Theme.faint : Theme.muted; font-family: Theme.body; font-size: 14px;
+            vertical-alignment: center; overflow: elide;
+        }
+        addr := TextInput {
+            x: 38px; width: parent.width - 50px; height: parent.height;
+            color: Theme.text; font-family: Theme.body; font-size: 14px;
+            vertical-alignment: center; single-line: true;
+            opacity: self.has-focus ? 1 : 0;
+            input-type: InputType.text;
+            accepted => { Web.go(self.text); self.text = ""; self.clear-focus(); }
+        }
+    }
+    RoundButton {
+        x: parent.width - 100px; y: 30px; outlined: false;
+        icon: Icons.star; tint: Web.bookmarked ? Theme.accent : Theme.muted;
+        clicked => { Web.toggle-bookmark(); }
+    }
+    Rectangle {
+        x: parent.width - 52px; y: 30px; width: 44px; height: 44px; border-radius: 22px;
+        background: tabs-ta.pressed ? Theme.raised : transparent;
+        Rectangle {
+            width: 22px; height: 22px; border-radius: 6px; border-width: 2px; border-color: Theme.text;
+            Text { text: Web.tabs.length; color: Theme.text; font-family: Theme.body; font-size: 11px; font-weight: 600; }
+        }
+        tabs-ta := TouchArea { clicked => { root.show-tabs = !root.show-tabs; } }
+    }
+
+    // Caricamento: segmento che scorre
+    if Web.loading: Rectangle {
+        y: 80px; height: 2px; clip: true;
+        Rectangle {
+            width: 90px;
+            x: (mod(animation-tick() / 1ms, 1100) / 1100) * (parent.width + 90px) - 90px;
+            background: Theme.accent;
+        }
+    }
+
+    // Pagina
+    page := Flickable {
+        x: 0; y: 86px; width: parent.width; height: parent.height - 86px - 24px;
+        content-height: col.preferred-height;
+        col := VerticalLayout {
+            width: page.width;
+            padding-left: 20px; padding-right: 20px; padding-bottom: 32px;
+            spacing: 10px;
+            if Web.url != "" && Web.title != "": Text {
+                text: Web.title; color: Theme.muted; font-family: Theme.body; font-size: 12px; overflow: elide;
+            }
+            for b in Web.blocks: Rectangle {
+                height: b.kind == 6 ? code.preferred-height + 20px : t.preferred-height;
+                if b.kind == 6: Rectangle { border-radius: 10px; background: Theme.raised; }
+                t := Text {
+                    x: b.kind == 4 ? 16px : (b.kind == 7 ? 14px : 0px);
+                    width: parent.width - self.x;
+                    visible: b.kind != 6;
+                    text: b.text;
+                    wrap: word-wrap;
+                    color: b.kind == 5 ? Theme.accent : (b.kind == 7 ? Theme.muted : Theme.text);
+                    font-family: b.kind <= 2 ? Theme.display : Theme.body;
+                    font-weight: b.kind <= 2 ? 700 : (b.kind == 5 ? 600 : 400);
+                    font-size: b.kind == 0 ? 26px : (b.kind == 1 ? 21px : (b.kind == 2 ? 17px : 15px));
+                    font-italic: b.kind == 7;
+                }
+                if b.kind == 4: Rectangle { x: 2px; y: 8px; width: 5px; height: 5px; border-radius: 2.5px; background: Theme.muted; }
+                if b.kind == 7: Rectangle { x: 0; width: 3px; border-radius: 1.5px; background: Theme.line; }
+                code := Text {
+                    x: 12px; y: 10px; width: parent.width - 24px;
+                    visible: b.kind == 6;
+                    text: b.kind == 6 ? b.text : "";
+                    wrap: word-wrap;
+                    color: Theme.text; font-family: Theme.body; font-size: 12px;
+                }
+                if b.kind == 5: TouchArea { clicked => { Web.go(b.href); } }
+            }
+        }
+    }
+
+    // Pagina iniziale: preferiti
+    if Web.url == "" && !Web.loading: Rectangle {
+        y: 86px; height: parent.height - 86px;
+        Icon { x: (parent.width - 56px) / 2; y: 40px; d: Icons.globe; size: 56px; tint: Theme.faint; weight: 1.2px; }
+        VerticalLayout {
+            x: 16px; y: 128px; width: parent.width - 32px; alignment: start;
+            for bm in Web.bookmarks: ListRow {
+                icon: Icons.star; label: bm.title; detail: bm.url; chevron: false;
+                clicked => { Web.go(bm.url); }
+            }
+        }
+    }
+
+    if Web.error != "" && !Web.loading: VerticalLayout {
+        y: 200px; spacing: 14px; alignment: start;
+        Text { text: Web.error; color: Theme.muted; font-family: Theme.body; font-size: 14px; horizontal-alignment: center; }
+        HorizontalLayout { alignment: center; RoundButton { icon: Icons.refresh; clicked => { Web.reload(); } } }
+    }
+
+    // Schede
+    if root.show-tabs: Rectangle {
+        background: Theme.surface;
+        TouchArea { }
+        StatusBar { y: 0; width: parent.width; }
+        Title { x: 16px; y: 34px; text: Web.tabs.length + (Web.tabs.length == 1 ? " scheda" : " schede"); }
+        RoundButton {
+            x: parent.width - 60px; y: 32px; icon: Icons.plus; fill: Theme.accent; tint: #000; outlined: false;
+            clicked => { Web.new-tab(); root.show-tabs = false; }
+        }
+        Flickable {
+            x: 16px; y: 92px; width: parent.width - 32px; height: parent.height - 120px;
+            content-height: Web.tabs.length * 72px;
+            for tb[i] in Web.tabs: Rectangle {
+                y: i * 72px; height: 64px; border-radius: 16px;
+                background: i == Web.current-tab ? Theme.raised : Theme.bg;
+                border-width: 1px; border-color: i == Web.current-tab ? Theme.accent : Theme.line;
+                VerticalLayout {
+                    x: 16px; width: parent.width - 72px; alignment: center; spacing: 2px;
+                    Text { text: tb.title == "" ? "Nuova scheda" : tb.title; color: Theme.text; font-family: Theme.body; font-size: 14px; overflow: elide; }
+                    Text { text: tb.url; color: Theme.muted; font-family: Theme.body; font-size: 11px; overflow: elide; }
+                }
+                TouchArea { clicked => { Web.select-tab(i); root.show-tabs = false; } }
+                RoundButton {
+                    x: parent.width - 52px; y: 10px; icon: Icons.close; outlined: false; tint: Theme.muted;
+                    clicked => { Web.close-tab(i); }
+                }
+            }
+        }
+    }
+}

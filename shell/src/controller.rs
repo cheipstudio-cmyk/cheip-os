@@ -1,4 +1,5 @@
-//! Collega la UI Slint ai dati: orologio, hardware, app, calendario, note, OTA.
+//! Collega la UI Slint ai dati. Il cuore (shell, sistema, calendario, note,
+//! OTA) sta qui; telefono, messaggi, browser, file e impostazioni nei moduli ctl_*.
 
 use crate::calendar as cal;
 use crate::store::Store;
@@ -6,58 +7,149 @@ use crate::system as sys;
 use crate::update;
 use crate::*;
 use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, Timelike};
-use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
+use slint::{ComponentHandle, Image, ModelRc, SharedString, VecModel};
 use std::cell::RefCell;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-struct Toggle {
-    id: &'static str,
-    label: &'static str,
-    on_sub: &'static str,
-    off_sub: &'static str,
-    on: bool,
+/// Esegue un blocco con ui e stato, ignorando la chiamata se la finestra non esiste più
+#[macro_export]
+macro_rules! with {
+    ($ui:expr, $st:expr, |$u:ident, $s:ident $(, $a:ident)*| $body:block) => {{
+        let w = $ui.as_weak();
+        let st = $st.clone();
+        move |$($a),*| {
+            let Some($u) = w.upgrade() else { return };
+            #[allow(unused_mut)]
+            let mut $s = st.borrow_mut();
+            $body
+        }
+    }};
 }
 
-struct Recent {
-    id: String,
-    name: String,
-    android: bool,
+pub struct Toggle {
+    pub id: &'static str,
+    pub label: &'static str,
+    pub on: bool,
+}
+
+pub struct Recent {
+    pub id: String,
+    pub name: String,
+    pub android: bool,
+}
+
+static TAB_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+pub struct Tab {
+    pub id: u64,
+    pub history: Vec<String>,
+    pub page: Option<crate::web::Page>,
+    pub error: String,
+    pub loading: bool,
+}
+
+impl Default for Tab {
+    fn default() -> Self {
+        Tab { id: TAB_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed), history: vec![], page: None, error: String::new(), loading: false }
+    }
+}
+
+#[derive(Default)]
+pub struct CallState {
+    pub path: String,
+    pub number: String,
+    pub incoming: bool,
+    pub answered_at: Option<i64>,
+    pub started_at: i64,
 }
 
 pub struct State {
     pub store: Store,
-    live: bool,
-    today: NaiveDate,
-    cal_year: i32,
-    cal_month: u32,
-    cal_sel: u32,
-    toggles: Vec<Toggle>,
-    recents: Vec<Recent>,
-    search: String,
-    note_filter: i32,
+    pub live: bool,
+    pub today: NaiveDate,
+    pub cal_year: i32,
+    pub cal_month: u32,
+    pub cal_sel: u32,
+    pub toggles: Vec<Toggle>,
+    pub recents: Vec<Recent>,
+    pub search: String,
+    pub note_filter: i32,
+    pub modem_ok: bool,
+    pub call: Option<CallState>,
+    pub missed: i32,
+    pub open_thread: String,
+    pub notifs: Vec<NotifItem>,
+    pub tabs: Vec<Tab>,
+    pub tab: usize,
+    pub cwd: PathBuf,
+    pub entries: Vec<crate::files::Entry>,
+    pub scroll_gen: i32,
 }
 
 pub type Shared = Rc<RefCell<State>>;
 
-fn model<T: Clone + 'static>(v: Vec<T>) -> ModelRc<T> {
+thread_local! {
+    static STATE: RefCell<Option<Shared>> = const { RefCell::new(None) };
+}
+
+/// Stato condiviso dal thread della UI, per le risposte dei thread di lavoro
+pub fn shared() -> Option<Shared> {
+    STATE.with(|s| s.borrow().clone())
+}
+
+pub fn model<T: Clone + 'static>(v: Vec<T>) -> ModelRc<T> {
     ModelRc::new(VecModel::from(v))
 }
 
-fn system_apps() -> Vec<(String, String, bool)> {
-    [("calendar", "Calendario"), ("notes", "Note"), ("camera", "Fotocamera"), ("settings", "Impostazioni")]
-        .iter()
-        .map(|(id, n)| (id.to_string(), n.to_string(), false))
-        .collect()
+pub fn initial(s: &str) -> SharedString {
+    s.chars().find(|c| c.is_alphanumeric()).map(|c| c.to_uppercase().to_string()).unwrap_or_else(|| "#".into()).into()
 }
 
-fn all_apps() -> Vec<(String, String, bool)> {
-    let mut v = system_apps();
-    for (pkg, name) in sys::android_apps() {
-        v.push((pkg, name, true));
+/// "22:47" oggi, "ieri", altrimenti "25/11"
+pub fn when(ts: i64, now: NaiveDateTime) -> String {
+    let Some(t) = chrono::DateTime::from_timestamp(ts, 0).map(|d| d.with_timezone(&Local).naive_local()) else { return String::new() };
+    let days = (now.date() - t.date()).num_days();
+    match days {
+        0 => format!("{:02}:{:02}", t.hour(), t.minute()),
+        1 => "ieri".into(),
+        _ => format!("{:02}/{:02}", t.day(), t.month()),
     }
-    v
+}
+
+/// App di sistema: (id, nome, nel dock)
+pub const SYSTEM_APPS: [(&str, &str, bool); 8] = [
+    ("phone", "Telefono", true),
+    ("messages", "Messaggi", true),
+    ("browser", "Browser", true),
+    ("camera", "Fotocamera", true),
+    ("files", "File", false),
+    ("calendar", "Calendario", false),
+    ("notes", "Note", false),
+    ("settings", "Impostazioni", false),
+];
+
+pub fn glyph(ui: &AppWindow, id: &str) -> SharedString {
+    let i = ui.global::<Icons>();
+    match id {
+        "phone" => i.get_phone(),
+        "messages" => i.get_message(),
+        "browser" => i.get_globe(),
+        "camera" => i.get_camera(),
+        "files" => i.get_folder(),
+        "calendar" => i.get_calendar(),
+        "notes" => i.get_notes(),
+        "settings" => i.get_gear(),
+        "wifi" => i.get_wifi(),
+        "dati" => i.get_data(),
+        "bt" => i.get_bluetooth(),
+        "torcia" => i.get_torch(),
+        "rot" => i.get_rotate(),
+        "eco" => i.get_leaf(),
+        _ => i.get_android(),
+    }
 }
 
 impl State {
@@ -72,17 +164,37 @@ impl State {
             cal_month: today.month(),
             cal_sel: today.day(),
             toggles: vec![
-                Toggle { id: "wifi", label: "Wi-Fi", on_sub: "Acceso", off_sub: "Spento", on: wifi },
-                Toggle { id: "dati", label: "Dati mobili", on_sub: "Accesi", off_sub: "Spenti", on: false },
-                Toggle { id: "bt", label: "Bluetooth", on_sub: "Acceso", off_sub: "Spento", on: false },
-                Toggle { id: "torcia", label: "Torcia", on_sub: "Accesa", off_sub: "Spenta", on: false },
-                Toggle { id: "rot", label: "Rotazione", on_sub: "Auto", off_sub: "Bloccata", on: false },
-                Toggle { id: "eco", label: "Risparmio", on_sub: "Acceso", off_sub: "Spento", on: false },
+                Toggle { id: "wifi", label: "Wi-Fi", on: wifi },
+                Toggle { id: "dati", label: "Dati mobili", on: false },
+                Toggle { id: "bt", label: "Bluetooth", on: false },
+                Toggle { id: "torcia", label: "Torcia", on: false },
+                Toggle { id: "rot", label: "Rotazione automatica", on: false },
+                Toggle { id: "eco", label: "Risparmio energetico", on: false },
             ],
             recents: Vec::new(),
             search: String::new(),
             note_filter: 0,
+            modem_ok: false,
+            call: None,
+            missed: 0,
+            open_thread: String::new(),
+            notifs: Vec::new(),
+            tabs: vec![Tab::default()],
+            tab: 0,
+            cwd: crate::files::home(),
+            entries: Vec::new(),
+            scroll_gen: 0,
         }
+    }
+
+    pub fn toggle_on(&self, id: &str) -> bool {
+        self.toggles.iter().find(|t| t.id == id).map(|t| t.on).unwrap_or(false)
+    }
+
+    pub fn notify(&mut self, app: &str, text: &str, android: bool) {
+        let now = Local::now();
+        self.notifs.insert(0, NotifItem { app: app.into(), time: format!("{:02}:{:02}", now.hour(), now.minute()).into(), text: text.into(), android });
+        self.notifs.truncate(3);
     }
 }
 
@@ -109,39 +221,80 @@ fn push_hw(ui: &AppWindow) {
     let (running, label) = if !sys::waydroid_installed() {
         (false, "Waydroid non installato".to_string())
     } else if sys::waydroid_running() {
-        (true, "Attivo · si sospende dopo 2 min senza app".to_string())
+        (true, "Attivo, si sospende dopo 2 minuti senza app".to_string())
     } else {
-        (false, "Sospeso · parte quando apri un'app Android".to_string())
+        (false, "Sospeso, parte quando apri un'app Android".to_string())
     };
     s.set_android_running(running);
     s.set_android_state(label.into());
 }
 
-fn push_toggles(ui: &AppWindow, st: &State) {
+pub fn push_toggles(ui: &AppWindow, st: &State) {
     let v = st
         .toggles
         .iter()
-        .map(|t| ToggleItem {
-            id: t.id.into(),
-            label: t.label.into(),
-            sub: (if t.on { t.on_sub } else { t.off_sub }).into(),
-            on: t.on,
-        })
+        .map(|t| ToggleItem { id: t.id.into(), label: t.label.into(), glyph: glyph(ui, t.id), on: t.on })
         .collect();
-    ui.global::<Sys>().set_toggles(model(v));
+    let s = ui.global::<Sys>();
+    s.set_toggles(model(v));
+    s.set_wifi_on(st.toggle_on("wifi"));
+    s.set_data_on(st.toggle_on("dati"));
+    s.set_bt_on(st.toggle_on("bt"));
+    s.set_eco_on(st.toggle_on("eco"));
 }
 
-fn push_apps(ui: &AppWindow, st: &State) {
+fn badge_for(st: &State, id: &str) -> i32 {
+    match id {
+        "messages" => st.store.threads().iter().map(|t| t.2 as i32).sum(),
+        "phone" => st.missed,
+        _ => 0,
+    }
+}
+
+fn entry(ui: &AppWindow, st: &State, id: &str, name: &str, android: bool, icon: Option<PathBuf>) -> AppEntry {
+    let picture = icon.as_deref().and_then(|p| Image::load_from_path(p).ok());
+    AppEntry {
+        id: id.into(),
+        name: name.into(),
+        initial: initial(name),
+        android,
+        glyph: if android { SharedString::new() } else { glyph(ui, id) },
+        has_picture: picture.is_some(),
+        picture: picture.unwrap_or_default(),
+        badge: badge_for(st, id),
+    }
+}
+
+/// Tutte le app: (id, nome, android, icona)
+pub fn catalog() -> Vec<(String, String, bool, Option<PathBuf>)> {
+    let mut v: Vec<_> = SYSTEM_APPS.iter().map(|(id, n, _)| (id.to_string(), n.to_string(), false, None)).collect();
+    for (pkg, name, icon) in sys::android_apps() {
+        v.push((pkg, name, true, icon));
+    }
+    v
+}
+
+pub fn push_apps(ui: &AppWindow, st: &State) {
     let q = st.search.to_lowercase();
-    let v = all_apps()
+    let searching = !q.is_empty();
+    let grid = catalog()
         .into_iter()
-        .filter(|(_, n, _)| q.is_empty() || n.to_lowercase().contains(&q))
-        .map(|(id, name, android)| AppEntry { id: id.into(), name: name.into(), android })
+        .filter(|(id, n, _, _)| {
+            if searching {
+                n.to_lowercase().contains(&q)
+            } else {
+                !SYSTEM_APPS.iter().any(|(s, _, dock)| s == id && *dock)
+            }
+        })
+        .map(|(id, n, a, icon)| entry(ui, st, &id, &n, a, icon))
         .collect();
-    ui.global::<Shell>().set_apps(model(v));
+    let dock = SYSTEM_APPS.iter().filter(|(_, _, d)| *d).map(|(id, n, _)| entry(ui, st, id, n, false, None)).collect();
+    let g = ui.global::<Shell>();
+    g.set_apps(model(grid));
+    g.set_dock(model(dock));
 }
 
-fn push_recents(ui: &AppWindow, st: &State) {
+pub fn push_recents(ui: &AppWindow, st: &State) {
     let v = st
         .recents
         .iter()
@@ -149,12 +302,17 @@ fn push_recents(ui: &AppWindow, st: &State) {
         .map(|(i, r)| RecentItem {
             id: r.id.clone().into(),
             name: r.name.clone().into(),
+            glyph: glyph(ui, &r.id),
             mem: 0,
             state: (if i == 0 { "ultima aperta" } else if r.android { "Android, in pausa" } else { "in pausa" }).into(),
             android: r.android,
         })
         .collect();
     ui.global::<Shell>().set_recents(model(v));
+}
+
+pub fn push_notifs(ui: &AppWindow, st: &State) {
+    ui.global::<Sys>().set_notifications(model(st.notifs.clone()));
 }
 
 fn push_calendar(ui: &AppWindow, st: &State) {
@@ -193,7 +351,7 @@ fn push_calendar(ui: &AppWindow, st: &State) {
 
 fn push_notes(ui: &AppWindow, st: &State) {
     let list = st.store.sorted_notes(st.note_filter == 1);
-    let rows = ((list.len() + 1) / 2) as i32;
+    let rows = list.len().div_ceil(2) as i32;
     let v = list
         .into_iter()
         .enumerate()
@@ -218,6 +376,10 @@ pub fn push_all(ui: &AppWindow, st: &State) {
     push_recents(ui, st);
     push_calendar(ui, st);
     push_notes(ui, st);
+    push_notifs(ui, st);
+    crate::ctl_comm::push(ui, st);
+    crate::ctl_web::push(ui, st);
+    crate::ctl_files::push(ui, st);
 }
 
 // ---------- OTA ----------
@@ -227,8 +389,7 @@ fn check_update(ui: &AppWindow) {
     s.set_update_state("Controllo in corso…".into());
     let weak = ui.as_weak();
     std::thread::spawn(move || {
-        let url = update::manifest_url();
-        let res = update::fetch(&url);
+        let res = update::fetch(&update::manifest_url());
         let _ = slint::invoke_from_event_loop(move || {
             let Some(ui) = weak.upgrade() else { return };
             let s = ui.global::<Sys>();
@@ -250,11 +411,9 @@ fn check_update(ui: &AppWindow) {
 }
 
 fn install_update(ui: &AppWindow) {
-    let s = ui.global::<Sys>();
-    s.set_update_state("Download e installazione…".into());
+    ui.global::<Sys>().set_update_state("Download e installazione…".into());
     let weak = ui.as_weak();
     std::thread::spawn(move || {
-        // L'helper fa apk upgrade dal repo Cheip e riavvia la shell
         let ok = sys::helper(&["update"]);
         let _ = slint::invoke_from_event_loop(move || {
             let Some(ui) = weak.upgrade() else { return };
@@ -274,6 +433,7 @@ fn install_update(ui: &AppWindow) {
 /// `live = false` per screenshot e test: niente timer, niente comandi di sistema.
 pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Shared {
     let st: Shared = Rc::new(RefCell::new(State::new(store, now, live)));
+    STATE.with(|s| *s.borrow_mut() = Some(st.clone()));
     {
         let s = ui.global::<Sys>();
         s.set_version(VERSION.into());
@@ -283,254 +443,171 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
             if let Some(b) = sys::brightness() {
                 s.set_brightness(b);
             }
+            if let Some(v) = sys::volume() {
+                s.set_volume(v);
+            }
         }
         s.set_update_state("Tocca Controlla per cercare aggiornamenti".into());
     }
     push_clock(ui, now);
     if live {
         push_hw(ui);
+        st.borrow_mut().entries = crate::files::list(&crate::files::home(), false);
     }
     push_all(ui, &st.borrow());
 
-    // Sys
+    // Sistema
     let sysg = ui.global::<Sys>();
-    {
-        let (w, st) = (ui.as_weak(), st.clone());
-        sysg.on_toggle(move |id| {
-            let Some(ui) = w.upgrade() else { return };
-            let mut s = st.borrow_mut();
-            let live = s.live;
-            if let Some(t) = s.toggles.iter_mut().find(|t| t.id == id.as_str()) {
-                t.on = !t.on;
-                if live {
-                    match t.id {
-                        "wifi" => sys::radio("wifi", t.on),
-                        "dati" => sys::radio("wwan", t.on),
-                        "bt" => sys::radio("bluetooth", t.on),
-                        "torcia" => sys::set_torch(t.on),
-                        "eco" => {
-                            sys::helper(&["governor", if t.on { "powersave" } else { "schedutil" }]);
-                        }
-                        _ => {}
+    sysg.on_toggle(with!(ui, st, |ui, s, id| {
+        let live = s.live;
+        if let Some(t) = s.toggles.iter_mut().find(|t| t.id == id.as_str()) {
+            t.on = !t.on;
+            if live {
+                match t.id {
+                    "wifi" => sys::radio("wifi", t.on),
+                    "dati" => sys::radio("wwan", t.on),
+                    "bt" => sys::radio("bluetooth", t.on),
+                    "torcia" => sys::set_torch(t.on),
+                    "eco" => {
+                        sys::helper(&["governor", if t.on { "powersave" } else { "schedutil" }]);
                     }
+                    _ => {}
                 }
             }
-            push_toggles(&ui, &s);
-        });
-    }
-    {
-        let st = st.clone();
-        sysg.on_brightness_changed(move |v| {
-            if st.borrow().live {
-                sys::set_brightness(v);
-            }
-        });
-    }
-    {
-        let w = ui.as_weak();
-        sysg.on_check_update(move || {
-            if let Some(ui) = w.upgrade() {
-                check_update(&ui);
-            }
-        });
-    }
-    {
-        let w = ui.as_weak();
-        sysg.on_install_update(move || {
-            if let Some(ui) = w.upgrade() {
-                install_update(&ui);
-            }
-        });
-    }
-    {
-        let (w, st) = (ui.as_weak(), st.clone());
-        sysg.on_android_toggle(move || {
-            let Some(ui) = w.upgrade() else { return };
-            if !st.borrow().live || !sys::waydroid_installed() {
-                return;
-            }
-            let start = !ui.global::<Sys>().get_android_running();
-            sys::helper(&["android", if start { "start" } else { "stop" }]);
-            push_hw(&ui);
-        });
-    }
+        }
+        push_toggles(&ui, &s);
+    }));
+    sysg.on_brightness_changed(with!(ui, st, |_ui, s, v| {
+        if s.live {
+            sys::set_brightness(v);
+        }
+    }));
+    sysg.on_volume_changed(with!(ui, st, |_ui, s, v| {
+        if s.live {
+            sys::set_volume(v);
+        }
+    }));
+    sysg.on_check_update(with!(ui, st, |ui, _s| { check_update(&ui); }));
+    sysg.on_install_update(with!(ui, st, |ui, _s| { install_update(&ui); }));
+    sysg.on_android_toggle(with!(ui, st, |ui, s| {
+        if !s.live || !sys::waydroid_installed() {
+            return;
+        }
+        let start = !ui.global::<Sys>().get_android_running();
+        sys::helper(&["android", if start { "start" } else { "stop" }]);
+        push_hw(&ui);
+    }));
 
     // Shell
     let shell = ui.global::<Shell>();
-    {
-        let (w, st) = (ui.as_weak(), st.clone());
-        shell.on_open_app(move |id, from_y| {
-            let Some(ui) = w.upgrade() else { return };
-            let mut s = st.borrow_mut();
-            let apps = all_apps();
-            let Some((_, name, android)) = apps.into_iter().find(|(a, _, _)| a == id.as_str()) else { return };
-            s.recents.retain(|r| r.id != id.as_str());
-            s.recents.insert(0, Recent { id: id.to_string(), name, android });
-            if android && s.live {
-                sys::run("waydroid", &["app", "launch", id.as_str()]);
-            }
-            let g = ui.global::<Shell>();
-            g.set_from_y(from_y - 2.0);
-            g.set_app_id(id);
-            g.set_controls_open(false);
-            g.set_screen(ScreenId::Home);
-            g.set_app_open(true);
-            push_recents(&ui, &s);
-        });
-    }
-    {
-        let w = ui.as_weak();
-        shell.on_close_app(move || {
-            if let Some(ui) = w.upgrade() {
-                ui.global::<Shell>().set_app_open(false);
-            }
-        });
-    }
-    {
-        let w = ui.as_weak();
-        shell.on_unlock(move || {
-            if let Some(ui) = w.upgrade() {
-                ui.global::<Shell>().set_screen(ScreenId::Home);
-            }
-        });
-    }
-    {
-        let (w, st) = (ui.as_weak(), st.clone());
-        shell.on_search(move |q| {
-            let Some(ui) = w.upgrade() else { return };
-            let mut s = st.borrow_mut();
-            s.search = q.to_string();
+    shell.on_open_app(with!(ui, st, |ui, s, id, x, y, size| {
+        let Some((_, name, android, _)) = catalog().into_iter().find(|(a, _, _, _)| a == id.as_str()) else { return };
+        s.recents.retain(|r| r.id != id.as_str());
+        s.recents.insert(0, Recent { id: id.to_string(), name, android });
+        if android && s.live {
+            sys::run("waydroid", &["app", "launch", id.as_str()]);
+        }
+        if id.as_str() == "phone" {
+            s.missed = 0;
             push_apps(&ui, &s);
-        });
-    }
-    {
-        let (w, st) = (ui.as_weak(), st.clone());
-        shell.on_close_recent(move |id| {
-            let Some(ui) = w.upgrade() else { return };
-            let mut s = st.borrow_mut();
-            if let Some(r) = s.recents.iter().find(|r| r.id == id.as_str()) {
-                if r.android && s.live {
-                    sys::run("waydroid", &["app", "stop", id.as_str()]);
-                }
+        }
+        let g = ui.global::<Shell>();
+        g.set_from_x(x);
+        g.set_from_y(y);
+        g.set_from_size(size);
+        g.set_app_id(id);
+        g.set_controls_open(false);
+        g.set_searching(false);
+        g.set_screen(ScreenId::Home);
+        g.set_app_open(true);
+        push_recents(&ui, &s);
+    }));
+    shell.on_close_app(with!(ui, st, |ui, _s| { ui.global::<Shell>().set_app_open(false); }));
+    shell.on_unlock(with!(ui, st, |ui, _s| { ui.global::<Shell>().set_screen(ScreenId::Home); }));
+    shell.on_search(with!(ui, st, |ui, s, q| {
+        s.search = q.to_string();
+        push_apps(&ui, &s);
+    }));
+    shell.on_close_recent(with!(ui, st, |ui, s, id| {
+        if s.live && s.recents.iter().any(|r| r.id == id.as_str() && r.android) {
+            sys::run("waydroid", &["app", "stop", id.as_str()]);
+        }
+        s.recents.retain(|r| r.id != id.as_str());
+        push_recents(&ui, &s);
+    }));
+    shell.on_close_all(with!(ui, st, |ui, s| {
+        if s.live {
+            for r in s.recents.iter().filter(|r| r.android) {
+                sys::run("waydroid", &["app", "stop", &r.id]);
             }
-            s.recents.retain(|r| r.id != id.as_str());
-            push_recents(&ui, &s);
-        });
-    }
-    {
-        let (w, st) = (ui.as_weak(), st.clone());
-        shell.on_close_all(move || {
-            let Some(ui) = w.upgrade() else { return };
-            let mut s = st.borrow_mut();
-            if s.live {
-                for r in s.recents.iter().filter(|r| r.android) {
-                    sys::run("waydroid", &["app", "stop", &r.id]);
-                }
-            }
-            s.recents.clear();
-            push_recents(&ui, &s);
-            ui.global::<Shell>().set_screen(ScreenId::Home);
-        });
-    }
+        }
+        s.recents.clear();
+        push_recents(&ui, &s);
+        ui.global::<Shell>().set_screen(ScreenId::Home);
+    }));
 
     // Calendario
     let calg = ui.global::<Cal>();
-    {
-        let (w, st) = (ui.as_weak(), st.clone());
-        calg.on_prev_month(move || {
-            let Some(ui) = w.upgrade() else { return };
-            let mut s = st.borrow_mut();
-            (s.cal_year, s.cal_month) = cal::shift_month(s.cal_year, s.cal_month, -1);
-            s.cal_sel = 1;
-            push_calendar(&ui, &s);
-        });
-    }
-    {
-        let (w, st) = (ui.as_weak(), st.clone());
-        calg.on_next_month(move || {
-            let Some(ui) = w.upgrade() else { return };
-            let mut s = st.borrow_mut();
-            (s.cal_year, s.cal_month) = cal::shift_month(s.cal_year, s.cal_month, 1);
-            s.cal_sel = 1;
-            push_calendar(&ui, &s);
-        });
-    }
-    {
-        let (w, st) = (ui.as_weak(), st.clone());
-        calg.on_select(move |d| {
-            let Some(ui) = w.upgrade() else { return };
-            let mut s = st.borrow_mut();
-            s.cal_sel = d.max(1) as u32;
-            push_calendar(&ui, &s);
-        });
-    }
-    {
-        let (w, st) = (ui.as_weak(), st.clone());
-        calg.on_add_event(move |time, title| {
-            let Some(ui) = w.upgrade() else { return };
-            let title = title.trim().to_string();
-            if title.is_empty() {
-                return;
-            }
-            let mut s = st.borrow_mut();
-            let date = cal::iso(s.cal_year, s.cal_month, s.cal_sel);
-            s.store.add_event(&date, &cal::normalize_time(&time), &title);
-            s.store.save();
-            push_calendar(&ui, &s);
-        });
-    }
+    calg.on_prev_month(with!(ui, st, |ui, s| {
+        (s.cal_year, s.cal_month) = cal::shift_month(s.cal_year, s.cal_month, -1);
+        s.cal_sel = 1;
+        push_calendar(&ui, &s);
+    }));
+    calg.on_next_month(with!(ui, st, |ui, s| {
+        (s.cal_year, s.cal_month) = cal::shift_month(s.cal_year, s.cal_month, 1);
+        s.cal_sel = 1;
+        push_calendar(&ui, &s);
+    }));
+    calg.on_select(with!(ui, st, |ui, s, d| {
+        s.cal_sel = d.max(1) as u32;
+        push_calendar(&ui, &s);
+    }));
+    calg.on_add_event(with!(ui, st, |ui, s, time, title| {
+        let title = title.trim().to_string();
+        if title.is_empty() {
+            return;
+        }
+        let date = cal::iso(s.cal_year, s.cal_month, s.cal_sel);
+        s.store.add_event(&date, &cal::normalize_time(&time), &title);
+        s.store.save();
+        push_calendar(&ui, &s);
+    }));
 
     // Note
     let notes = ui.global::<Notes>();
-    {
-        let (w, st) = (ui.as_weak(), st.clone());
-        notes.on_set_filter(move |f| {
-            let Some(ui) = w.upgrade() else { return };
-            let mut s = st.borrow_mut();
-            s.note_filter = f;
-            push_notes(&ui, &s);
-        });
-    }
-    {
-        let (w, st) = (ui.as_weak(), st.clone());
-        notes.on_save(move |id, title, body| {
-            let Some(ui) = w.upgrade() else { return };
-            let mut s = st.borrow_mut();
-            let title = if title.trim().is_empty() { SharedString::from("Senza titolo") } else { title };
-            s.store.upsert_note(id, &title, &body, Local::now().timestamp());
-            s.store.save();
-            push_notes(&ui, &s);
-        });
-    }
-    {
-        let (w, st) = (ui.as_weak(), st.clone());
-        notes.on_toggle_pin(move |id| {
-            let Some(ui) = w.upgrade() else { return };
-            let mut s = st.borrow_mut();
-            s.store.toggle_pin(id);
-            s.store.save();
-            push_notes(&ui, &s);
-        });
-    }
-    {
-        let (w, st) = (ui.as_weak(), st.clone());
-        notes.on_remove(move |id| {
-            let Some(ui) = w.upgrade() else { return };
-            let mut s = st.borrow_mut();
-            s.store.remove_note(id);
-            s.store.save();
-            push_notes(&ui, &s);
-        });
-    }
+    notes.on_set_filter(with!(ui, st, |ui, s, f| {
+        s.note_filter = f;
+        push_notes(&ui, &s);
+    }));
+    notes.on_save(with!(ui, st, |ui, s, id, title, body| {
+        let title = if title.trim().is_empty() { SharedString::from("Senza titolo") } else { title };
+        s.store.upsert_note(id, &title, &body, Local::now().timestamp());
+        s.store.save();
+        push_notes(&ui, &s);
+    }));
+    notes.on_toggle_pin(with!(ui, st, |ui, s, id| {
+        s.store.toggle_pin(id);
+        s.store.save();
+        push_notes(&ui, &s);
+    }));
+    notes.on_remove(with!(ui, st, |ui, s, id| {
+        s.store.remove_note(id);
+        s.store.save();
+        push_notes(&ui, &s);
+    }));
 
     // Fotocamera: in mainline i sensori dei Lumia non hanno driver
-    ui.global::<Cam>().set_available(std::path::Path::new("/dev/video0").exists() && live);
+    ui.global::<Cam>().set_available(live && std::path::Path::new("/dev/video0").exists());
 
+    crate::ctl_comm::wire(ui, &st);
+    crate::ctl_web::wire(ui, &st);
+    crate::ctl_files::wire(ui, &st);
+    crate::ctl_settings::wire(ui, &st);
     st
 }
 
-/// Timer di sistema: orologio ogni secondo, hardware ogni 5
-pub fn start_timers(ui: &AppWindow) -> Vec<slint::Timer> {
+/// Timer di sistema: orologio ogni secondo, hardware ogni 5, modem in ctl_comm
+pub fn start_timers(ui: &AppWindow, st: &Shared) -> Vec<slint::Timer> {
     let clock = slint::Timer::default();
     let w = ui.as_weak();
     clock.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(1), move || {
@@ -545,5 +622,7 @@ pub fn start_timers(ui: &AppWindow) -> Vec<slint::Timer> {
             push_hw(&ui);
         }
     });
-    vec![clock, hw]
+    let mut v = vec![clock, hw];
+    v.extend(crate::ctl_comm::timers(ui, st));
+    v
 }

@@ -1,7 +1,7 @@
 # Maintainer: Eugenio Casale <cheipstudio@gmail.com>
 # Pacchetto UI per pmbootstrap: "pmbootstrap config ui cheip"
 pkgname=postmarketos-ui-cheip
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=0
 pkgdesc="Cheip OS: interfaccia leggera per telefoni con 1 GB di RAM"
 url="https://cheipstudio.org"

@@ -3,5 +3,7 @@
 repo="https://updates.cheipstudio.org/cheip-os/stable"
 grep -qxF "$repo" /etc/apk/repositories 2>/dev/null || echo "$repo" >> /etc/apk/repositories
 rc-update add networkmanager default >/dev/null 2>&1 || true
+rc-update add modemmanager default >/dev/null 2>&1 || true
+rc-update add bluetooth default >/dev/null 2>&1 || true
 rc-update add cheip-shell default >/dev/null 2>&1 || true
 exit 0

@@ -22,10 +22,61 @@ pub struct Event {
     pub title: String,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Contact {
+    pub name: String,
+    pub number: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct CallLog {
+    pub number: String,
+    pub ts: i64,
+    /// "out", "in", "missed"
+    pub dir: String,
+    pub secs: i64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Message {
+    pub number: String,
+    pub text: String,
+    pub ts: i64,
+    pub outgoing: bool,
+    #[serde(default)]
+    pub read: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Bookmark {
+    pub title: String,
+    pub url: String,
+}
+
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct Data {
+    #[serde(default)]
     pub notes: Vec<Note>,
+    #[serde(default)]
     pub events: Vec<Event>,
+    #[serde(default)]
+    pub contacts: Vec<Contact>,
+    #[serde(default)]
+    pub calls: Vec<CallLog>,
+    #[serde(default)]
+    pub messages: Vec<Message>,
+    #[serde(default)]
+    pub bookmarks: Vec<Bookmark>,
+}
+
+/// Confronto numeri ignorando spazi e prefisso internazionale italiano
+pub fn same_number(a: &str, b: &str) -> bool {
+    let norm = |s: &str| {
+        let d: String = s.chars().filter(|c| c.is_ascii_digit()).collect();
+        d.strip_prefix("0039").or_else(|| d.strip_prefix("39").filter(|r| r.len() >= 9)).unwrap_or(&d).to_string()
+    };
+    let (x, y) = (norm(a), norm(b));
+    !x.is_empty() && x == y
 }
 
 pub struct Store {
@@ -112,6 +163,72 @@ impl Store {
     pub fn has_events(&self, date: &str) -> bool {
         self.data.events.iter().any(|e| e.date == date)
     }
+
+    pub fn contact_name(&self, number: &str) -> Option<String> {
+        self.data.contacts.iter().find(|c| same_number(&c.number, number)).map(|c| c.name.clone())
+    }
+
+    pub fn add_contact(&mut self, name: &str, number: &str) {
+        if let Some(c) = self.data.contacts.iter_mut().find(|c| same_number(&c.number, number)) {
+            c.name = name.to_string();
+            return;
+        }
+        self.data.contacts.push(Contact { name: name.into(), number: number.into() });
+        self.data.contacts.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    }
+
+    pub fn log_call(&mut self, number: &str, ts: i64, dir: &str, secs: i64) {
+        self.data.calls.insert(0, CallLog { number: number.into(), ts, dir: dir.into(), secs });
+        self.data.calls.truncate(200);
+    }
+
+    /// Aggiunge un messaggio se non c'è già (lo stesso SMS può essere letto due volte dal modem)
+    pub fn add_message(&mut self, m: Message) -> bool {
+        let dup = self.data.messages.iter().any(|x| x.ts == m.ts && x.text == m.text && same_number(&x.number, &m.number));
+        if !dup {
+            self.data.messages.push(m);
+        }
+        !dup
+    }
+
+    /// Conversazioni: (numero, ultimo messaggio, non letti), dalla più recente
+    pub fn threads(&self) -> Vec<(String, Message, usize)> {
+        let mut out: Vec<(String, Message, usize)> = Vec::new();
+        for m in &self.data.messages {
+            match out.iter_mut().find(|(n, _, _)| same_number(n, &m.number)) {
+                Some(t) => {
+                    if m.ts >= t.1.ts {
+                        t.1 = m.clone();
+                    }
+                    if !m.outgoing && !m.read {
+                        t.2 += 1;
+                    }
+                }
+                None => out.push((m.number.clone(), m.clone(), usize::from(!m.outgoing && !m.read))),
+            }
+        }
+        out.sort_by(|a, b| b.1.ts.cmp(&a.1.ts));
+        out
+    }
+
+    pub fn conversation(&mut self, number: &str) -> Vec<Message> {
+        for m in self.data.messages.iter_mut().filter(|m| same_number(&m.number, number)) {
+            m.read = true;
+        }
+        let mut v: Vec<Message> = self.data.messages.iter().filter(|m| same_number(&m.number, number)).cloned().collect();
+        v.sort_by_key(|m| m.ts);
+        v
+    }
+
+    pub fn toggle_bookmark(&mut self, title: &str, url: &str) -> bool {
+        if let Some(i) = self.data.bookmarks.iter().position(|b| b.url == url) {
+            self.data.bookmarks.remove(i);
+            false
+        } else {
+            self.data.bookmarks.insert(0, Bookmark { title: title.into(), url: url.into() });
+            true
+        }
+    }
 }
 
 #[cfg(test)]
@@ -142,6 +259,33 @@ mod tests {
         assert_eq!(v[0].title, "Spesa");
         assert!(s.has_events("2026-11-25"));
         assert!(!s.has_events("2026-11-26"));
+    }
+
+    #[test]
+    fn numbers_and_threads() {
+        assert!(same_number("+39 333 123 4567", "3331234567"));
+        assert!(same_number("0039 333 1234567", "333-1234567"));
+        assert!(!same_number("3331234567", "3331234568"));
+        let mut s = Store::memory(Data::default());
+        s.add_contact("Marco", "+39 333 1234567");
+        assert_eq!(s.contact_name("3331234567").as_deref(), Some("Marco"));
+        let m = |n: &str, t: &str, ts, o| Message { number: n.into(), text: t.into(), ts, outgoing: o, read: false };
+        assert!(s.add_message(m("3331234567", "Ciao", 10, false)));
+        assert!(!s.add_message(m("+393331234567", "Ciao", 10, false)), "duplicato");
+        s.add_message(m("+393331234567", "Ehi", 20, true));
+        s.add_message(m("3489999999", "Pacco in consegna", 15, false));
+        let t = s.threads();
+        assert_eq!(t.len(), 2);
+        assert_eq!(t[0].1.text, "Ehi");
+        assert_eq!(t[0].2, 1, "un non letto");
+        assert_eq!(s.conversation("3331234567").len(), 2);
+        assert_eq!(s.threads()[0].2, 0, "letti dopo l'apertura");
+    }
+
+    #[test]
+    fn old_data_file_still_loads() {
+        let d: Data = serde_json::from_str(r#"{"notes":[],"events":[]}"#).unwrap();
+        assert!(d.contacts.is_empty());
     }
 
     #[test]

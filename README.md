@@ -6,17 +6,23 @@ shell propria in Rust + Slint, aggiornamenti OTA firmati.
 
 ![Schermate](screens/00-panoramica.png)
 
-## Stato 0.1
+## Stato 0.2
 
 | Parte | Stato |
 |---|---|
-| Shell: blocco, home, controlli, app aperte | fatta, gesti dal bordo alto e dalla barra in basso |
-| Calendario, Note, Impostazioni | fatte, dati salvati in `~/.local/share/cheip/data.json` |
+| Launcher stile ChromeOS | griglia di icone tonde senza testo, dock con ricerca, pallini di notifica |
+| Shell | blocco, controlli rapidi a icone, app aperte, apertura app che si espande dall'icona |
+| Telefono | tastiera, recenti, rubrica, chiamate in uscita e in arrivo via ModemManager |
+| Messaggi | conversazioni, invio e ricezione SMS via ModemManager, salvati in locale |
+| Browser | modalità lettura: pagine ridotte a testo, titoli e link nativi, schede, preferiti, ricerca |
+| File | navigazione nella home e sulle SD, anteprima testo e immagini, nuova cartella, eliminazione |
+| Impostazioni | Wi-Fi con scansione e password, Bluetooth, rete mobile, display, suoni, batteria, archiviazione, Android, data e ora, aggiornamenti, info |
+| Calendario, Note | come 0.1 |
 | Fotocamera | interfaccia pronta, i sensori dei Lumia non hanno driver in mainline |
-| Dati di sistema | ora, batteria, RAM, luminosità, torcia, Wi-Fi, dati, bluetooth reali |
+| Modem | il codice c'è, ma sui Lumia in mainline il modem non è attivo: chiamate e SMS reali partono quando lo sarà |
 | Rendering | software su simpledrm oggi, GLES automatico quando c'è `/dev/dri/renderD128` |
 | OTA | manifest + repository apk firmato su Cloudflare R2, installazione dalla shell |
-| App Android | rilevate da Waydroid e lanciate, ma senza finestra fino alla 0.2 |
+| App Android | rilevate da Waydroid con la loro icona e lanciate, ma senza finestra finché la shell non è compositor |
 | Immagine per il telefono | CI con pmbootstrap, **mai provata su hardware** |
 
 ## Sviluppo sul PC
@@ -33,8 +39,9 @@ L'ultimo comando renderizza tutte le schermate a 720x1280 in PNG, senza display.
 ## Struttura
 
 ```
-shell/ui/          interfaccia Slint (theme, data, components, screens, apps, main)
-shell/src/         controller, sysfs/procfs, note ed eventi, OTA, calendario
+shell/ui/          interfaccia Slint: screens, apps, phone, messages, browser, files, settings
+shell/src/         controller e ctl_* (telefono, messaggi, web, file, impostazioni),
+                   modem (mmcli), web (lettura), files, system, store, OTA
 system/            avvio della sessione, servizio OpenRC, helper root, udev, doas
 packaging/         APKBUILD di cheip-shell e del pacchetto UI postmarketos-ui-cheip
 .github/workflows/ shell.yml (test + screenshot), release.yml (immagine + OTA)
@@ -71,11 +78,11 @@ renderer software: se arriva quella, il resto è sviluppo.
 
 ## Prossime milestone
 
-- **0.2** la shell diventa compositor Wayland (Smithay): finestre Android via Waydroid
-  con la stessa animazione di apertura delle app di sistema.
-- **0.3** GPU: Adreno 305 con freedreno, display MDP5/DSI e driver pannello per modello.
+- **0.3** la shell diventa compositor Wayland (Smithay): finestre Android via Waydroid
+  con la stessa animazione di apertura delle app di sistema, e browser con motore WPE WebKit.
+- **0.4** GPU: Adreno 305 con freedreno, display MDP5/DSI e driver pannello per modello.
   È il passo che porta ai 60 fps fissi.
-- **0.4** OTA A/B con RAUC: sistema in sola lettura, rollback automatico se il boot fallisce.
+- **0.5** OTA A/B con RAUC: sistema in sola lettura, rollback automatico se il boot fallisce.
 - Fotocamera con libcamera, solo se arrivano driver per i sensori.
 
 ## Licenze
