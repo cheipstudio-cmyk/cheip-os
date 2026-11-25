@@ -30,6 +30,12 @@ pub fn manifest_url() -> String {
         .unwrap_or_else(|| DEFAULT_MANIFEST.to_string())
 }
 
+#[cfg(not(feature = "native"))]
+pub fn fetch(_url: &str) -> Result<Manifest, String> {
+    Err("offline".into())
+}
+
+#[cfg(feature = "native")]
 pub fn fetch(url: &str) -> Result<Manifest, String> {
     ureq::get(url)
         .timeout(std::time::Duration::from_secs(15))

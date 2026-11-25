@@ -2,13 +2,11 @@
 //! con il renderer software, senza display. Uso: cheip-screens <cartella>
 
 use cheip_shell::controller;
-use cheip_shell::store::{Bookmark, CallLog, Contact, Data, Event, Message, Note, Store};
-use cheip_shell::system::WifiNet;
 use cheip_shell::*;
-use chrono::{Local, NaiveDate, TimeZone};
+use chrono::NaiveDate;
 use slint::platform::software_renderer::{MinimalSoftwareWindow, PremultipliedRgbaColor, RepaintBufferType};
 use slint::platform::{Platform, WindowAdapter, WindowEvent};
-use slint::{ComponentHandle, ModelRc, VecModel};
+use slint::ComponentHandle;
 use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Duration;
@@ -62,67 +60,6 @@ impl Ctx {
         self.frames.push(img);
     }
 }
-
-fn ts(d: u32, h: u32, m: u32) -> i64 {
-    Local.with_ymd_and_hms(2026, 11, d, h, m, 0).single().map(|t| t.timestamp()).unwrap_or(0)
-}
-
-fn demo_store() -> Store {
-    let n = |id, t: &str, b: &str, p, u| Note { id, title: t.into(), body: b.into(), pinned: p, updated: u };
-    let e = |d: &str, t: &str, x: &str| Event { date: d.into(), time: t.into(), title: x.into() };
-    let c = |n: &str, num: &str| Contact { name: n.into(), number: num.into() };
-    let call = |num: &str, t, dir: &str, secs| CallLog { number: num.into(), ts: t, dir: dir.into(), secs };
-    let m = |num: &str, t: &str, at, out, read| Message { number: num.into(), text: t.into(), ts: at, outgoing: out, read };
-    Store::memory(Data {
-        notes: vec![
-            n(1, "Groceries", "Milk, bread, cat food", true, 10),
-            n(2, "OS ideas", "Edge gestures, weather widget on home", true, 9),
-            n(3, "To do", "Boot shim, touch test, Waydroid", false, 8),
-            n(4, "Wi-Fi code", "Ask at home", false, 7),
-        ],
-        events: vec![
-            e("2026-11-03", "09:30", "Dentist"),
-            e("2026-11-25", "18:00", "Groceries"),
-            e("2026-11-25", "23:00", "Cheip OS design review"),
-            e("2026-11-27", "10:00", "Ship build 0.3"),
-        ],
-        contacts: vec![
-            c("Andrea", "+39 340 112 2334"),
-            c("Giulia", "+39 347 556 7788"),
-            c("Marco", "+39 333 123 4567"),
-            c("Rossi Garage", "0331 123456"),
-        ],
-        calls: vec![
-            call("+393331234567", ts(25, 21, 12), "out", 240),
-            call("+393475567788", ts(25, 18, 40), "missed", 0),
-            call("0331123456", ts(24, 10, 5), "in", 95),
-            call("+393401122334", ts(22, 16, 30), "out", 600),
-        ],
-        messages: vec![
-            m("+393331234567", "Trying Cheip OS on the Lumia tomorrow?", ts(25, 22, 30), false, true),
-            m("+393331234567", "Yes, 0.3 has phone, browser and a media player", ts(25, 22, 33), true, true),
-            m("+393331234567", "Great. I'll bring the 640 so we can test that too", ts(25, 22, 47), false, false),
-            m("+393475567788", "Called you, call me back when you can", ts(25, 18, 41), false, false),
-            m("3912", "Your remaining credit is 8.40 euro", ts(23, 9, 0), false, true),
-        ],
-        bookmarks: vec![
-            Bookmark { title: "Cheip Studio".into(), url: "https://cheipstudio.org".into() },
-            Bookmark { title: "postmarketOS wiki".into(), url: "https://wiki.postmarketos.org".into() },
-            Bookmark { title: "Weather Sesto Calende".into(), url: "https://html.duckduckgo.com/html/?q=weather%20sesto%20calende".into() },
-        ],
-    })
-}
-
-const PAGE: &str = r#"<html><head><title>Cheip OS 0.3 is here</title></head><body>
-<nav><a href="/">Home</a></nav>
-<h1>Cheip OS 0.3: media, files and an English UI</h1>
-<p>The third release turns the Files app into a media hub: photo gallery, video player, music player with tags and covers, PDF and document viewers.</p>
-<h2>A browser that fits in a few MB</h2>
-<p>Instead of a full web engine, pages are reduced to native headings, text and links. On 1 GB of RAM that makes the difference.</p>
-<ul><li>Tabs with per-tab history</li><li>Bookmarks</li><li>Built-in search</li></ul>
-<p><a href="https://cheipstudio.org/cheip-os">Full release notes</a></p>
-<blockquote><p>The real web engine arrives when the shell becomes a compositor.</p></blockquote>
-</body></html>"#;
 
 fn sh(cmd: &str, args: &[&str]) -> bool {
     std::process::Command::new(cmd).args(args).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().map(|s| s.success()).unwrap_or(false)
@@ -212,55 +149,11 @@ fn main() {
     window.set_size(slint::PhysicalSize::new(W, H));
 
     let now = NaiveDate::from_ymd_opt(2026, 11, 25).unwrap().and_hms_opt(22, 51, 0).unwrap();
-    let st = controller::wire(&ui, demo_store(), now, false);
+    let st = controller::wire(&ui, cheip_shell::demo::store(), now, false);
 
-    // Dati demo come su un 735 reale
-    {
-        let mut s = st.borrow_mut();
-        s.modem_ok = true;
-        s.cwd = home.clone();
-        s.notify("Marco", "Great. I'll bring the 640 so we can test that too", false);
-        s.notify("System", "Cheip OS 0.3.1 ready to install", false);
-        controller::push_all(&ui, &s);
-    }
-    let s = ui.global::<Sys>();
-    s.set_battery(78);
-    s.set_mem_used(588);
-    s.set_mem_total(1024);
-    s.set_mem_android(212);
-    s.set_android_running(true);
-    s.set_android_state("Running, suspends after 2 minutes with no apps".into());
-    s.set_model("Nokia Lumia 735".into());
-    s.set_kernel("6.12.9-msm8x26".into());
-    s.set_update_available(true);
-    s.set_update_version("0.3.1".into());
-    s.set_update_state("Faster browser, SMS fixes".into());
-    s.set_volume(0.6);
-    let set = ui.global::<Settings>();
-    set.set_modem_operator("TIM".into());
-    set.set_modem_signal("67%".into());
-    set.set_modem_state("registered".into());
-    set.set_storage_used("2.9 GB".into());
-    set.set_storage_total("5.6 GB".into());
-    set.set_storage_ratio(0.52);
-    cheip_shell::ctl_settings::demo_networks(
-        &ui,
-        vec![
-            WifiNet { ssid: "Casa Casale".into(), signal: 82, secure: true, active: true },
-            WifiNet { ssid: "FASTWEB-7A21".into(), signal: 61, secure: true, active: false },
-            WifiNet { ssid: "Sesto Library".into(), signal: 44, secure: false, active: false },
-            WifiNet { ssid: "TIM-90312".into(), signal: 30, secure: true, active: false },
-        ],
-    );
-
-    // App Android finte nella griglia
+    cheip_shell::demo::apply(&ui, &st);
     let shell = ui.global::<Shell>();
-    let mut apps: Vec<AppEntry> = slint::Model::iter(&shell.get_apps()).collect();
-    for (id, name) in [("org.telegram.messenger", "Telegram"), ("com.whatsapp", "WhatsApp"), ("com.spotify.music", "Spotify")] {
-        apps.push(AppEntry { id: id.into(), name: name.into(), initial: name[..1].into(), android: true, ..Default::default() });
-    }
-    shell.set_apps(ModelRc::new(VecModel::from(apps)));
-
+    let set = ui.global::<Settings>();
     let open = |id: &str| shell.invoke_open_app(id.into(), 152.0, 300.0, 56.0);
 
     ctx.advance(600);
@@ -308,7 +201,7 @@ fn main() {
     ctx.advance(700);
     ctx.shot("browser-inizio");
     {
-        let page = cheip_shell::web::parse(PAGE, "https://cheipstudio.org/blog/cheip-os-0-2");
+        let page = cheip_shell::web::parse(cheip_shell::demo::PAGE, "https://cheipstudio.org/blog/cheip-os-0-2");
         let mut s = st.borrow_mut();
         cheip_shell::ctl_web::show_page(&ui, &mut s, page);
     }

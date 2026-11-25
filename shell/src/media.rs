@@ -3,8 +3,11 @@
 //! dal thread della UI e lascia file in cache.
 
 use crate::files::{self, Entry, Kind};
+#[cfg(feature = "native")]
 use gstreamer as gst;
+#[cfg(feature = "native")]
 use gstreamer::prelude::*;
+#[cfg(feature = "native")]
 use gstreamer_app as gst_app;
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
@@ -133,16 +136,38 @@ pub fn image_thumb(src: &Path, dst: &Path, size: u32) -> bool {
     }
 }
 
+#[cfg(feature = "native")]
 static GST: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 pub fn gst_ready() -> bool {
-    *GST.get_or_init(|| gst::init().is_ok())
+    #[cfg(feature = "native")]
+    return *GST.get_or_init(|| gst::init().is_ok());
+    #[cfg(not(feature = "native"))]
+    false
 }
 
+/// Senza GStreamer e lofty (demo web) i metadati arrivano dal file system finto
+#[cfg(not(feature = "native"))]
+pub fn video_thumb(_src: &Path, _dst: &Path, _width: u32) -> Option<u64> {
+    None
+}
+
+#[cfg(not(feature = "native"))]
+pub fn audio_meta(p: &Path) -> AudioMeta {
+    let stem = p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+    #[cfg(target_arch = "wasm32")]
+    if let Some(e) = crate::vfs::find(p) {
+        return AudioMeta { title: if e.title.is_empty() { stem } else { e.title.into() }, artist: e.artist.into(), album: String::new(), secs: e.secs, cover: e.thumb.map(|t| t.to_vec()) };
+    }
+    AudioMeta { title: stem, ..Default::default() }
+}
+
+#[cfg(feature = "native")]
 pub fn file_uri(p: &Path) -> Option<String> {
     gst::glib::filename_to_uri(p, None).ok().map(|u| u.to_string())
 }
 
+#[cfg(feature = "native")]
 /// Coda video: videoconvert ! videoscale ! RGBA largo `width` ! appsink
 pub fn video_branch(width: Option<u32>) -> Result<(gst::Bin, gst_app::AppSink), String> {
     let bin = gst::Bin::new();
@@ -160,6 +185,7 @@ pub fn video_branch(width: Option<u32>) -> Result<(gst::Bin, gst_app::AppSink), 
     Ok((bin, sink))
 }
 
+#[cfg(feature = "native")]
 /// Copia un fotogramma RGBA togliendo l'eventuale padding delle righe
 pub fn sample_rgba(sample: &gst::Sample) -> Option<(u32, u32, Vec<u8>)> {
     let caps = sample.caps()?;
@@ -177,6 +203,7 @@ pub fn sample_rgba(sample: &gst::Sample) -> Option<(u32, u32, Vec<u8>)> {
     Some((w, h, out))
 }
 
+#[cfg(feature = "native")]
 /// Fotogramma a circa 1 s e durata del video. Restituisce la durata in secondi.
 pub fn video_thumb(src: &Path, dst: &Path, width: u32) -> Option<u64> {
     if !gst_ready() {
@@ -218,6 +245,7 @@ pub struct AudioMeta {
     pub cover: Option<Vec<u8>>,
 }
 
+#[cfg(feature = "native")]
 pub fn audio_meta(p: &Path) -> AudioMeta {
     use lofty::file::{AudioFile, TaggedFileExt};
     use lofty::tag::Accessor;
@@ -249,6 +277,14 @@ pub fn has_mutool() -> bool {
 }
 
 pub fn pdf_pages(p: &Path) -> Option<u32> {
+    #[cfg(target_arch = "wasm32")]
+    return crate::vfs::find(p).map(|e| e.pages.len() as u32);
+    #[cfg(not(target_arch = "wasm32"))]
+    pdf_pages_native(p)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn pdf_pages_native(p: &Path) -> Option<u32> {
     let out = Command::new("mutool").arg("info").arg(p).output().ok()?;
     String::from_utf8_lossy(&out.stdout)
         .lines()
@@ -294,6 +330,9 @@ pub fn xml_text(xml: &str, para_end: &str, tab: &str) -> String {
 
 /// Testo di DOCX e ODT, primi 2 MB di XML
 pub fn office_text(p: &Path) -> Option<String> {
+    #[cfg(target_arch = "wasm32")]
+    let f = std::io::Cursor::new(crate::vfs::find(p)?.data?);
+    #[cfg(not(target_arch = "wasm32"))]
     let f = fs::File::open(p).ok()?;
     let mut zip = zip::ZipArchive::new(f).ok()?;
     let ext = p.extension()?.to_string_lossy().to_lowercase();
@@ -303,7 +342,7 @@ pub fn office_text(p: &Path) -> Option<String> {
     Some(xml_text(&xml, para, tab))
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "native"))]
 mod tests {
     use super::*;
     use std::io::Write;

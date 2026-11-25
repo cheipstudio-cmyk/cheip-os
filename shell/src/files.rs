@@ -27,11 +27,22 @@ pub struct Entry {
 }
 
 pub fn home() -> PathBuf {
+    #[cfg(target_arch = "wasm32")]
+    return PathBuf::from(crate::vfs::HOME);
+    #[cfg(not(target_arch = "wasm32"))]
     std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/tmp"))
 }
 
 /// Radici consentite: home e /media (schede SD)
 pub fn allowed(p: &Path) -> bool {
+    #[cfg(target_arch = "wasm32")]
+    return p.starts_with(crate::vfs::HOME);
+    #[cfg(not(target_arch = "wasm32"))]
+    allowed_native(p)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn allowed_native(p: &Path) -> bool {
     let Ok(c) = p.canonicalize() else { return false };
     let home = home().canonicalize().unwrap_or_else(|_| home());
     c.starts_with(&home) || c.starts_with("/media") || c.starts_with("/run/media")
@@ -54,6 +65,12 @@ pub fn kind_of(name: &str, is_dir: bool) -> Kind {
 }
 
 pub fn list(dir: &Path, show_hidden: bool) -> Vec<Entry> {
+    #[cfg(target_arch = "wasm32")]
+    let mut v: Vec<Entry> = {
+        let _ = show_hidden;
+        crate::vfs::list(dir)
+    };
+    #[cfg(not(target_arch = "wasm32"))]
     let mut v: Vec<Entry> = fs::read_dir(dir)
         .map(|it| {
             it.flatten()
@@ -97,6 +114,14 @@ pub fn human_size(b: u64) -> String {
 
 /// Primi 64 KB, per non riempire la RAM con un log da 200 MB
 pub fn preview_text(p: &Path) -> String {
+    #[cfg(target_arch = "wasm32")]
+    return crate::vfs::find(p).and_then(|e| e.data).map(|d| String::from_utf8_lossy(d).to_string()).unwrap_or_default();
+    #[cfg(not(target_arch = "wasm32"))]
+    preview_text_native(p)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn preview_text_native(p: &Path) -> String {
     use std::io::Read;
     let mut buf = Vec::new();
     if let Ok(f) = fs::File::open(p) {
@@ -127,6 +152,17 @@ pub fn remove(p: &Path) -> bool {
 
 /// (usato, totale) in byte del filesystem che contiene `p`
 pub fn disk_usage(p: &Path) -> Option<(u64, u64)> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = p;
+        return Some((3_110_000_000, 6_010_000_000));
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    disk_usage_native(p)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn disk_usage_native(p: &Path) -> Option<(u64, u64)> {
     let out = std::process::Command::new("df").args(["-Pk"]).arg(p).output().ok()?;
     let s = String::from_utf8_lossy(&out.stdout);
     let line = s.lines().nth(1)?;

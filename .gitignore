@@ -4,3 +4,4 @@ shell/target/
 dist-*
 ota/
 out/
+web-demo/pkg/

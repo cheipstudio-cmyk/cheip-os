@@ -3,6 +3,7 @@
 //! motore web completo, che arriva quando la shell diventa compositor.
 
 use scraper::{ElementRef, Html, Selector};
+#[cfg(feature = "native")]
 use std::io::Read;
 use url::Url;
 
@@ -135,6 +136,12 @@ pub fn parse(html: &str, base: &str) -> Page {
     Page { url: base.to_string(), title, blocks }
 }
 
+#[cfg(not(feature = "native"))]
+pub fn fetch(_url: &str) -> Result<Page, String> {
+    Err("Offline demo".into())
+}
+
+#[cfg(feature = "native")]
 pub fn fetch(url: &str) -> Result<Page, String> {
     let resp = ureq::get(url)
         .set("User-Agent", "Mozilla/5.0 (Linux; Cheip OS) CheipReader/0.2")

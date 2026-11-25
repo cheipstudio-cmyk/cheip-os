@@ -63,6 +63,19 @@ pub fn show_page(ui: &AppWindow, st: &mut State, page: Page) {
 }
 
 fn load(ui: &AppWindow, shared: &Shared, url: String) {
+    // Demo e screenshot: niente rete, una pagina di esempio con l'indirizzo richiesto
+    if !shared.borrow().live {
+        let mut s = shared.borrow_mut();
+        let mut page = web::parse(crate::demo::PAGE, &url);
+        page.url = url;
+        let i = s.tab;
+        s.tabs[i].page = Some(page);
+        s.tabs[i].loading = false;
+        s.tabs[i].error.clear();
+        s.scroll_gen += 1;
+        push(ui, &s);
+        return;
+    }
     let tab_id = {
         let mut s = shared.borrow_mut();
         let i = s.tab;

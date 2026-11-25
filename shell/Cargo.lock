@@ -692,6 +692,8 @@ dependencies = [
  "slint-build",
  "ureq",
  "url",
+ "wasm-bindgen",
+ "web-sys",
  "zip",
 ]
 

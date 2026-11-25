@@ -9,6 +9,7 @@ build = "build.rs"
 [lib]
 name = "cheip_shell"
 path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
 
 [[bin]]
 name = "cheip-shell"
@@ -22,9 +23,10 @@ required-features = ["screens"]
 [features]
 default = ["desktop"]
 # Sviluppo su PC: finestra 360x640
-desktop = ["slint/backend-winit", "slint/renderer-femtovg", "slint/renderer-software", "slint/software-renderer-path"]
+desktop = ["native", "slint/backend-winit", "slint/renderer-femtovg", "slint/renderer-software", "slint/software-renderer-path"]
 # Telefono: DRM/KMS diretto, niente compositor. GLES con freedreno, software su simpledrm
 device = [
+    "native",
     "slint/backend-linuxkms",
     "slint/backend-linuxkms-libinput",
     "slint/backend-linuxkms-noseat",
@@ -32,25 +34,31 @@ device = [
     "slint/renderer-software",
     "slint/software-renderer-path",
 ]
+# Tutto ciò che parla col sistema: GStreamer, rete, tag audio
+native = ["dep:gstreamer", "dep:gstreamer-app", "dep:gstreamer-video", "dep:lofty", "dep:ureq"]
+# Demo interattiva nel browser (WebAssembly), con file e media finti incorporati
+web = ["slint/backend-winit", "slint/renderer-femtovg", "dep:wasm-bindgen", "dep:web-sys", "chrono/wasmbind"]
 # Screenshot headless delle schermate
-screens = ["dep:i-slint-core", "slint/renderer-software", "slint/software-renderer-path", "slint/software-renderer-systemfonts"]
+screens = ["native", "dep:i-slint-core", "slint/renderer-software", "slint/software-renderer-path", "slint/software-renderer-systemfonts"]
 
 [dependencies]
 slint = { version = "1.19", default-features = false, features = ["std", "compat-1-2", "image-default-formats"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-ureq = { version = "2", default-features = false, features = ["tls", "json", "gzip"] }
+ureq = { version = "2", default-features = false, features = ["tls", "json", "gzip"], optional = true }
 scraper = { version = "0.20", default-features = false }
 url = "2"
 percent-encoding = "2"
 # Solo per gli screenshot headless: il backend del telefono abilita già i decoder
 i-slint-core = { version = "=1.19.1", features = ["image-decoders"], optional = true }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp"] }
-gstreamer = "0.25"
-gstreamer-app = "0.25"
-gstreamer-video = "0.25"
-lofty = "0.25"
+gstreamer = { version = "0.25", optional = true }
+gstreamer-app = { version = "0.25", optional = true }
+gstreamer-video = { version = "0.25", optional = true }
+lofty = { version = "0.25", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["Window"] }
 zip = { version = "9", default-features = false, features = ["deflate"] }
 once_cell = "1"
 

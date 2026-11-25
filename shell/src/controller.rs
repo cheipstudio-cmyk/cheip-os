@@ -267,9 +267,23 @@ fn entry(ui: &AppWindow, st: &State, id: &str, name: &str, android: bool, icon: 
     }
 }
 
+thread_local! {
+    static DEMO_ANDROID: RefCell<Vec<(String, String)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// App Android finte per demo e screenshot
+pub fn set_demo_android(v: Vec<(String, String)>) {
+    DEMO_ANDROID.with(|d| *d.borrow_mut() = v);
+}
+
 /// Tutte le app: (id, nome, android, icona)
 pub fn catalog() -> Vec<(String, String, bool, Option<PathBuf>)> {
     let mut v: Vec<_> = SYSTEM_APPS.iter().map(|(id, n, _)| (id.to_string(), n.to_string(), false, None)).collect();
+    DEMO_ANDROID.with(|d| {
+        for (id, n) in d.borrow().iter() {
+            v.push((id.clone(), n.clone(), true, None));
+        }
+    });
     for (pkg, name, icon) in sys::android_apps() {
         v.push((pkg, name, true, icon));
     }
@@ -386,8 +400,13 @@ pub fn push_all(ui: &AppWindow, st: &State) {
 
 // ---------- OTA ----------
 
-fn check_update(ui: &AppWindow) {
+fn check_update(ui: &AppWindow, live: bool) {
     let s = ui.global::<Sys>();
+    if !live {
+        s.set_update_available(false);
+        s.set_update_state("You're up to date".into());
+        return;
+    }
     s.set_update_state("Checking…".into());
     let weak = ui.as_weak();
     std::thread::spawn(move || {
@@ -412,7 +431,14 @@ fn check_update(ui: &AppWindow) {
     });
 }
 
-fn install_update(ui: &AppWindow) {
+fn install_update(ui: &AppWindow, live: bool) {
+    if !live {
+        let s = ui.global::<Sys>();
+        s.set_update_available(false);
+        s.set_update_version("".into());
+        s.set_update_state("Installed. This is a demo, nothing changed".into());
+        return;
+    }
     ui.global::<Sys>().set_update_state("Downloading and installing…".into());
     let weak = ui.as_weak();
     std::thread::spawn(move || {
@@ -489,8 +515,8 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
             sys::set_volume(v);
         }
     }));
-    sysg.on_check_update(with!(ui, st, |ui, _s| { check_update(&ui); }));
-    sysg.on_install_update(with!(ui, st, |ui, _s| { install_update(&ui); }));
+    sysg.on_check_update(with!(ui, st, |ui, s| { check_update(&ui, s.live); }));
+    sysg.on_install_update(with!(ui, st, |ui, s| { install_update(&ui, s.live); }));
     sysg.on_android_toggle(with!(ui, st, |ui, s| {
         if !s.live || !sys::waydroid_installed() {
             return;
@@ -619,11 +645,12 @@ pub fn start_timers(ui: &AppWindow, st: &Shared) -> Vec<slint::Timer> {
     });
     let hw = slint::Timer::default();
     let w = ui.as_weak();
-    hw.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(5), move || {
+    let live = st.borrow().live;
+    if live { hw.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(5), move || {
         if let Some(ui) = w.upgrade() {
             push_hw(&ui);
         }
-    });
+    }); }
     let mut v = vec![clock, hw];
     v.extend(crate::ctl_comm::timers(ui, st));
     v.push(crate::ctl_files::timer(ui, st));

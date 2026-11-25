@@ -2,10 +2,8 @@
 //! un appsink in RGBA e arrivano alla UI tramite la callback `on_frame`.
 //! Sul Lumia non c'è decodifica hardware in mainline: meglio restare sul 480p.
 
-use crate::media;
-use gstreamer as gst;
-use gstreamer::prelude::*;
-use gstreamer_app as gst_app;
+#[cfg(not(feature = "native"))]
+#[allow(unused_imports)]
 use std::path::Path;
 
 pub enum Event {
@@ -13,6 +11,84 @@ pub enum Event {
     Eos,
     Error(String),
 }
+
+#[cfg(feature = "native")]
+pub use real::Player;
+#[cfg(not(feature = "native"))]
+pub use stub::Player;
+
+/// Demo web: niente decodifica, il tempo avanza a ogni controllo del timer (250 ms)
+#[cfg(not(feature = "native"))]
+mod stub {
+    use super::Event;
+    use std::cell::Cell;
+    use std::path::Path;
+
+    pub struct Player {
+        playing: bool,
+        pos: Cell<f64>,
+        dur: u64,
+    }
+
+    impl Player {
+        pub fn new<F>(_max_width: u32, _on_frame: F) -> Result<Self, String>
+        where
+            F: Fn(u32, u32, Vec<u8>) + Send + Sync + 'static,
+        {
+            Ok(Player { playing: false, pos: Cell::new(0.0), dur: 0 })
+        }
+        pub fn load(&mut self, path: &Path) -> Result<(), String> {
+            #[cfg(target_arch = "wasm32")]
+            let secs = crate::vfs::find(path).map(|e| e.secs).unwrap_or(0);
+            #[cfg(not(target_arch = "wasm32"))]
+            let secs = {
+                let _ = path;
+                0
+            };
+            self.dur = if secs > 0 { secs } else { 180 };
+            self.pos.set(0.0);
+            self.playing = true;
+            Ok(())
+        }
+        pub fn is_playing(&self) -> bool {
+            self.playing
+        }
+        pub fn set_playing(&mut self, play: bool) {
+            self.playing = play;
+        }
+        pub fn stop(&mut self) {
+            self.playing = false;
+            self.pos.set(0.0);
+        }
+        pub fn position(&self) -> u64 {
+            self.pos.get() as u64
+        }
+        pub fn duration(&self) -> u64 {
+            self.dur
+        }
+        pub fn seek_fraction(&self, f: f32) {
+            self.pos.set(self.dur as f64 * f.clamp(0.0, 1.0) as f64);
+        }
+        pub fn poll(&self) -> Event {
+            if self.playing {
+                self.pos.set(self.pos.get() + 0.25);
+            }
+            if self.dur > 0 && self.pos.get() >= self.dur as f64 {
+                return Event::Eos;
+            }
+            Event::None
+        }
+    }
+}
+
+#[cfg(feature = "native")]
+mod real {
+use super::Event;
+use crate::media;
+use gstreamer as gst;
+use gstreamer::prelude::*;
+use gstreamer_app as gst_app;
+use std::path::Path;
 
 pub struct Player {
     playbin: gst::Element,
@@ -115,9 +191,12 @@ impl Drop for Player {
     }
 }
 
-#[cfg(test)]
+}
+
+#[cfg(all(test, feature = "native"))]
 mod tests {
     use super::*;
+    use crate::media;
     use std::process::Command;
     use std::sync::mpsc;
     use std::time::Duration;

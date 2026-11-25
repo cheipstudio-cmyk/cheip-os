@@ -74,6 +74,9 @@ fn thumb_image(fx: &mut FilesState, p: &Path) -> Option<Image> {
     if let Some(img) = fx.images.get(&t) {
         return Some(img.clone());
     }
+    #[cfg(target_arch = "wasm32")]
+    let img = crate::vfs::decode(crate::vfs::find(p)?.thumb?)?;
+    #[cfg(not(target_arch = "wasm32"))]
     let img = Image::load_from_path(&t).ok()?;
     fx.images.insert(t, img.clone());
     Some(img)
@@ -150,7 +153,29 @@ pub fn push(ui: &AppWindow, st: &State) {
 
 // ---------- miniature e metadati, fuori dal thread della UI ----------
 
+/// Demo web: miniature e metadati sono già nel file system finto
+#[cfg(target_arch = "wasm32")]
+pub fn build_meta(items: &[Entry]) -> Vec<(PathBuf, Meta)> {
+    items
+        .iter()
+        .filter_map(|e| {
+            let v = crate::vfs::find(&e.path)?;
+            let some = |s: &str| (!s.is_empty()).then(|| s.to_string());
+            Some((
+                e.path.clone(),
+                Meta {
+                    thumb: v.thumb.map(|_| PathBuf::from(format!("vfs-thumb:{}", v.path))),
+                    info: some(v.info),
+                    title: some(v.title),
+                    artist: some(v.artist),
+                },
+            ))
+        })
+        .collect()
+}
+
 /// Calcola miniature e metadati mancanti. Lento: va chiamata in un thread.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn build_meta(items: &[Entry]) -> Vec<(PathBuf, Meta)> {
     items
         .iter()
@@ -196,6 +221,16 @@ pub fn apply_meta(ui: &AppWindow, st: &mut State, res: Vec<(PathBuf, Meta)>) {
         st.fx.meta.insert(p, m);
     }
     push_list(ui, st);
+}
+
+/// Sul telefono in un thread, nella demo e negli screenshot subito
+fn load_meta(ui: &AppWindow, st: &mut State, items: Vec<Entry>) {
+    if st.live {
+        spawn_meta(ui, items);
+    } else {
+        let res = build_meta(&items);
+        apply_meta(ui, st, res);
+    }
 }
 
 fn spawn_meta(ui: &AppWindow, items: Vec<Entry>) {
@@ -252,7 +287,8 @@ fn open_category(ui: &AppWindow, st: &mut State, id: &str) {
         st.fx.view = "folder".into();
         f.set_view("folder".into());
         refresh_folder(ui, st);
-        spawn_meta(ui, st.fx.list.clone());
+        let list = st.fx.list.clone();
+        load_meta(ui, st, list);
         return;
     }
     let Some(cat) = Category::from_id(id) else { return };
@@ -261,9 +297,8 @@ fn open_category(ui: &AppWindow, st: &mut State, id: &str) {
     f.set_title(cat.label().into());
     f.set_view(id.into());
     push_list(ui, st);
-    if st.live {
-        spawn_meta(ui, st.fx.list.clone());
-    }
+    let list = st.fx.list.clone();
+    load_meta(ui, st, list);
 }
 
 // ---------- visori e lettore ----------
@@ -274,7 +309,11 @@ fn show_image(ui: &AppWindow, st: &mut State) {
     f.set_viewer_title(e.name.clone().into());
     f.set_viewer_pos(format!("{} / {}", st.fx.viewer_idx + 1, st.fx.viewer_list.len()).into());
     // Immagine intera ridotta a 720 px: una foto da 13 MP non deve entrare tutta in RAM
-    let img = image::open(&e.path).ok().map(|i| i.thumbnail(720, 1280).to_rgba8()).map(|i| {
+    #[cfg(target_arch = "wasm32")]
+    let opened = crate::vfs::find(&e.path).and_then(|v| v.data).and_then(|d| image::load_from_memory(d).ok());
+    #[cfg(not(target_arch = "wasm32"))]
+    let opened = image::open(&e.path).ok();
+    let img = opened.map(|i| i.thumbnail(720, 1280).to_rgba8()).map(|i| {
         let (w, h) = (i.width(), i.height());
         Image::from_rgba8(SharedPixelBuffer::<Rgba8Pixel>::clone_from_slice(i.as_raw(), w, h))
     });
@@ -286,10 +325,19 @@ fn show_pdf_page(ui: &AppWindow, st: &mut State) {
     let Some((p, page, pages)) = st.fx.pdf.clone() else { return };
     let f = ui.global::<Files>();
     f.set_viewer_pos(format!("Page {page} / {pages}").into());
-    let dst = media::cache_dir().join(format!("pdf-{}-{page}.png", media::thumb_path(&p).file_stem().unwrap_or_default().to_string_lossy()));
-    if dst.exists() || media::pdf_render(&p, page, 720, &dst) {
-        if let Ok(img) = Image::load_from_path(&dst) {
-            f.set_viewer_image(img);
+    #[cfg(target_arch = "wasm32")]
+    {
+        let img = crate::vfs::find(&p).and_then(|v| v.pages.get(page as usize - 1)).and_then(|b| crate::vfs::decode(b));
+        f.set_viewer_image(img.unwrap_or_default());
+        return;
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let dst = media::cache_dir().join(format!("pdf-{}-{page}.png", media::thumb_path(&p).file_stem().unwrap_or_default().to_string_lossy()));
+        if dst.exists() || media::pdf_render(&p, page, 720, &dst) {
+            if let Ok(img) = Image::load_from_path(&dst) {
+                f.set_viewer_image(img);
+            }
         }
     }
 }
@@ -387,7 +435,8 @@ pub fn wire(ui: &AppWindow, st: &Shared) {
                 if files::allowed(&e.path) {
                     s.cwd = e.path;
                     refresh_folder(&ui, &mut s);
-                    spawn_meta(&ui, s.fx.list.clone());
+                    let list = s.fx.list.clone();
+                    load_meta(&ui, &mut s, list);
                 }
             }
             Kind::Image => {
@@ -406,6 +455,10 @@ pub fn wire(ui: &AppWindow, st: &Shared) {
                 if let Some(p) = s.fx.player.as_mut() {
                     let _ = p.load(&e.path);
                 }
+                // Primo fotogramma subito, poi arrivano quelli del lettore
+                #[cfg(target_arch = "wasm32")]
+                let thumb = crate::vfs::find(&e.path).and_then(|v| v.data).and_then(crate::vfs::decode);
+                #[cfg(not(target_arch = "wasm32"))]
                 let thumb = thumb_image(&mut s.fx, &e.path);
                 f.set_viewer_image(thumb.unwrap_or_default());
                 f.set_viewer_title(e.name.into());
