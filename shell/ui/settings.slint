@@ -77,23 +77,23 @@ export component SettingsApp inherits Rectangle {
 
     if Settings.page == "": Rectangle {
         StatusBar { y: 0; width: parent.width; }
-        Title { x: 16px; y: 34px; text: "Impostazioni"; }
+        Title { x: 16px; y: 34px; text: "Settings"; }
         Flickable {
             x: 16px; y: 88px; width: parent.width - 32px; height: parent.height - 88px - 28px;
             content-height: list.preferred-height + 16px;
             list := VerticalLayout {
                 width: parent.width; alignment: start;
-                ListRow { icon: Icons.wifi; label: "Wi-Fi"; detail: Sys.wifi-on ? "Acceso" : "Spento"; clicked => { Settings.open-page("wifi"); } }
-                ListRow { icon: Icons.bluetooth; label: "Bluetooth"; detail: Sys.bt-on ? "Acceso" : "Spento"; clicked => { Settings.open-page("bt"); } }
-                ListRow { icon: Icons.data; label: "Rete mobile"; detail: Phone.modem-ok ? Settings.modem-operator : "Modem non disponibile"; clicked => { Settings.open-page("mobile"); } }
-                ListRow { icon: Icons.sun; label: "Display"; detail: "Luminosità, colore accento"; clicked => { Settings.open-page("display"); } }
-                ListRow { icon: Icons.speaker; label: "Suoni"; detail: round(Sys.volume * 100) + "%"; clicked => { Settings.open-page("sound"); } }
-                ListRow { icon: Icons.battery; label: "Batteria"; detail: Sys.battery + "%" + (Sys.charging ? " in carica" : ""); clicked => { Settings.open-page("battery"); } }
-                ListRow { icon: Icons.disk; label: "Archiviazione e memoria"; detail: Settings.storage-used + " di " + Settings.storage-total; clicked => { Settings.open-page("storage"); } }
-                ListRow { icon: Icons.android; label: "App Android"; detail: Sys.android-running ? "Attive" : "Sospese"; clicked => { Settings.open-page("android"); } }
-                ListRow { icon: Icons.clock; label: "Data e ora"; detail: Settings.timezone; clicked => { Settings.open-page("time"); } }
-                ListRow { icon: Icons.update; label: "Aggiornamenti"; detail: Sys.update-available ? "Disponibile la " + Sys.update-version : "Versione " + Sys.version; clicked => { Settings.open-page("update"); } }
-                ListRow { icon: Icons.info; label: "Info telefono"; detail: Sys.model; clicked => { Settings.open-page("about"); } }
+                ListRow { icon: Icons.wifi; label: "Wi-Fi"; detail: Sys.wifi-on ? "On" : "Off"; clicked => { Settings.open-page("wifi"); } }
+                ListRow { icon: Icons.bluetooth; label: "Bluetooth"; detail: Sys.bt-on ? "On" : "Off"; clicked => { Settings.open-page("bt"); } }
+                ListRow { icon: Icons.data; label: "Mobile network"; detail: Phone.modem-ok ? Settings.modem-operator : "Modem not available"; clicked => { Settings.open-page("mobile"); } }
+                ListRow { icon: Icons.sun; label: "Display"; detail: "Brightness, accent color"; clicked => { Settings.open-page("display"); } }
+                ListRow { icon: Icons.speaker; label: "Sound"; detail: round(Sys.volume * 100) + "%"; clicked => { Settings.open-page("sound"); } }
+                ListRow { icon: Icons.battery; label: "Battery"; detail: Sys.battery + "%" + (Sys.charging ? " charging" : ""); clicked => { Settings.open-page("battery"); } }
+                ListRow { icon: Icons.disk; label: "Storage and memory"; detail: Settings.storage-used + " of " + Settings.storage-total; clicked => { Settings.open-page("storage"); } }
+                ListRow { icon: Icons.android; label: "Android apps"; detail: Sys.android-running ? "Running" : "Suspended"; clicked => { Settings.open-page("android"); } }
+                ListRow { icon: Icons.clock; label: "Date and time"; detail: Settings.timezone; clicked => { Settings.open-page("time"); } }
+                ListRow { icon: Icons.update; label: "Updates"; detail: Sys.update-available ? "Available: " + Sys.update-version : "Version " + Sys.version; clicked => { Settings.open-page("update"); } }
+                ListRow { icon: Icons.info; label: "About phone"; detail: Sys.model; clicked => { Settings.open-page("about"); } }
             }
         }
     }
@@ -103,7 +103,7 @@ export component SettingsApp inherits Rectangle {
         SwitchRow { label: "Wi-Fi"; on: Sys.wifi-on; toggled => { Sys.toggle("wifi"); } }
         HorizontalLayout {
             height: 44px; spacing: 8px;
-            Text { text: Settings.wifi-busy ? "Ricerca reti…" : Settings.wifi-msg; color: Theme.muted; font-family: Theme.body; font-size: 13px; vertical-alignment: center; }
+            Text { text: Settings.wifi-busy ? "Scanning…" : Settings.wifi-msg; color: Theme.muted; font-family: Theme.body; font-size: 13px; vertical-alignment: center; }
             RoundButton { icon: Icons.refresh; outlined: false; clicked => { Settings.wifi-scan(); } }
         }
         for n in Settings.networks: Rectangle {
@@ -129,7 +129,7 @@ export component SettingsApp inherits Rectangle {
                 Field { placeholder: "Password"; kind: InputType.password; text <=> root.pw; }
                 HorizontalLayout {
                     alignment: end;
-                    PillButton { label: "Connetti"; solid: true; clicked => { Settings.wifi-connect(n.ssid, root.pw); root.pw-ssid = ""; } }
+                    PillButton { label: "Connect"; solid: true; clicked => { Settings.wifi-connect(n.ssid, root.pw); root.pw-ssid = ""; } }
                 }
             }
         }
@@ -138,24 +138,24 @@ export component SettingsApp inherits Rectangle {
     if Settings.page == "bt": Page {
         title: "Bluetooth";
         SwitchRow { label: "Bluetooth"; on: Sys.bt-on; toggled => { Sys.toggle("bt"); } }
-        Text { text: "Dispositivi associati"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 32px; vertical-alignment: bottom; }
+        Text { text: "Paired devices"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 32px; vertical-alignment: bottom; }
         for d in Settings.bt-devices: ListRow { icon: Icons.bluetooth; label: d; chevron: false; }
-        if Settings.bt-devices.length == 0: Text { text: "Nessuno"; color: Theme.faint; font-family: Theme.body; font-size: 14px; height: 40px; vertical-alignment: center; }
+        if Settings.bt-devices.length == 0: Text { text: "None"; color: Theme.faint; font-family: Theme.body; font-size: 14px; height: 40px; vertical-alignment: center; }
     }
 
     if Settings.page == "mobile": Page {
-        title: "Rete mobile";
+        title: "Mobile network";
         SwitchRow { label: "Dati mobili"; on: Sys.data-on; toggled => { Sys.toggle("dati"); } }
-        InfoRow { label: "Operatore"; value: Phone.modem-ok ? Settings.modem-operator : "Nessuno"; }
-        InfoRow { label: "Segnale"; value: Settings.modem-signal; }
-        InfoRow { label: "Stato"; value: Phone.modem-ok ? Settings.modem-state : Phone.modem-label; }
+        InfoRow { label: "Carrier"; value: Phone.modem-ok ? Settings.modem-operator : "None"; }
+        InfoRow { label: "Signal"; value: Settings.modem-signal; }
+        InfoRow { label: "Status"; value: Phone.modem-ok ? Settings.modem-state : Phone.modem-label; }
     }
 
     if Settings.page == "display": Page {
         title: "Display";
-        Text { text: "Luminosità"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 28px; vertical-alignment: bottom; }
+        Text { text: "Brightness"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 28px; vertical-alignment: bottom; }
         Slider { glyph: Icons.sun; value: Sys.brightness; changed(v) => { Sys.brightness = v; Sys.brightness-changed(v); } }
-        Text { text: "Colore accento"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 40px; vertical-alignment: bottom; }
+        Text { text: "Accent color"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 40px; vertical-alignment: bottom; }
         HorizontalLayout {
             spacing: 12px; alignment: start; height: 56px; padding-top: 8px;
             for c in [#c6ff3d, #ff7a1a, #3da9ff, #ff4fa3, #b18cff]: Rectangle {
@@ -166,64 +166,64 @@ export component SettingsApp inherits Rectangle {
                 TouchArea { clicked => { Theme.accent = c; } }
             }
         }
-        InfoRow { label: "Tema"; value: "Nero AMOLED"; }
+        InfoRow { label: "Theme"; value: "AMOLED black"; }
     }
 
     if Settings.page == "sound": Page {
-        title: "Suoni";
+        title: "Sound";
         Text { text: "Volume"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 28px; vertical-alignment: bottom; }
         Slider { glyph: Icons.speaker; value: Sys.volume; changed(v) => { Sys.volume = v; Sys.volume-changed(v); } }
     }
 
     if Settings.page == "battery": Page {
-        title: "Batteria";
+        title: "Battery";
         Text { text: Sys.battery + "%"; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 56px; height: 72px; }
         Rectangle {
             height: 12px; border-radius: 6px; background: Theme.raised; clip: true;
             Rectangle { x: 0; width: parent.width * Sys.battery / 100; background: Sys.battery <= 15 ? #ff6b6b : Theme.accent; }
         }
-        InfoRow { label: "Stato"; value: Sys.charging ? "In carica" : "In uso"; }
-        SwitchRow { label: "Risparmio energetico"; on: Sys.eco-on; toggled => { Sys.toggle("eco"); } }
+        InfoRow { label: "Status"; value: Sys.charging ? "Charging" : "Discharging"; }
+        SwitchRow { label: "Battery saver"; on: Sys.eco-on; toggled => { Sys.toggle("eco"); } }
     }
 
     if Settings.page == "storage": Page {
-        title: "Archiviazione";
-        Text { text: Settings.storage-used + " di " + Settings.storage-total; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 26px; height: 44px; }
+        title: "Storage";
+        Text { text: Settings.storage-used + " of " + Settings.storage-total; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 26px; height: 44px; }
         Rectangle {
             height: 12px; border-radius: 6px; background: Theme.raised; clip: true;
             Rectangle { x: 0; width: parent.width * Settings.storage-ratio; background: Theme.text; }
         }
         Rectangle { height: 16px; }
-        InfoRow { label: "Memoria RAM"; value: Sys.mem-used + " / " + Sys.mem-total + " MB"; }
-        InfoRow { label: "Di cui app Android"; value: Sys.mem-android + " MB"; }
+        InfoRow { label: "RAM"; value: Sys.mem-used + " / " + Sys.mem-total + " MB"; }
+        InfoRow { label: "Used by Android apps"; value: Sys.mem-android + " MB"; }
     }
 
     if Settings.page == "android": Page {
-        title: "App Android";
-        InfoRow { label: "Livello Android"; value: Sys.android-running ? "Attivo" : "Sospeso"; }
+        title: "Android apps";
+        InfoRow { label: "Android layer"; value: Sys.android-running ? "Running" : "Suspended"; }
         Text { text: Sys.android-state; color: Theme.muted; font-family: Theme.body; font-size: 13px; wrap: word-wrap; }
         HorizontalLayout {
             alignment: start; padding-top: 12px; height: 46px;
-            PillButton { label: Sys.android-running ? "Sospendi" : "Avvia"; solid: true; clicked => { Sys.android-toggle(); } }
+            PillButton { label: Sys.android-running ? "Suspend" : "Start"; solid: true; clicked => { Sys.android-toggle(); } }
         }
     }
 
     if Settings.page == "time": Page {
-        title: "Data e ora";
-        InfoRow { label: "Ora"; value: Sys.time; }
-        InfoRow { label: "Data"; value: Sys.date; }
-        InfoRow { label: "Fuso orario"; value: Settings.timezone; }
-        Text { text: "Ora e data arrivano dalla rete in automatico."; color: Theme.faint; font-family: Theme.body; font-size: 12px; wrap: word-wrap; height: 40px; vertical-alignment: bottom; }
+        title: "Date and time";
+        InfoRow { label: "Time"; value: Sys.time; }
+        InfoRow { label: "Date"; value: Sys.date; }
+        InfoRow { label: "Time zone"; value: Settings.timezone; }
+        Text { text: "Time and date are set automatically from the network."; color: Theme.faint; font-family: Theme.body; font-size: 12px; wrap: word-wrap; height: 40px; vertical-alignment: bottom; }
     }
 
     if Settings.page == "update": Page {
-        title: "Aggiornamenti";
+        title: "Updates";
         Text { text: Sys.update-available ? "Cheip OS " + Sys.update-version : "Cheip OS " + Sys.version; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 26px; height: 44px; }
         Text { text: Sys.update-state; color: Theme.muted; font-family: Theme.body; font-size: 13px; wrap: word-wrap; }
         HorizontalLayout {
             alignment: start; padding-top: 16px; height: 50px;
             PillButton {
-                label: Sys.update-available ? "Installa" : "Controlla";
+                label: Sys.update-available ? "Install" : "Check";
                 solid: true;
                 clicked => { if (Sys.update-available) { Sys.install-update(); } else { Sys.check-update(); } }
             }
@@ -231,10 +231,10 @@ export component SettingsApp inherits Rectangle {
     }
 
     if Settings.page == "about": Page {
-        title: "Info telefono";
-        InfoRow { label: "Modello"; value: Sys.model; }
+        title: "About phone";
+        InfoRow { label: "Model"; value: Sys.model; }
         InfoRow { label: "Cheip OS"; value: Sys.version; }
         InfoRow { label: "Kernel"; value: Sys.kernel; }
-        InfoRow { label: "Memoria"; value: Sys.mem-total + " MB"; }
+        InfoRow { label: "Memory"; value: Sys.mem-total + " MB"; }
     }
 }

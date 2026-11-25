@@ -73,7 +73,7 @@ pub fn android_memory() -> i32 {
 }
 
 pub fn model() -> String {
-    read_trim("/proc/device-tree/model").unwrap_or_else(|| "PC di sviluppo".into())
+    read_trim("/proc/device-tree/model").unwrap_or_else(|| "Development PC".into())
 }
 
 pub fn kernel() -> String {
@@ -260,13 +260,13 @@ pub fn wifi_connect(ssid: &str, password: &str) -> Result<(), String> {
         args.push("password");
         args.push(password);
     }
-    let out = Command::new("nmcli").args(&args).output().map_err(|_| "NetworkManager non disponibile".to_string())?;
+    let out = Command::new("nmcli").args(&args).output().map_err(|_| "NetworkManager not available".to_string())?;
     if out.status.success() {
         Ok(())
     } else if String::from_utf8_lossy(&out.stderr).contains("Secrets were required") {
-        Err("Password errata".into())
+        Err("Wrong password".into())
     } else {
-        Err("Connessione non riuscita".into())
+        Err("Connection failed".into())
     }
 }
 

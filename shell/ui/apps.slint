@@ -20,7 +20,7 @@ export component CalendarApp inherits Rectangle {
     RoundButton { x: root.width - 108px; y: 30px; icon: Icons.fwd; clicked => { Cal.next-month(); } }
     RoundButton { x: root.width - 60px; y: 30px; icon: Icons.plus; fill: Theme.accent; tint: #000; outlined: false; clicked => { root.adding = !root.adding; } }
 
-    for d[i] in ["L", "M", "M", "G", "V", "S", "D"]: Text {
+    for d[i] in ["M", "T", "W", "T", "F", "S", "S"]: Text {
         x: 16px + i * root.cell-w; y: 88px; width: root.cell-w;
         text: d; color: Theme.muted; font-family: Theme.body; font-size: 11px;
         horizontal-alignment: center;
@@ -63,19 +63,19 @@ export component CalendarApp inherits Rectangle {
                 Text { text: e.title; color: Theme.text; font-family: Theme.body; font-size: 14px; vertical-alignment: center; overflow: elide; }
             }
         }
-        if Cal.events.length == 0: Text { text: "Giornata libera"; color: Theme.faint; font-family: Theme.body; font-size: 14px; }
+        if Cal.events.length == 0: Text { text: "Nothing planned"; color: Theme.faint; font-family: Theme.body; font-size: 14px; }
     }
 
     if root.adding: VerticalLayout {
         x: 16px; y: 378px; width: parent.width - 32px;
         spacing: 8px; alignment: start;
-        Text { text: "Nuovo evento · " + Cal.selected-label; color: Theme.muted; font-family: Theme.body; font-size: 13px; }
-        title := Field { placeholder: "Titolo"; }
-        when := Field { placeholder: "Ora, es. 18:30"; }
+        Text { text: "New event · " + Cal.selected-label; color: Theme.muted; font-family: Theme.body; font-size: 13px; }
+        title := Field { placeholder: "Title"; }
+        when := Field { placeholder: "Time, e.g. 18:30"; }
         HorizontalLayout {
             alignment: end; spacing: 8px;
-            PillButton { label: "Annulla"; clicked => { root.adding = false; } }
-            PillButton { label: "Salva"; solid: true; clicked => { Cal.add-event(when.text, title.text); root.adding = false; } }
+            PillButton { label: "Cancel"; clicked => { root.adding = false; } }
+            PillButton { label: "Save"; solid: true; clicked => { Cal.add-event(when.text, title.text); root.adding = false; } }
         }
     }
 }
@@ -91,15 +91,15 @@ export component NotesApp inherits Rectangle {
     StatusBar { y: 0; width: parent.width; }
     Text {
         x: 16px; y: 34px;
-        text: "Note";
+        text: "Notes";
         color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 28px; letter-spacing: -0.5px;
     }
 
     HorizontalLayout {
         x: 16px; y: 84px; height: 34px;
         spacing: 8px; alignment: start;
-        PillButton { label: "Tutte"; active: Notes.filter == 0; clicked => { Notes.set-filter(0); } }
-        PillButton { label: "Fissate"; active: Notes.filter == 1; clicked => { Notes.set-filter(1); } }
+        PillButton { label: "All"; active: Notes.filter == 0; clicked => { Notes.set-filter(0); } }
+        PillButton { label: "Pinned"; active: Notes.filter == 1; clicked => { Notes.set-filter(1); } }
     }
 
     Flickable {
@@ -196,9 +196,9 @@ export component CameraApp inherits Rectangle {
     HorizontalLayout {
         y: 444px; height: 32px;
         alignment: center; spacing: 4px;
-        PillButton { label: "Foto"; solid: root.mode == 0; clicked => { root.mode = 0; root.rec = false; } }
+        PillButton { label: "Photo"; solid: root.mode == 0; clicked => { root.mode = 0; root.rec = false; } }
         PillButton { label: "Video"; solid: root.mode == 1; clicked => { root.mode = 1; root.rec = false; } }
-        PillButton { label: "Ritratto"; solid: root.mode == 2; clicked => { root.mode = 2; root.rec = false; } }
+        PillButton { label: "Portrait"; solid: root.mode == 2; clicked => { root.mode = 2; root.rec = false; } }
     }
 
     Rectangle {

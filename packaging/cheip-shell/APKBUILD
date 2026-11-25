@@ -1,13 +1,15 @@
 # Maintainer: Eugenio Casale <cheipstudio@gmail.com>
 pkgname=cheip-shell
-pkgver=0.2.0
+pkgver=0.3.0
 pkgrel=0
 pkgdesc="Shell di Cheip OS: home, controlli, app di sistema, OTA"
 url="https://cheipstudio.org"
 arch="armv7 aarch64 x86_64"
 license="GPL-3.0-or-later"
-depends="doas mesa-dri-gallium networkmanager-cli rfkill modemmanager bluez alsa-utils"
-makedepends="cargo eudev-dev libinput-dev libdrm-dev mesa-dev libxkbcommon-dev fontconfig-dev"
+depends="doas mesa-dri-gallium networkmanager-cli rfkill modemmanager bluez alsa-utils
+	gst-plugins-base gst-plugins-good gst-libav mupdf-tools"
+makedepends="cargo eudev-dev libinput-dev libdrm-dev mesa-dev libxkbcommon-dev fontconfig-dev
+	gstreamer-dev gst-plugins-base-dev"
 install="$pkgname.post-install"
 options="net"
 # Il tarball lo crea la CI con git archive dal tag

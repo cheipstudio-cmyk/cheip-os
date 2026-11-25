@@ -1,65 +1,225 @@
 import { Theme } from "theme.slint";
-import { Files } from "data.slint";
+import { Files, FileRow } from "data.slint";
 import { Icon, Icons, StatusBar, RoundButton, Title, Field, Card, PillButton } from "components.slint";
+
+// Icona per tipo: 0 cartella, 1 testo, 2 immagine, 3 altro, 4 video, 5 audio, 6 pdf, 7 documento
+export global Kinds {
+    public pure function glyph(k: int) -> string {
+        if (k == 0) { return Icons.folder; }
+        if (k == 2) { return Icons.picture; }
+        if (k == 4) { return Icons.video; }
+        if (k == 5) { return Icons.music; }
+        if (k == 6 || k == 7 || k == 1) { return Icons.doc; }
+        return Icons.file;
+    }
+}
+
+component Thumb inherits Rectangle {
+    in property <FileRow> item;
+    in property <length> radius: 12px;
+    border-radius: self.radius;
+    background: Theme.raised;
+    clip: true;
+    if !root.item.has-thumb: Icon { d: Kinds.glyph(root.item.kind); size: min(root.width, root.height) * 0.36; tint: Theme.muted; weight: 1.6px; }
+    if root.item.has-thumb: Image { width: root.width; height: root.height; source: root.item.thumb; image-fit: cover; }
+}
+
+component FileListRow inherits Rectangle {
+    in property <FileRow> item;
+    in property <bool> deletable: true;
+    callback activated();
+    callback delete();
+    height: 64px;
+    background: ta.pressed ? Theme.raised : transparent;
+    animate background { duration: Theme.fast; }
+    if root.item.kind == 0: Rectangle {
+        x: 0; y: 10px; width: 44px; height: 44px; border-radius: 22px; background: Theme.accent;
+        Icon { d: Icons.folder; tint: #000; size: 20px; }
+    }
+    if root.item.kind != 0: Thumb { x: 0; y: 10px; width: 44px; height: 44px; item: root.item; radius: root.item.kind == 5 ? 22px : 10px; }
+    VerticalLayout {
+        x: 58px; width: parent.width - 110px; alignment: center; spacing: 2px;
+        Text { text: root.item.name; color: Theme.text; font-family: Theme.body; font-size: 15px; overflow: elide; }
+        Text { text: root.item.info; color: Theme.muted; font-family: Theme.body; font-size: 12px; overflow: elide; }
+    }
+    ta := TouchArea { clicked => { root.activated(); } }
+    if root.deletable: RoundButton {
+        x: parent.width - 44px; y: 10px; icon: Icons.trash; outlined: false; tint: Theme.faint; icon-size: 18px;
+        clicked => { root.delete(); }
+    }
+}
+
+// Barra di avanzamento trascinabile
+component Seek inherits Rectangle {
+    in property <float> value;
+    callback seek(float);
+    height: 24px;
+    Rectangle {
+        y: 10px; height: 4px; border-radius: 2px; background: #ffffff33;
+        Rectangle { x: 0; width: parent.width * root.value; border-radius: 2px; background: Theme.accent; }
+    }
+    Rectangle {
+        x: parent.width * root.value - 7px; y: 5px; width: 14px; height: 14px; border-radius: 7px; background: Theme.accent;
+    }
+    TouchArea {
+        pointer-event(ev) => {
+            if (ev.kind == PointerEventKind.up) { root.seek(max(0, min(1, self.mouse-x / self.width))); }
+        }
+    }
+}
 
 export component FilesApp inherits Rectangle {
     background: Theme.bg;
     property <bool> creating: false;
     property <int> confirm: -1;
     property <string> new-name;
+    property <bool> chrome: true;
+    property <length> bottom-pad: Files.audio-active ? 92px : 24px;
+    property <length> cell3: (root.width - 32px - 16px) / 3;
+    property <length> cell2: (root.width - 32px - 10px) / 2;
+    property <bool> is-list: Files.view == "folder" || Files.view == "documents" || Files.view == "downloads" || Files.view == "audio";
 
     StatusBar { y: 0; width: parent.width; }
 
-    if Files.can-up: RoundButton { x: 8px; y: 30px; icon: Icons.back; outlined: false; clicked => { Files.up(); } }
-    Text {
-        x: Files.can-up ? 56px : 16px; y: 30px; height: 44px; width: parent.width - self.x - 70px;
-        text: Files.path-label;
-        color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 24px;
-        vertical-alignment: center; overflow: elide;
+    // ---------- Home di Files ----------
+    if Files.view == "home": Rectangle {
+        Title { x: 16px; y: 34px; text: "Files"; }
+        Card {
+            x: 16px; y: 92px; width: parent.width - 32px; height: 96px;
+            background: sta.pressed ? Theme.raised : Theme.bg;
+            Rectangle {
+                x: 16px; y: 16px; width: 40px; height: 40px; border-radius: 20px; background: Theme.raised;
+                Icon { d: Icons.disk; size: 18px; }
+            }
+            Text { x: 68px; y: 18px; text: "Internal storage"; color: Theme.text; font-family: Theme.body; font-size: 15px; font-weight: 600; }
+            Text { x: 68px; y: 38px; text: Files.storage; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
+            Rectangle {
+                x: 16px; y: 70px; width: parent.width - 32px; height: 6px; border-radius: 3px; background: Theme.raised; clip: true;
+                Rectangle { x: 0; width: parent.width * Files.storage-ratio; background: Theme.accent; }
+            }
+            sta := TouchArea { clicked => { Files.open-storage(); } }
+        }
+        Text { x: 16px; y: 210px; text: "Categories"; color: Theme.muted; font-family: Theme.body; font-size: 13px; font-weight: 600; }
+        for c[i] in Files.categories: Rectangle {
+            x: 16px + mod(i, 2) * (root.cell2 + 10px);
+            y: 238px + floor(i / 2) * 82px;
+            width: root.cell2; height: 72px;
+            border-radius: 18px; background: cta.pressed ? #262626 : Theme.raised;
+            animate background { duration: Theme.fast; }
+            Rectangle {
+                x: 14px; y: 16px; width: 40px; height: 40px; border-radius: 20px; background: Theme.accent;
+                Icon { d: c.glyph; tint: #000; size: 18px; }
+            }
+            Text { x: 64px; y: 17px; text: c.label; color: Theme.text; font-family: Theme.body; font-size: 14px; font-weight: 600; }
+            Text { x: 64px; y: 37px; width: parent.width - 72px; text: c.detail; color: Theme.muted; font-family: Theme.body; font-size: 11px; overflow: elide; }
+            cta := TouchArea { clicked => { Files.open-category(c.id); } }
+        }
+        if Files.scanning: Text {
+            x: 16px; y: 490px; text: "Indexing files…"; color: Theme.faint; font-family: Theme.body; font-size: 12px;
+        }
     }
-    RoundButton {
-        x: parent.width - 60px; y: 30px; icon: root.creating ? Icons.close : Icons.plus;
-        clicked => { root.creating = !root.creating; }
-    }
-    Text { x: 16px; y: 78px; text: Files.storage; color: Theme.faint; font-family: Theme.body; font-size: 11px; }
 
-    if root.creating: HorizontalLayout {
-        x: 16px; y: 100px; width: parent.width - 32px; height: 44px; spacing: 8px;
-        Field { placeholder: "Nome cartella"; text <=> root.new-name; }
+    // ---------- Intestazione delle viste interne ----------
+    if Files.view != "home": Rectangle {
+        height: 84px; y: 0;
+        RoundButton {
+            x: 8px; y: 30px; icon: Icons.back; outlined: false;
+            clicked => { if (Files.view == "folder" && Files.can-up) { Files.up(); } else { Files.open-home(); } }
+        }
+        Text {
+            x: 56px; y: 30px; height: 44px; width: parent.width - 120px;
+            text: Files.view == "folder" ? Files.path-label : Files.title;
+            color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 24px;
+            vertical-alignment: center; overflow: elide;
+        }
+        Text {
+            x: 56px; y: 66px; text: Files.count-label; color: Theme.faint; font-family: Theme.body; font-size: 11px;
+        }
+        if Files.view == "folder": RoundButton {
+            x: parent.width - 60px; y: 30px; icon: root.creating ? Icons.close : Icons.plus;
+            clicked => { root.creating = !root.creating; }
+        }
+    }
+
+    if Files.view == "folder" && root.creating: HorizontalLayout {
+        x: 16px; y: 92px; width: parent.width - 32px; height: 44px; spacing: 8px;
+        Field { placeholder: "Folder name"; text <=> root.new-name; }
         RoundButton {
             icon: Icons.folder; fill: Theme.accent; tint: #000; outlined: false;
             clicked => { Files.mkdir(root.new-name); root.new-name = ""; root.creating = false; }
         }
     }
 
-    Flickable {
-        x: 16px; y: root.creating ? 156px : 100px; width: parent.width - 32px;
-        height: parent.height - self.y - 32px;
-        content-height: Files.entries.length * 60px;
-        for e[i] in Files.entries: Rectangle {
-            y: i * 60px; height: 60px;
-            background: ta.pressed ? Theme.raised : transparent;
-            Rectangle {
-                x: 0; width: 40px; height: 40px; border-radius: 20px;
-                background: e.kind == 0 ? Theme.accent : Theme.raised;
-                Icon {
-                    d: e.kind == 0 ? Icons.folder : (e.kind == 2 ? Icons.picture : Icons.file);
-                    tint: e.kind == 0 ? #000 : Theme.text; size: 18px;
-                }
-            }
-            VerticalLayout {
-                x: 52px; width: parent.width - 104px; alignment: center; spacing: 2px;
-                Text { text: e.name; color: Theme.text; font-family: Theme.body; font-size: 15px; overflow: elide; }
-                Text { text: e.info; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
-            }
-            ta := TouchArea { clicked => { Files.open(i); } }
-            RoundButton {
-                x: parent.width - 44px; y: 8px; icon: Icons.trash; outlined: false; tint: Theme.faint; icon-size: 18px;
-                clicked => { root.confirm = i; }
-            }
+    // Elenco (cartelle, documenti, download, audio)
+    if root.is-list: Flickable {
+        x: 16px; y: Files.view == "folder" && root.creating ? 144px : 92px; width: parent.width - 32px;
+        height: parent.height - self.y - root.bottom-pad;
+        content-height: Files.entries.length * 64px;
+        for e[i] in Files.entries: FileListRow {
+            y: i * 64px; width: parent.width;
+            item: e;
+            deletable: Files.view != "audio";
+            activated => { Files.open(i); }
+            delete => { root.confirm = i; }
         }
     }
-    if Files.entries.length == 0: Icon { x: (parent.width - 48px) / 2; y: 240px; d: Icons.folder; size: 48px; tint: Theme.faint; weight: 1.5px; }
+
+    // Galleria immagini: griglia 3 colonne
+    if Files.view == "images": Flickable {
+        x: 16px; y: 92px; width: parent.width - 32px; height: parent.height - 92px - root.bottom-pad;
+        content-height: ceil(Files.entries.length / 3) * (root.cell3 + 8px);
+        for e[i] in Files.entries: Thumb {
+            x: mod(i, 3) * (root.cell3 + 8px);
+            y: floor(i / 3) * (root.cell3 + 8px);
+            width: root.cell3; height: root.cell3; item: e; radius: 10px;
+            TouchArea { clicked => { Files.open(i); } }
+        }
+    }
+
+    // Video: griglia 2 colonne 16:9 con durata
+    if Files.view == "videos": Flickable {
+        x: 16px; y: 92px; width: parent.width - 32px; height: parent.height - 92px - root.bottom-pad;
+        content-height: ceil(Files.entries.length / 2) * (root.cell2 * 9 / 16 + 40px);
+        for e[i] in Files.entries: Rectangle {
+            x: mod(i, 2) * (root.cell2 + 10px);
+            y: floor(i / 2) * (root.cell2 * 9 / 16 + 40px);
+            width: root.cell2; height: root.cell2 * 9 / 16 + 34px;
+            Thumb { y: 0; height: root.cell2 * 9 / 16; item: e; radius: 12px; }
+            Rectangle {
+                x: (parent.width - 36px) / 2; y: (root.cell2 * 9 / 16 - 36px) / 2; width: 36px; height: 36px; border-radius: 18px; background: #000000a0;
+                Icon { d: Icons.play; size: 16px; x: 11px; }
+            }
+            Text { x: 0; y: root.cell2 * 9 / 16 + 6px; width: parent.width; text: e.name; color: Theme.text; font-family: Theme.body; font-size: 12px; overflow: elide; }
+            Text { x: 0; y: root.cell2 * 9 / 16 + 22px; text: e.info; color: Theme.muted; font-family: Theme.body; font-size: 11px; }
+            TouchArea { clicked => { Files.open(i); } }
+        }
+    }
+
+    if Files.view != "home" && Files.entries.length == 0: Icon {
+        x: (parent.width - 48px) / 2; y: 240px; d: Icons.folder; size: 48px; tint: Theme.faint; weight: 1.5px;
+    }
+
+    // Mini player
+    if Files.audio-active && !Files.audio-full: Rectangle {
+        x: 12px; y: parent.height - 92px; width: parent.width - 24px; height: 64px;
+        border-radius: 20px; background: Theme.raised;
+        Rectangle {
+            x: 10px; y: 10px; width: 44px; height: 44px; border-radius: 22px; background: #2a2a2a; clip: true;
+            if !Files.has-cover: Icon { d: Icons.music; size: 18px; tint: Theme.accent; }
+            if Files.has-cover: Image { width: 44px; height: 44px; source: Files.track-cover; image-fit: cover; }
+        }
+        VerticalLayout {
+            x: 64px; width: parent.width - 170px; alignment: center; spacing: 2px;
+            Text { text: Files.track-title; color: Theme.text; font-family: Theme.body; font-size: 14px; font-weight: 600; overflow: elide; }
+            Text { text: Files.track-artist; color: Theme.muted; font-family: Theme.body; font-size: 12px; overflow: elide; }
+        }
+        TouchArea { clicked => { Files.audio-full = true; } }
+        RoundButton { x: parent.width - 100px; y: 10px; icon: Files.playing ? Icons.pause : Icons.play; outlined: false; clicked => { Files.play-pause(); } }
+        RoundButton { x: parent.width - 54px; y: 10px; icon: Icons.close; outlined: false; tint: Theme.muted; clicked => { Files.stop-audio(); } }
+        Rectangle {
+            x: 20px; y: parent.height - 3px; width: (parent.width - 40px) * Files.progress; height: 2px; background: Theme.accent;
+        }
+    }
 
     // Conferma eliminazione
     if root.confirm >= 0: Rectangle {
@@ -70,45 +230,137 @@ export component FilesApp inherits Rectangle {
             background: Theme.surface;
             Text {
                 x: 20px; y: 20px; width: parent.width - 40px;
-                text: "Eliminare " + Files.entries[root.confirm].name + "?";
+                text: "Delete " + Files.entries[root.confirm].name + "?";
                 color: Theme.text; font-family: Theme.body; font-size: 15px; font-weight: 600; wrap: word-wrap;
             }
             HorizontalLayout {
                 x: 20px; y: 96px; width: parent.width - 40px; height: 34px; spacing: 8px; alignment: end;
-                PillButton { label: "Annulla"; clicked => { root.confirm = -1; } }
-                PillButton { label: "Elimina"; solid: true; clicked => { Files.remove(root.confirm); root.confirm = -1; } }
+                PillButton { label: "Cancel"; clicked => { root.confirm = -1; } }
+                PillButton { label: "Delete"; solid: true; clicked => { Files.remove(root.confirm); root.confirm = -1; } }
             }
         }
     }
 
-    // Anteprima
-    if Files.preview-open: Rectangle {
+    // ---------- Lettore audio a schermo intero ----------
+    if Files.audio-active && Files.audio-full: Rectangle {
         background: Theme.surface;
         TouchArea { }
         StatusBar { y: 0; width: parent.width; }
-        RoundButton { x: 8px; y: 30px; icon: Icons.close; outlined: false; clicked => { Files.close-preview(); } }
-        Text {
-            x: 56px; y: 30px; height: 44px; width: parent.width - 72px;
-            text: Files.preview-name; color: Theme.text; font-family: Theme.body; font-size: 15px; font-weight: 600;
-            vertical-alignment: center; overflow: elide;
+        RoundButton { x: 8px; y: 30px; icon: Icons.down; outlined: false; clicked => { Files.audio-full = false; } }
+        property <length> base: 96px + (parent.width - 112px);
+        Rectangle {
+            x: 56px; y: 96px; width: parent.width - 112px; height: self.width;
+            border-radius: 28px; background: Theme.raised; clip: true;
+            if !Files.has-cover: Icon { d: Icons.music; size: 72px; tint: Theme.accent; weight: 1.4px; }
+            if Files.has-cover: Image { width: parent.width; height: parent.height; source: Files.track-cover; image-fit: cover; }
         }
-        if Files.preview-kind == 1: Flickable {
+        Text {
+            x: 24px; y: base + 24px; width: parent.width - 48px;
+            text: Files.track-title; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 24px;
+            horizontal-alignment: center; overflow: elide;
+        }
+        Text {
+            x: 24px; y: base + 58px; width: parent.width - 48px;
+            text: Files.track-artist; color: Theme.muted; font-family: Theme.body; font-size: 14px;
+            horizontal-alignment: center; overflow: elide;
+        }
+        Seek { x: 24px; y: base + 88px; width: parent.width - 48px; value: Files.progress; seek(f) => { Files.seek(f); } }
+        Text { x: 24px; y: base + 114px; text: Files.pos-label; color: Theme.muted; font-family: Theme.body; font-size: 11px; }
+        Text { x: parent.width - 24px - self.width; y: base + 114px; text: Files.dur-label; color: Theme.muted; font-family: Theme.body; font-size: 11px; }
+        RoundButton { x: parent.width / 2 - 108px; y: base + 150px; size: 56px; icon: Icons.prev; outlined: false; clicked => { Files.track-prev(); } }
+        Rectangle {
+            x: (parent.width - 72px) / 2; y: base + 142px; width: 72px; height: 72px; border-radius: 36px;
+            background: Theme.accent;
+            Icon { d: Files.playing ? Icons.pause : Icons.play; tint: #000; size: 26px; weight: 2.4px; }
+            TouchArea { clicked => { Files.play-pause(); } }
+        }
+        RoundButton { x: parent.width / 2 + 52px; y: base + 150px; size: 56px; icon: Icons.next; outlined: false; clicked => { Files.track-next(); } }
+    }
+
+    // ---------- Visori ----------
+    if Files.viewer != "": Rectangle {
+        background: #000;
+        property <length> drag-start;
+
+        // Contenuto
+        if Files.viewer == "image" || Files.viewer == "video" || Files.viewer == "pdf": Image {
+            width: parent.width; height: parent.height;
+            source: Files.viewer-image; image-fit: contain;
+        }
+        if Files.viewer == "text": Flickable {
             x: 16px; y: 84px; width: parent.width - 32px; height: parent.height - 108px;
-            content-height: pt.preferred-height + 24px;
-            pt := Text {
+            content-height: vt.preferred-height + 24px;
+            vt := Text {
                 y: 0; width: parent.width;
-                text: Files.preview-text; wrap: word-wrap;
-                color: Theme.text; font-family: Theme.body; font-size: 13px;
+                text: Files.viewer-text; wrap: word-wrap;
+                color: Theme.text; font-family: Theme.body; font-size: 14px;
             }
         }
-        if Files.preview-kind == 2: Image {
-            x: 0; y: 84px; width: parent.width; height: parent.height - 108px;
-            source: Files.preview-image; image-fit: contain;
-        }
-        if Files.preview-kind == 3: Text {
-            y: 260px; width: parent.width;
-            text: "Anteprima non disponibile per questo tipo di file";
+        if Files.viewer == "none": Text {
+            y: 280px; width: parent.width;
+            text: "No preview for this file type";
             color: Theme.muted; font-family: Theme.body; font-size: 13px; horizontal-alignment: center;
+        }
+
+        // Tocco: mostra/nasconde i controlli, scorrimento laterale per cambiare foto o pagina
+        if Files.viewer != "text": TouchArea {
+            pointer-event(ev) => {
+                if (ev.kind == PointerEventKind.up) {
+                    if (self.pressed-x - self.mouse-x > 60px) { Files.next(); }
+                    else if (self.mouse-x - self.pressed-x > 60px) { Files.prev(); }
+                    else { root.chrome = !root.chrome; }
+                }
+            }
+        }
+
+        // Barra in alto
+        Rectangle {
+            height: 84px; y: 0;
+            background: Files.viewer == "text" ? Theme.surface : #00000099;
+            opacity: root.chrome || Files.viewer == "text" ? 1 : 0;
+            animate opacity { duration: Theme.fast; }
+            RoundButton { x: 8px; y: 30px; icon: Icons.back; outlined: false; clicked => { Files.close-viewer(); root.chrome = true; } }
+            Text {
+                x: 56px; y: 30px; height: 44px; width: parent.width - 140px;
+                text: Files.viewer-title; color: Theme.text; font-family: Theme.body; font-size: 15px; font-weight: 600;
+                vertical-alignment: center; overflow: elide;
+            }
+            Text {
+                x: parent.width - self.width - 16px; y: 30px; height: 44px;
+                text: Files.viewer-pos; color: Theme.muted; font-family: Theme.body; font-size: 13px;
+                vertical-alignment: center;
+            }
+        }
+
+        // Controlli video
+        if Files.viewer == "video": Rectangle {
+            opacity: root.chrome ? 1 : 0;
+            animate opacity { duration: Theme.fast; }
+            Rectangle {
+                x: (parent.width - 72px) / 2; y: (parent.height - 72px) / 2; width: 72px; height: 72px; border-radius: 36px;
+                background: #000000a0;
+                Icon { d: Files.playing ? Icons.pause : Icons.play; size: 26px; weight: 2.4px; }
+                TouchArea { clicked => { Files.play-pause(); } }
+            }
+            Rectangle {
+                y: parent.height - 92px; height: 92px; background: #00000099;
+                Seek { x: 20px; y: 16px; width: parent.width - 40px; value: Files.progress; seek(f) => { Files.seek(f); } }
+                Text { x: 20px; y: 44px; text: Files.pos-label; color: Theme.text; font-family: Theme.body; font-size: 12px; }
+                Text { x: parent.width - 20px - self.width; y: 44px; text: Files.dur-label; color: Theme.text; font-family: Theme.body; font-size: 12px; }
+            }
+        }
+
+        // Pagine PDF
+        if Files.viewer == "pdf": Rectangle {
+            y: parent.height - 84px; height: 60px;
+            opacity: root.chrome ? 1 : 0;
+            animate opacity { duration: Theme.fast; }
+            Rectangle {
+                x: (parent.width - 200px) / 2; width: 200px; height: 52px; border-radius: 26px; background: Theme.raised;
+                RoundButton { x: 4px; y: 4px; icon: Icons.back; outlined: false; clicked => { Files.prev(); } }
+                Text { text: Files.viewer-pos; color: Theme.text; font-family: Theme.body; font-size: 13px; }
+                RoundButton { x: parent.width - 48px; y: 4px; icon: Icons.fwd; outlined: false; clicked => { Files.next(); } }
+            }
         }
     }
 }

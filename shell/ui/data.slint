@@ -13,7 +13,8 @@ export struct ThreadRow { number: string, name: string, last: string, when: stri
 export struct Bubble { text: string, when: string, out: bool }
 export struct WebBlock { kind: int, text: string, href: string }
 export struct TabRow { title: string, url: string }
-export struct FileRow { name: string, info: string, kind: int }
+export struct FileRow { name: string, info: string, kind: int, thumb: image, has-thumb: bool }
+export struct CatRow { id: string, label: string, glyph: string, detail: string }
 export struct WifiRow { ssid: string, signal: int, secure: bool, active: bool }
 
 export enum ScreenId { lock, home, switcher }
@@ -22,13 +23,13 @@ export global Sys {
     in property <string> time: "22:51";
     in property <string> hours: "22";
     in property <string> minutes: "51";
-    in property <string> date: "mercoledì 25 novembre";
+    in property <string> date: "Wednesday, November 25";
     in property <int> battery: 78;
     in property <bool> charging: false;
     in property <int> mem-used: 612;
     in property <int> mem-total: 1024;
     in property <int> mem-android: 0;
-    in property <string> android-state: "Non installato";
+    in property <string> android-state: "Not installed";
     in property <bool> android-running: false;
     in property <bool> eco-on: false;
     in property <bool> wifi-on: true;
@@ -73,7 +74,7 @@ export global Shell {
 }
 
 export global Cal {
-    in property <string> month-label: "Novembre 2026";
+    in property <string> month-label: "November 2026";
     in property <[DayCell]> cells;
     in property <string> selected-label: "";
     in property <[EventItem]> events;
@@ -95,12 +96,12 @@ export global Notes {
 
 export global Cam {
     in property <bool> available: false;
-    in property <string> message: "Sensore non ancora supportato su questo modello";
+    in property <string> message: "Camera sensor not supported on this model yet";
 }
 
 export global Phone {
     in property <bool> modem-ok: false;
-    in property <string> modem-label: "Modem non disponibile";
+    in property <string> modem-label: "Modem not available";
     in-out property <int> tab: 0;
     in-out property <string> dial: "";
     in property <[CallRow]> recents;
@@ -152,21 +153,49 @@ export global Web {
 }
 
 export global Files {
+    in-out property <string> view: "home";
+    in property <string> title: "Files";
+    in property <[CatRow]> categories;
+    in property <string> storage: "";
+    in property <float> storage-ratio: 0;
+    in property <bool> scanning: false;
     in property <string> path-label: "Home";
     in property <bool> can-up: false;
     in property <[FileRow]> entries;
-    in property <string> storage: "";
-    in property <bool> preview-open: false;
-    in property <int> preview-kind: 0;
-    in property <string> preview-name: "";
-    in property <string> preview-text: "";
-    in property <image> preview-image;
+    in property <string> count-label: "";
+    // Visore: "", "image", "video", "pdf", "text", "none"
+    in property <string> viewer: "";
+    in property <string> viewer-title: "";
+    in property <string> viewer-pos: "";
+    in property <image> viewer-image;
+    in property <string> viewer-text: "";
+    // Lettore
+    in property <bool> playing: false;
+    in property <float> progress: 0;
+    in property <string> pos-label: "0:00";
+    in property <string> dur-label: "0:00";
+    in property <bool> audio-active: false;
+    in-out property <bool> audio-full: false;
+    in property <string> track-title: "";
+    in property <string> track-artist: "";
+    in property <image> track-cover;
+    in property <bool> has-cover: false;
     in property <string> status: "";
+    callback open-home();
+    callback open-category(string);
+    callback open-storage();
     callback open(int);
     callback up();
     callback mkdir(string);
     callback remove(int);
-    callback close-preview();
+    callback close-viewer();
+    callback next();
+    callback prev();
+    callback play-pause();
+    callback seek(float);
+    callback track-next();
+    callback track-prev();
+    callback stop-audio();
 }
 
 export global Settings {

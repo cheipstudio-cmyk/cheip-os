@@ -1,12 +1,12 @@
-//! Calcoli del calendario in italiano, settimana che parte da lunedì.
+//! Calcoli del calendario (UI in inglese), settimana che parte da lunedì.
 
 use chrono::{Datelike, NaiveDate};
 
 pub const MONTHS: [&str; 12] = [
-    "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
-    "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
 ];
-pub const WEEKDAYS: [&str; 7] = ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"];
+pub const WEEKDAYS: [&str; 7] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
 pub fn days_in_month(year: i32, month: u32) -> u32 {
     let (ny, nm) = if month == 12 { (year + 1, 1) } else { (year, month + 1) };
@@ -23,14 +23,14 @@ pub fn iso(year: i32, month: u32, day: u32) -> String {
     format!("{year:04}-{month:02}-{day:02}")
 }
 
-/// "mercoledì 25 novembre"
+/// "Wednesday, November 25"
 pub fn long_label(d: NaiveDate) -> String {
-    format!(
-        "{} {} {}",
-        WEEKDAYS[d.weekday().num_days_from_monday() as usize],
-        d.day(),
-        MONTHS[d.month0() as usize].to_lowercase()
-    )
+    format!("{}, {} {}", WEEKDAYS[d.weekday().num_days_from_monday() as usize], MONTHS[d.month0() as usize], d.day())
+}
+
+/// "Nov 25"
+pub fn short_label(d: NaiveDate) -> String {
+    format!("{} {}", &MONTHS[d.month0() as usize][..3], d.day())
 }
 
 pub fn shift_month(year: i32, month: u32, delta: i32) -> (i32, u32) {
@@ -64,7 +64,8 @@ mod tests {
     #[test]
     fn labels_and_shift() {
         let d = NaiveDate::from_ymd_opt(2026, 11, 25).unwrap();
-        assert_eq!(long_label(d), "mercoledì 25 novembre");
+        assert_eq!(long_label(d), "Wednesday, November 25");
+        assert_eq!(short_label(d), "Nov 25");
         assert_eq!(shift_month(2026, 12, 1), (2027, 1));
         assert_eq!(shift_month(2026, 1, -1), (2025, 12));
     }

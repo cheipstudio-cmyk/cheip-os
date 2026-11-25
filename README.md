@@ -6,23 +6,21 @@ shell propria in Rust + Slint, aggiornamenti OTA firmati.
 
 ![Schermate](screens/00-panoramica.png)
 
-## Stato 0.2
+## Stato 0.3
+
+Interfaccia in inglese. Tutto quello che segue è verificato con i test e gli screenshot sul PC, mai su un telefono.
 
 | Parte | Stato |
 |---|---|
 | Launcher stile ChromeOS | griglia di icone tonde senza testo, dock con ricerca, pallini di notifica |
-| Shell | blocco, controlli rapidi a icone, app aperte, apertura app che si espande dall'icona |
-| Telefono | tastiera, recenti, rubrica, chiamate in uscita e in arrivo via ModemManager |
-| Messaggi | conversazioni, invio e ricezione SMS via ModemManager, salvati in locale |
-| Browser | modalità lettura: pagine ridotte a testo, titoli e link nativi, schede, preferiti, ricerca |
-| File | navigazione nella home e sulle SD, anteprima testo e immagini, nuova cartella, eliminazione |
-| Impostazioni | Wi-Fi con scansione e password, Bluetooth, rete mobile, display, suoni, batteria, archiviazione, Android, data e ora, aggiornamenti, info |
-| Calendario, Note | come 0.1 |
-| Fotocamera | interfaccia pronta, i sensori dei Lumia non hanno driver in mainline |
-| Modem | il codice c'è, ma sui Lumia in mainline il modem non è attivo: chiamate e SMS reali partono quando lo sarà |
-| Rendering | software su simpledrm oggi, GLES automatico quando c'è `/dev/dri/renderD128` |
-| OTA | manifest + repository apk firmato su Cloudflare R2, installazione dalla shell |
-| App Android | rilevate da Waydroid con la loro icona e lanciate, ma senza finestra finché la shell non è compositor |
+| Shell | lock, quick settings a icone, recent apps, apertura app che si espande dall'icona |
+| Phone, Messages | via ModemManager; il modem dei Lumia in mainline non è ancora attivo |
+| Browser | modalità lettura: titoli, testo e link nativi, schede, preferiti, ricerca |
+| Files | stile Google Files: categorie, galleria con visore, video player e music player (GStreamer), PDF (MuPDF), DOCX/ODT, TXT/MD/CSV, cartelle |
+| Settings | Wi-Fi, Bluetooth, rete mobile, display, suoni, batteria, archiviazione, Android, data e ora, aggiornamenti, info |
+| Calendar, Notes, Camera | Camera senza driver dei sensori in mainline |
+| Video | nessuna decodifica hardware sui Lumia in mainline: meglio restare fino al 480p |
+| OTA | manifest + repository apk firmato su Cloudflare R2 |
 | Immagine per il telefono | CI con pmbootstrap, **mai provata su hardware** |
 
 ## Sviluppo sul PC
@@ -70,19 +68,34 @@ La CI produce l'immagine `.img.xz`, i pacchetti armv7, il repository firmato e
 
 ## Installazione sul telefono
 
-Il bootloader va sbloccato e serve una catena di avvio che carichi un kernel
-Linux al posto di Windows. Il porting usato è quello generico MSM8226 di
-postmarketOS (`qcom-msm8226`): segui la pagina wiki del tuo modello per il boot,
-poi scrivi l'immagine della release. Il primo obiettivo è vedere la shell con il
-renderer software: se arriva quella, il resto è sviluppo.
+Catena di avvio dei Lumia MSM8x26: WPInternals, menu di avvio nella partizione EFIESP,
+BootShim, lk2nd, kernel mainline. Nessuno l'ha ancora provata con Cheip OS: il primo giro
+serve a capire cosa si rompe.
+
+1. **Backup completo** (obbligatorio). WPInternals, Manual mode, "Switch to Mass-Storage-mode",
+   poi Win32 Disk Imager legge tutta la eMMC. Sui Lumia Spec A con eMMC Samsung il ripristino
+   di un dump può bloccare il telefono per sempre: tienilo come ultima risorsa.
+2. **Menu di avvio e BootShim**. In mass storage la partizione EFIESP è visibile dal PC: si
+   abilita il menu di avvio di Windows Phone e si aggiunge una voce che avvia BootShim, che a
+   sua volta carica lk2nd. Comandi esatti: pagina "Windows Phone" del wiki postmarketOS.
+3. **lk2nd** target `lk2nd-msm8226` (copre MSM8226 e MSM8926). Da verificare se serve un
+   device tree del 735 dentro lk2nd: è il punto più incerto della catena.
+4. **Cheip OS su microSD**: scrivi `cheip-os-*.img.xz` della release sulla scheda (Etcher o
+   `xz -dc file.img.xz | dd of=/dev/sdX bs=4M`). Windows resta sulla memoria interna.
+5. **Primo avvio**: dal menu scegli la voce lk2nd. Se la shell non parte, collega il telefono
+   via USB: postmarketOS espone una rete USB (`ssh cheip@172.16.42.1`, password scelta in CI).
+
+Consiglio: prima di Cheip OS prova postmarketOS standard sul 640 (`microsoft-dempsey` è nei
+repository ufficiali). Se lì vedi schermo e touch, la catena funziona e i problemi restanti
+sono nostri.
 
 ## Prossime milestone
 
-- **0.3** la shell diventa compositor Wayland (Smithay): finestre Android via Waydroid
+- **0.4** la shell diventa compositor Wayland (Smithay): finestre Android via Waydroid
   con la stessa animazione di apertura delle app di sistema, e browser con motore WPE WebKit.
-- **0.4** GPU: Adreno 305 con freedreno, display MDP5/DSI e driver pannello per modello.
+- **0.5** GPU: Adreno 305 con freedreno, display MDP5/DSI e driver pannello per modello.
   È il passo che porta ai 60 fps fissi.
-- **0.5** OTA A/B con RAUC: sistema in sola lettura, rollback automatico se il boot fallisce.
+- **0.6** OTA A/B con RAUC: sistema in sola lettura, rollback automatico se il boot fallisce.
 - Fotocamera con libcamera, solo se arrivano driver per i sensori.
 
 ## Licenze

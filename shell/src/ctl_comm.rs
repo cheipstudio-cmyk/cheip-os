@@ -57,7 +57,7 @@ pub fn push_threads(ui: &AppWindow, st: &State) {
                     initial: initial(&name),
                     name: name.into(),
                     number: number.into(),
-                    last: (if last.outgoing { format!("Tu: {}", last.text) } else { last.text }).into(),
+                    last: (if last.outgoing { format!("You: {}", last.text) } else { last.text }).into(),
                     when: when(last.ts, now).into(),
                     unread: unread as i32,
                 }
@@ -84,7 +84,7 @@ pub fn push(ui: &AppWindow, st: &State) {
     push_threads(ui, st);
     push_conversation(ui, st);
     ui.global::<Msg>().set_status(
-        (if st.modem_ok || !st.live { "" } else { "Il modem di questo telefono non è ancora attivo: gli SMS arrivano quando lo sarà" }).into(),
+        (if st.modem_ok || !st.live { "" } else { "The modem on this phone is not active yet. Texts will arrive once it is." }).into(),
     );
 }
 
@@ -107,9 +107,9 @@ fn show_call(ui: &AppWindow, st: &State) {
                 None => p.set_call_time("".into()),
             }
             if !st.modem_ok && st.live {
-                p.set_call_state("Modem non disponibile".into());
+                p.set_call_state("Modem not available".into());
             } else if c.answered_at.is_none() && !c.incoming {
-                p.set_call_state("Chiamata in corso…".into());
+                p.set_call_state("Calling…".into());
             }
         }
         None => {
@@ -134,7 +134,7 @@ fn end_call(ui: &AppWindow, st: &mut State) {
         if dir == "missed" {
             st.missed += 1;
             let who = name_or_number(st, &c.number);
-            st.notify("Telefono", &format!("Chiamata persa da {who}"), false);
+            st.notify("Phone", &format!("Missed call from {who}"), false);
             push_notifs(ui, st);
             push_apps(ui, st);
         }
@@ -231,7 +231,7 @@ pub fn wire(ui: &AppWindow, st: &Shared) {
             return;
         }
         if s.live && !s.modem_ok {
-            ui.global::<Msg>().set_status("Modem non disponibile, messaggio non inviato".into());
+            ui.global::<Msg>().set_status("Modem not available, message not sent".into());
             return;
         }
         if s.live {
@@ -249,7 +249,7 @@ pub fn wire(ui: &AppWindow, st: &Shared) {
                         push_threads(&ui, &s);
                         push_conversation(&ui, &s);
                     } else {
-                        ui.global::<Msg>().set_status("Invio non riuscito".into());
+                        ui.global::<Msg>().set_status("Sending failed".into());
                     }
                 });
             });
@@ -275,7 +275,7 @@ pub fn timers(ui: &AppWindow, st: &Shared) -> Vec<slint::Timer> {
             let ms = modem::status();
             let ok = ms.present;
             let p = ui.global::<Phone>();
-            p.set_modem_label((if ok { ms.operator.clone() } else { "Modem non disponibile".to_string() }).into());
+            p.set_modem_label((if ok { ms.operator.clone() } else { "Modem not available".to_string() }).into());
             let set = ui.global::<Settings>();
             set.set_modem_operator(ms.operator.into());
             set.set_modem_signal(if ok { format!("{}%", ms.signal) } else { "--".into() }.into());

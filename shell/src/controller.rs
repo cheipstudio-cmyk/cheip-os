@@ -87,6 +87,7 @@ pub struct State {
     pub cwd: PathBuf,
     pub entries: Vec<crate::files::Entry>,
     pub scroll_gen: i32,
+    pub fx: crate::ctl_files::FilesState,
 }
 
 pub type Shared = Rc<RefCell<State>>;
@@ -108,27 +109,27 @@ pub fn initial(s: &str) -> SharedString {
     s.chars().find(|c| c.is_alphanumeric()).map(|c| c.to_uppercase().to_string()).unwrap_or_else(|| "#".into()).into()
 }
 
-/// "22:47" oggi, "ieri", altrimenti "25/11"
+/// "22:47" today, "Yesterday", otherwise "Nov 25"
 pub fn when(ts: i64, now: NaiveDateTime) -> String {
     let Some(t) = chrono::DateTime::from_timestamp(ts, 0).map(|d| d.with_timezone(&Local).naive_local()) else { return String::new() };
     let days = (now.date() - t.date()).num_days();
     match days {
         0 => format!("{:02}:{:02}", t.hour(), t.minute()),
-        1 => "ieri".into(),
-        _ => format!("{:02}/{:02}", t.day(), t.month()),
+        1 => "Yesterday".into(),
+        _ => cal::short_label(t.date()),
     }
 }
 
 /// App di sistema: (id, nome, nel dock)
 pub const SYSTEM_APPS: [(&str, &str, bool); 8] = [
-    ("phone", "Telefono", true),
-    ("messages", "Messaggi", true),
+    ("phone", "Phone", true),
+    ("messages", "Messages", true),
     ("browser", "Browser", true),
-    ("camera", "Fotocamera", true),
-    ("files", "File", false),
-    ("calendar", "Calendario", false),
-    ("notes", "Note", false),
-    ("settings", "Impostazioni", false),
+    ("camera", "Camera", true),
+    ("files", "Files", false),
+    ("calendar", "Calendar", false),
+    ("notes", "Notes", false),
+    ("settings", "Settings", false),
 ];
 
 pub fn glyph(ui: &AppWindow, id: &str) -> SharedString {
@@ -165,11 +166,11 @@ impl State {
             cal_sel: today.day(),
             toggles: vec![
                 Toggle { id: "wifi", label: "Wi-Fi", on: wifi },
-                Toggle { id: "dati", label: "Dati mobili", on: false },
+                Toggle { id: "dati", label: "Mobile data", on: false },
                 Toggle { id: "bt", label: "Bluetooth", on: false },
-                Toggle { id: "torcia", label: "Torcia", on: false },
-                Toggle { id: "rot", label: "Rotazione automatica", on: false },
-                Toggle { id: "eco", label: "Risparmio energetico", on: false },
+                Toggle { id: "torcia", label: "Flashlight", on: false },
+                Toggle { id: "rot", label: "Auto-rotate", on: false },
+                Toggle { id: "eco", label: "Battery saver", on: false },
             ],
             recents: Vec::new(),
             search: String::new(),
@@ -184,6 +185,7 @@ impl State {
             cwd: crate::files::home(),
             entries: Vec::new(),
             scroll_gen: 0,
+            fx: Default::default(),
         }
     }
 
@@ -219,11 +221,11 @@ fn push_hw(ui: &AppWindow) {
     s.set_mem_total(total);
     s.set_mem_android(sys::android_memory().min(used));
     let (running, label) = if !sys::waydroid_installed() {
-        (false, "Waydroid non installato".to_string())
+        (false, "Waydroid not installed".to_string())
     } else if sys::waydroid_running() {
-        (true, "Attivo, si sospende dopo 2 minuti senza app".to_string())
+        (true, "Running, suspends after 2 minutes with no apps".to_string())
     } else {
-        (false, "Sospeso, parte quando apri un'app Android".to_string())
+        (false, "Suspended, starts when you open an Android app".to_string())
     };
     s.set_android_running(running);
     s.set_android_state(label.into());
@@ -304,7 +306,7 @@ pub fn push_recents(ui: &AppWindow, st: &State) {
             name: r.name.clone().into(),
             glyph: glyph(ui, &r.id),
             mem: 0,
-            state: (if i == 0 { "ultima aperta" } else if r.android { "Android, in pausa" } else { "in pausa" }).into(),
+            state: (if i == 0 { "last opened" } else if r.android { "Android, paused" } else { "paused" }).into(),
             android: r.android,
         })
         .collect();
@@ -386,7 +388,7 @@ pub fn push_all(ui: &AppWindow, st: &State) {
 
 fn check_update(ui: &AppWindow) {
     let s = ui.global::<Sys>();
-    s.set_update_state("Controllo in corso…".into());
+    s.set_update_state("Checking…".into());
     let weak = ui.as_weak();
     std::thread::spawn(move || {
         let res = update::fetch(&update::manifest_url());
@@ -397,21 +399,21 @@ fn check_update(ui: &AppWindow) {
                 Ok(m) if update::is_newer(&m.version, VERSION) && update::supports_device(&m) => {
                     s.set_update_available(true);
                     s.set_update_version(m.version.clone().into());
-                    let note = if m.notes.is_empty() { "Pronto da installare".to_string() } else { m.notes.clone() };
+                    let note = if m.notes.is_empty() { "Ready to install".to_string() } else { m.notes.clone() };
                     s.set_update_state(note.into());
                 }
                 Ok(_) => {
                     s.set_update_available(false);
-                    s.set_update_state("Sei all'ultima versione".into());
+                    s.set_update_state("You're up to date".into());
                 }
-                Err(_) => s.set_update_state("Server non raggiungibile".into()),
+                Err(_) => s.set_update_state("Server unreachable".into()),
             }
         });
     });
 }
 
 fn install_update(ui: &AppWindow) {
-    ui.global::<Sys>().set_update_state("Download e installazione…".into());
+    ui.global::<Sys>().set_update_state("Downloading and installing…".into());
     let weak = ui.as_weak();
     std::thread::spawn(move || {
         let ok = sys::helper(&["update"]);
@@ -420,9 +422,9 @@ fn install_update(ui: &AppWindow) {
             let s = ui.global::<Sys>();
             if ok {
                 s.set_update_available(false);
-                s.set_update_state("Installato, riavvio della shell".into());
+                s.set_update_state("Installed, restarting the shell".into());
             } else {
-                s.set_update_state("Installazione non riuscita, riprova".into());
+                s.set_update_state("Install failed, try again".into());
             }
         });
     });
@@ -447,7 +449,7 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
                 s.set_volume(v);
             }
         }
-        s.set_update_state("Tocca Controlla per cercare aggiornamenti".into());
+        s.set_update_state("Tap Check to look for updates".into());
     }
     push_clock(ui, now);
     if live {
@@ -580,7 +582,7 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
         push_notes(&ui, &s);
     }));
     notes.on_save(with!(ui, st, |ui, s, id, title, body| {
-        let title = if title.trim().is_empty() { SharedString::from("Senza titolo") } else { title };
+        let title = if title.trim().is_empty() { SharedString::from("Untitled") } else { title };
         s.store.upsert_note(id, &title, &body, Local::now().timestamp());
         s.store.save();
         push_notes(&ui, &s);
@@ -624,5 +626,6 @@ pub fn start_timers(ui: &AppWindow, st: &Shared) -> Vec<slint::Timer> {
     });
     let mut v = vec![clock, hw];
     v.extend(crate::ctl_comm::timers(ui, st));
+    v.push(crate::ctl_files::timer(ui, st));
     v
 }

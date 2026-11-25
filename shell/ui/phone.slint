@@ -77,7 +77,7 @@ export component PhoneApp inherits Rectangle {
             x: (parent.width - 64px) / 2; y: 446px; width: 64px; height: 64px; border-radius: 32px;
             background: Phone.dial == "" ? Theme.raised : Theme.accent;
             animate background { duration: Theme.fast; }
-            accessible-role: button; accessible-label: "Chiama";
+            accessible-role: button; accessible-label: "Call";
             Icon { d: Icons.phone; tint: Phone.dial == "" ? Theme.muted : #000; size: 24px; }
             TouchArea { clicked => { if (Phone.dial != "") { Phone.call(Phone.dial); } } }
         }
@@ -85,7 +85,7 @@ export component PhoneApp inherits Rectangle {
 
     // Recenti
     if Phone.tab == 1: Rectangle {
-        Title { x: 16px; y: 56px; text: "Recenti"; }
+        Title { x: 16px; y: 56px; text: "Recents"; }
         Flickable {
             x: 16px; y: 104px; width: parent.width - 32px; height: 430px;
             content-height: Phone.recents.length * 60px;
@@ -113,18 +113,18 @@ export component PhoneApp inherits Rectangle {
 
     // Contatti
     if Phone.tab == 2: Rectangle {
-        Title { x: 16px; y: 56px; text: "Contatti"; }
+        Title { x: 16px; y: 56px; text: "Contacts"; }
         RoundButton {
             x: parent.width - 60px; y: 54px; icon: root.adding ? Icons.close : Icons.plus;
             clicked => { root.adding = !root.adding; }
         }
         if root.adding: VerticalLayout {
             x: 16px; y: 108px; width: parent.width - 32px; spacing: 8px; alignment: start;
-            name := Field { placeholder: "Nome"; }
-            num := Field { placeholder: "Numero"; kind: InputType.number; }
+            name := Field { placeholder: "Name"; }
+            num := Field { placeholder: "Number"; kind: InputType.number; }
             Rectangle {
                 height: 44px; border-radius: 22px; background: Theme.accent;
-                Text { text: "Salva"; color: #000; font-family: Theme.body; font-size: 14px; font-weight: 600; }
+                Text { text: "Save"; color: #000; font-family: Theme.body; font-size: 14px; font-weight: 600; }
                 TouchArea {
                     clicked => {
                         if (name.text != "" && num.text != "") {
@@ -185,28 +185,28 @@ export component CallOverlay inherits Rectangle {
     }
     Text {
         y: 314px; width: parent.width;
-        text: Phone.incoming ? "Chiamata in arrivo" : (Phone.call-time != "" ? Phone.call-time : Phone.call-state);
+        text: Phone.incoming ? "Incoming call" : (Phone.call-time != "" ? Phone.call-time : Phone.call-state);
         color: Theme.accent; font-family: Theme.body; font-size: 14px; font-weight: 600;
         horizontal-alignment: center;
     }
     if Phone.incoming: Rectangle {
         x: 64px; y: parent.height - 160px; width: 72px; height: 72px; border-radius: 36px;
         background: #ff4d4d;
-        accessible-role: button; accessible-label: "Rifiuta";
+        accessible-role: button; accessible-label: "Decline";
         Icon { d: Icons.hangup; tint: #fff; size: 28px; }
         TouchArea { clicked => { Phone.hangup(); } }
     }
     if Phone.incoming: Rectangle {
         x: parent.width - 136px; y: parent.height - 160px; width: 72px; height: 72px; border-radius: 36px;
         background: Theme.accent;
-        accessible-role: button; accessible-label: "Rispondi";
+        accessible-role: button; accessible-label: "Answer";
         Icon { d: Icons.phone; tint: #000; size: 28px; }
         TouchArea { clicked => { Phone.answer(); } }
     }
     if !Phone.incoming: Rectangle {
         x: (parent.width - 72px) / 2; y: parent.height - 160px; width: 72px; height: 72px; border-radius: 36px;
         background: #ff4d4d;
-        accessible-role: button; accessible-label: "Chiudi chiamata";
+        accessible-role: button; accessible-label: "End call";
         Icon { d: Icons.hangup; tint: #fff; size: 28px; }
         TouchArea { clicked => { Phone.hangup(); } }
     }

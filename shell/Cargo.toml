@@ -1,6 +1,6 @@
 [package]
 name = "cheip-shell"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 description = "Shell di Cheip OS per i Lumia MSM8x26"
 license = "GPL-3.0-or-later"
@@ -33,7 +33,7 @@ device = [
     "slint/software-renderer-path",
 ]
 # Screenshot headless delle schermate
-screens = ["dep:i-slint-core", "slint/renderer-software", "slint/software-renderer-path", "slint/software-renderer-systemfonts", "dep:image"]
+screens = ["dep:i-slint-core", "slint/renderer-software", "slint/software-renderer-path", "slint/software-renderer-systemfonts"]
 
 [dependencies]
 slint = { version = "1.19", default-features = false, features = ["std", "compat-1-2", "image-default-formats"] }
@@ -46,7 +46,13 @@ url = "2"
 percent-encoding = "2"
 # Solo per gli screenshot headless: il backend del telefono abilita già i decoder
 i-slint-core = { version = "=1.19.1", features = ["image-decoders"], optional = true }
-image = { version = "0.25", default-features = false, features = ["png"], optional = true }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif", "bmp"] }
+gstreamer = "0.25"
+gstreamer-app = "0.25"
+gstreamer-video = "0.25"
+lofty = "0.25"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+once_cell = "1"
 
 [build-dependencies]
 slint-build = "1.19"

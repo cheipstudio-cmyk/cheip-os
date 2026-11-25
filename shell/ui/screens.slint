@@ -107,7 +107,7 @@ export component HomeScreen inherits Rectangle {
         Icon { x: 16px; d: Icons.search; size: 18px; tint: Theme.muted; }
         Text {
             x: 46px; height: parent.height;
-            text: "Cerca";
+            text: "Search";
             visible: q.text == "";
             color: Theme.faint; font-family: Theme.body; font-size: 15px;
             vertical-alignment: center;
@@ -281,7 +281,7 @@ export component ControlsPanel inherits Rectangle {
         }
         PillButton {
             x: parent.width - self.width - 14px; y: 15px;
-            label: Sys.android-running ? "Sospendi" : "Avvia";
+            label: Sys.android-running ? "Suspend" : "Start";
             solid: true;
             clicked => { Sys.android-toggle(); }
         }
@@ -299,7 +299,7 @@ export component ControlsPanel inherits Rectangle {
         }
         PillButton {
             x: parent.width - self.width - 14px; y: 15px;
-            label: Sys.update-available ? "Installa" : "Controlla";
+            label: Sys.update-available ? "Install" : "Check";
             solid: Sys.update-available;
             clicked => { if (Sys.update-available) { Sys.install-update(); } else { Sys.check-update(); } }
         }
@@ -348,7 +348,7 @@ component RecentCard inherits Card {
 export component SwitcherScreen inherits Rectangle {
     background: Theme.bg;
     StatusBar { y: 0; width: parent.width; }
-    Title { x: 16px; y: 34px; text: "App aperte"; }
+    Title { x: 16px; y: 34px; text: "Recent apps"; }
     Flickable {
         x: 16px; y: 84px; width: parent.width - 32px; height: parent.height - 84px - 92px;
         content-height: Shell.recents.length * 84px;
@@ -369,7 +369,7 @@ export component SwitcherScreen inherits Rectangle {
         x: (parent.width - 64px) / 2; y: parent.height - 92px; width: 64px; height: 64px;
         border-radius: 32px; background: ta.pressed ? #d0d0d0 : Theme.text;
         accessible-role: button;
-        accessible-label: "Chiudi tutte le app";
+        accessible-label: "Close all apps";
         Icon { d: Icons.close; tint: #000; size: 24px; }
         ta := TouchArea { clicked => { Shell.close-all(); } }
     }

@@ -138,23 +138,23 @@ pub fn parse(html: &str, base: &str) -> Page {
 pub fn fetch(url: &str) -> Result<Page, String> {
     let resp = ureq::get(url)
         .set("User-Agent", "Mozilla/5.0 (Linux; Cheip OS) CheipReader/0.2")
-        .set("Accept-Language", "it-IT,it;q=0.9,en;q=0.6")
+        .set("Accept-Language", "en-US,en;q=0.9")
         .timeout(std::time::Duration::from_secs(20))
         .call()
         .map_err(|e| match e {
-            ureq::Error::Status(code, _) => format!("Il sito ha risposto {code}"),
-            _ => "Sito non raggiungibile".to_string(),
+            ureq::Error::Status(code, _) => format!("The site returned {code}"),
+            _ => "Site unreachable".to_string(),
         })?;
     let final_url = resp.get_url().to_string();
     let ctype = resp.content_type().to_string();
     let mut buf = Vec::new();
-    resp.into_reader().take(MAX_BYTES).read_to_end(&mut buf).map_err(|_| "Download interrotto".to_string())?;
+    resp.into_reader().take(MAX_BYTES).read_to_end(&mut buf).map_err(|_| "Download interrupted".to_string())?;
     let body = String::from_utf8_lossy(&buf);
     if ctype.starts_with("text/plain") {
         return Ok(Page { url: final_url.clone(), title: final_url, blocks: vec![Block::Code(body.to_string())] });
     }
     if !ctype.contains("html") {
-        return Err(format!("Tipo di file non supportato ({ctype})"));
+        return Err(format!("Unsupported file type ({ctype})"));
     }
     Ok(parse(&body, &final_url))
 }

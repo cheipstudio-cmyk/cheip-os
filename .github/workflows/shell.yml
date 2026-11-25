@@ -10,6 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: GStreamer, FFmpeg e MuPDF per i test media
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good gstreamer1.0-libav ffmpeg mupdf-tools
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:

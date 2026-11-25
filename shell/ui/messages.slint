@@ -12,7 +12,7 @@ export component MessagesApp inherits Rectangle {
 
     // Elenco conversazioni
     if !root.in-thread: Rectangle {
-        Title { x: 16px; y: 34px; text: "Messaggi"; }
+        Title { x: 16px; y: 34px; text: "Messages"; }
         RoundButton {
             x: parent.width - 60px; y: 32px; icon: Icons.plus; fill: Theme.accent; tint: #000; outlined: false;
             clicked => { root.composing = true; }
@@ -59,7 +59,7 @@ export component MessagesApp inherits Rectangle {
         if root.composing: Field {
             x: 64px; y: 30px; width: parent.width - 80px;
             text <=> root.to-number;
-            placeholder: "Numero"; kind: InputType.number;
+            placeholder: "Number"; kind: InputType.number;
         }
 
         flick := Flickable {
@@ -89,7 +89,7 @@ export component MessagesApp inherits Rectangle {
 
         composer := Field {
             x: 12px; y: parent.height - 68px; width: parent.width - 80px; height: 48px;
-            placeholder: "Messaggio";
+            placeholder: "Message";
         }
         RoundButton {
             x: parent.width - 60px; y: parent.height - 66px; size: 44px;

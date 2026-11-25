@@ -20,7 +20,7 @@ fn scan(ui: &AppWindow, msg: Option<String>) {
             let Some(ui) = weak.upgrade() else { return };
             let s = ui.global::<Settings>();
             s.set_wifi_busy(false);
-            let label = msg.unwrap_or_else(|| if nets.is_empty() { "Nessuna rete trovata".into() } else { format!("{} reti", nets.len()) });
+            let label = msg.unwrap_or_else(|| if nets.is_empty() { "No networks found".into() } else { format!("{} networks", nets.len()) });
             s.set_wifi_msg(label.into());
             s.set_networks(model(wifi_rows(nets)));
         });
@@ -30,7 +30,7 @@ fn scan(ui: &AppWindow, msg: Option<String>) {
 /// Reti finte per screenshot e test
 pub fn demo_networks(ui: &AppWindow, nets: Vec<sys::WifiNet>) {
     let s = ui.global::<Settings>();
-    s.set_wifi_msg(format!("{} reti", nets.len()).into());
+    s.set_wifi_msg(format!("{} networks", nets.len()).into());
     s.set_networks(model(wifi_rows(nets)));
 }
 
@@ -62,14 +62,14 @@ pub fn wire(ui: &AppWindow, st: &Shared) {
         }
         let g = ui.global::<Settings>();
         g.set_wifi_busy(true);
-        g.set_wifi_msg(format!("Connessione a {ssid}…").into());
+        g.set_wifi_msg(format!("Connecting to {ssid}…").into());
         let weak = ui.as_weak();
         std::thread::spawn(move || {
             let res = sys::wifi_connect(&ssid, &pass);
             let _ = slint::invoke_from_event_loop(move || {
                 let Some(ui) = weak.upgrade() else { return };
                 let msg = match res {
-                    Ok(()) => format!("Connesso a {ssid}"),
+                    Ok(()) => format!("Connected to {ssid}"),
                     Err(e) => e,
                 };
                 scan(&ui, Some(msg));

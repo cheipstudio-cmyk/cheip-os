@@ -1,5 +1,5 @@
 import { Theme } from "theme.slint";
-import { Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow } from "data.slint";
+import { Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow, CatRow } from "data.slint";
 import { LockScreen, HomeScreen, ControlsPanel, SwitcherScreen } from "screens.slint";
 import { CalendarApp, NotesApp, CameraApp } from "apps.slint";
 import { PhoneApp, CallOverlay } from "phone.slint";
@@ -9,7 +9,7 @@ import { FilesApp } from "files.slint";
 import { SettingsApp } from "settings.slint";
 import { Icon, Icons } from "components.slint";
 
-export { Theme, Icons, Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow }
+export { Theme, Icons, Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow, CatRow }
 
 export component AppWindow inherits Window {
     title: "Cheip OS";
@@ -58,7 +58,7 @@ export component AppWindow inherits Window {
                 Icon { y: 240px; d: Icons.android; size: 56px; tint: Theme.faint; weight: 1.4px; }
                 Text {
                     y: 320px; x: 32px; width: parent.width - 64px;
-                    text: "Le finestre delle app Android arrivano quando la shell diventa compositor Wayland.";
+                    text: "Android app windows arrive when the shell becomes a Wayland compositor.";
                     color: Theme.muted; font-family: Theme.body; font-size: 14px;
                     wrap: word-wrap; horizontal-alignment: center;
                 }

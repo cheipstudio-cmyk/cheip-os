@@ -10,6 +10,10 @@ pub enum Kind {
     Dir,
     Text,
     Image,
+    Video,
+    Audio,
+    Pdf,
+    Doc,
     Other,
 }
 
@@ -39,8 +43,12 @@ pub fn kind_of(name: &str, is_dir: bool) -> Kind {
     }
     let ext = name.rsplit_once('.').map(|(_, e)| e.to_lowercase()).unwrap_or_default();
     match ext.as_str() {
-        "txt" | "md" | "log" | "json" | "csv" | "conf" | "cfg" | "ini" | "sh" | "rs" | "py" | "xml" | "html" => Kind::Text,
+        "txt" | "md" | "log" | "json" | "csv" | "conf" | "cfg" | "ini" | "sh" | "rs" | "py" | "xml" | "html" | "srt" => Kind::Text,
         "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" => Kind::Image,
+        "mp4" | "mkv" | "webm" | "avi" | "mov" | "3gp" | "m4v" | "mpg" | "mpeg" => Kind::Video,
+        "mp3" | "ogg" | "oga" | "opus" | "flac" | "wav" | "m4a" | "aac" | "wma" => Kind::Audio,
+        "pdf" => Kind::Pdf,
+        "docx" | "odt" => Kind::Doc,
         _ => Kind::Other,
     }
 }
@@ -83,7 +91,7 @@ pub fn human_size(b: u64) -> String {
     if i == 0 {
         format!("{b} B")
     } else {
-        format!("{v:.1} {}", U[i]).replace('.', ",")
+        format!("{v:.1} {}", U[i])
     }
 }
 
@@ -153,8 +161,8 @@ mod tests {
     #[test]
     fn sizes() {
         assert_eq!(human_size(512), "512 B");
-        assert_eq!(human_size(1536), "1,5 KB");
-        assert_eq!(human_size(3 * 1024 * 1024 * 1024), "3,0 GB");
+        assert_eq!(human_size(1536), "1.5 KB");
+        assert_eq!(human_size(3 * 1024 * 1024 * 1024), "3.0 GB");
     }
 
     #[test]
