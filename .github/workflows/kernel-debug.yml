@@ -1,0 +1,78 @@
+name: Kernel debug (Lumia)
+
+# Kernel 6.16 upstream with the screen driver and the console built in, so a
+# crash on the Lumia is written on the screen. Output: debug boot.img files in
+# the "kernel-debug" release, booted from RAM by the web installer.
+on:
+  push:
+    branches: [main]
+    paths: ["kernel/**", ".github/workflows/kernel-debug.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q gcc-arm-linux-gnueabihf bc bison flex libssl-dev libelf-dev cpio zstd xz-utils python3 lz4
+
+      - name: Kernel source 6.16.12
+        run: |
+          curl -fsSL https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.16.12.tar.xz | tar -xJ
+          mv linux-6.16.12 linux
+
+      - name: Config
+        working-directory: linux
+        run: |
+          cp ../kernel/config-msm8226-pmos .config
+          # Built for gcc here, not Alpine clang
+          sed -i '/^CONFIG_CC_/d;/^CONFIG_CLANG/d;/^CONFIG_LD_/d;/^CONFIG_AS_/d;/^CONFIG_LLD/d' .config
+          ./scripts/config --file .config \
+            -e DRM_SIMPLEDRM -e DRM -e DRM_FBDEV_EMULATION -e FRAMEBUFFER_CONSOLE \
+            -d MODULE_SIG -d MODVERSIONS -d LTO_CLANG_THIN -d LTO_CLANG_FULL -e LTO_NONE \
+            -e PRINTK_TIME -e PANIC_TIMEOUT --set-val PANIC_TIMEOUT 0 \
+            -e DEBUG_KERNEL -e MAGIC_SYSRQ -d DEBUG_INFO_BTF \
+            -e CMDLINE_EXTEND --set-str CMDLINE "" \
+            -e USB_CONFIGFS_NCM -e USB_CONFIGFS_RNDIS -e USB_F_NCM -e USB_F_RNDIS -e USB_LIBCOMPOSITE
+          make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- olddefconfig
+          grep -E "CONFIG_DRM_SIMPLEDRM=|CONFIG_FRAMEBUFFER_CONSOLE=" .config
+
+      - name: Build
+        working-directory: linux
+        run: make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- -j"$(nproc)" zImage dtbs
+
+      - name: Boot images
+        run: |
+          set -e
+          curl -fsSL -o img.xz "https://github.com/${GITHUB_REPOSITORY}/releases/download/v0.4.11/dist-qcom-msm8226.img.xz"
+          xz -dc img.xz | dd of=boot.part bs=512 skip=2048 count=997376 iflag=fullblock status=none
+          rm img.xz
+          debugfs -R "dump /initramfs initramfs" boot.part
+          DTB=linux/arch/arm/boot/dts/qcom/qcom-msm8926-microsoft-superman-lte.dtb
+          cat linux/arch/arm/boot/zImage "$DTB" > zimage-dtb
+          U="pmos_boot_uuid=7380b564-bd4e-492b-9367-e37300a2f96b pmos_root_uuid=3315d630-fb3a-490e-a111-e8bcfb0f6bd4 pmos_rootfsopts=defaults"
+          mkdir -p out
+          # A: everything default, console on screen
+          python3 kernel/mkbootimg.py --kernel zimage-dtb --ramdisk initramfs --base 0 --kernel_offset 0x8000 \
+            --ramdisk_offset 0x2800000 --tags_offset 0x2600000 --pagesize 2048 \
+            --cmdline "console=tty0 loglevel=8 ignore_loglevel pmos.debug-shell $U" -o out/cheip-debug-a.img
+          # B: one CPU, no clock/power-domain cleanup, small CMA
+          python3 kernel/mkbootimg.py --kernel zimage-dtb --ramdisk initramfs --base 0 --kernel_offset 0x8000 \
+            --ramdisk_offset 0x2800000 --tags_offset 0x2600000 --pagesize 2048 \
+            --cmdline "console=tty0 loglevel=8 ignore_loglevel nosmp clk_ignore_unused pd_ignore_unused cma=32m cpuidle.off=1 pmos.debug-shell $U" -o out/cheip-debug-b.img
+          ls -la out
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: kernel-debug
+          name: Kernel debug (not for users)
+          prerelease: true
+          files: out/*.img
