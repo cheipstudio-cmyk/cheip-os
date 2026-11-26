@@ -309,8 +309,7 @@ $("#usb-info").addEventListener("click", async () => {
 
 $("#usb-log").addEventListener("click", async () => {
   try {
-    const r = await dev.runCommand("oem log");
-    log("---- bootloader log ----\n" + r.text + "\n------------------------");
+    log("---- bootloader log ----\n" + (await fetchStaged(dev, "oem log")) + "\n------------------------");
   } catch (e) {
     log("Log failed: " + (e.message || e));
   }
@@ -318,8 +317,8 @@ $("#usb-log").addEventListener("click", async () => {
 
 $("#usb-klog").addEventListener("click", async () => {
   try {
-    const r = await dev.runCommand("oem ramoops console");
-    log("---- last Linux log ----\n" + (r.text || "(empty: Linux did not start or the memory was cleared)") + "\n------------------------");
+    const t = await fetchStaged(dev, "oem ramoops console");
+    log("---- last Linux log ----\n" + (t || "(empty: Linux did not start or the memory was cleared)") + "\n------------------------");
   } catch (e) {
     log("Linux log failed: " + (e.message || e));
   }
@@ -341,6 +340,32 @@ $("#boot-file").addEventListener("change", async (ev) => {
   }
 });
 
+// lk2nd "oem log" / "oem ramoops ..." stage their output: fetch it with "upload"
+async function fetchStaged(d, cmd) {
+  await d.runCommand(cmd);
+  const enc = new TextEncoder();
+  await d.device.transferOut(d.epOut, enc.encode("upload"));
+  let head = "";
+  for (;;) {
+    const r = await d.device.transferIn(d.epIn, 64);
+    head = new TextDecoder().decode(r.data);
+    if (head.startsWith("INFO")) continue;
+    break;
+  }
+  if (head.startsWith("FAIL")) return "";
+  if (!head.startsWith("DATA")) throw new Error("unexpected reply " + head);
+  const size = parseInt(head.slice(4, 12), 16);
+  const out = new Uint8Array(size);
+  let got = 0;
+  while (got < size) {
+    const r = await d.device.transferIn(d.epIn, Math.min(16384, size - got));
+    out.set(new Uint8Array(r.data.buffer, r.data.byteOffset, r.data.byteLength), got);
+    got += r.data.byteLength;
+  }
+  await d.device.transferIn(d.epIn, 64); // OKAY
+  return new TextDecoder("utf-8", { fatal: false }).decode(out).replace(/\0+/g, "");
+}
+
 // Debug watch: the Cheip bootloader waits a few seconds for a host before
 // booting. A phone this page already knows connects without a click.
 async function captureLogs() {
@@ -352,14 +377,17 @@ async function captureLogs() {
     await dev.connect();
     const product = await dev.getVariable("product").catch(() => "");
     log(`Phone caught in the bootloader${product ? " (" + product + ")" : ""}. Reading logs…`);
-    for (const [title, cmd] of [["bootloader log", "oem log"], ["last Linux log", "oem ramoops console"]]) {
+    let all = "";
+    for (const [title, cmd] of [["bootloader log", "oem log"], ["last Linux log", "oem ramoops console"], ["last Linux crash", "oem ramoops dump"]]) {
       try {
-        const r = await dev.runCommand(cmd);
-        log(`---- ${title} ----\n${r.text || "(empty)"}\n------------------------`);
+        const t = await fetchStaged(dev, cmd);
+        all += `==== ${title} ====\n${t || "(empty)"}\n\n`;
+        log(`---- ${title} ----\n${(t || "(empty)").slice(-6000)}\n------------------------`);
       } catch (e) {
         log(`${title} failed: ${e.message || e}`);
       }
     }
+    if (all) saveCopy("cheip-logs.txt", new TextEncoder().encode(all));
     sd = null;
     try {
       const r = await dev.runCommand("oem sd-info");
@@ -377,6 +405,8 @@ if ("usb" in navigator) {
   $("#usb-watch").checked = store.get("cheip-watch", false);
   $("#usb-watch").addEventListener("change", (e) => store.set("cheip-watch", e.target.checked));
   navigator.usb.addEventListener("connect", () => { if ($("#usb-watch").checked) captureLogs(); });
+  // Phone already sitting in the bootloader when the page loads
+  navigator.usb.getDevices().then((ds) => { if (ds.length === 1 && $("#usb-watch").checked) captureLogs(); });
 }
 
 renderDevices();
