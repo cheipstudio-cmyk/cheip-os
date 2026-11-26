@@ -18,4 +18,7 @@ fi
 # 720x1280 a densità 2x: 360x640 punti logici come nel design
 export SLINT_SCALE_FACTOR="${SLINT_SCALE_FACTOR:-2}"
 
+# App Android preinstallate, appena Waydroid è pronto
+/usr/libexec/cheip/cheip-preinstall >/dev/null 2>&1 &
+
 exec /usr/bin/cheip-shell

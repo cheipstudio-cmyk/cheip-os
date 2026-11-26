@@ -7,7 +7,7 @@ pkgdesc="Cheip OS: interfaccia leggera per telefoni con 1 GB di RAM"
 url="https://cheipstudio.org"
 arch="noarch"
 license="GPL-3.0-or-later"
-depends="cheip-shell networkmanager networkmanager-wifi wpa_supplicant"
+depends="cheip-shell networkmanager networkmanager-wifi wpa_supplicant waydroid"
 install="$pkgname.post-install"
 # Repository OTA firmato e chiave pubblica per verificarlo
 source="cheip-os.rsa.pub"
@@ -15,6 +15,11 @@ options="!check"
 
 package() {
 	install -Dm644 "$srcdir"/cheip-os.rsa.pub "$pkgdir"/etc/apk/keys/cheip-os.rsa.pub
+	# App Android preinstallate, aggiunte dalla CI se disponibili
+	for apk in "$srcdir"/*.apk; do
+		[ -f "$apk" ] && install -Dm644 "$apk" "$pkgdir"/usr/share/cheip/preinstall/"$(basename "$apk")"
+	done
+	return 0
 }
 
 sha512sums="SKIP"

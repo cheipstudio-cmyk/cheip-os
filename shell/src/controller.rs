@@ -446,8 +446,20 @@ fn badge_for(st: &State, id: &str) -> i32 {
     }
 }
 
+/// Icone delle app preinstallate, incluse nel binario (servono anche alla demo web)
+fn builtin_icon(id: &str) -> Option<Image> {
+    let bytes: &[u8] = match id {
+        "com.secondream.novagram" => include_bytes!("../assets/novagram.png"),
+        _ => return None,
+    };
+    let img = image::load_from_memory(bytes).ok()?.to_rgba8();
+    let (w, h) = img.dimensions();
+    let buf = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(img.as_raw(), w, h);
+    Some(Image::from_rgba8(buf))
+}
+
 fn entry(ui: &AppWindow, st: &State, id: &str, name: &str, android: bool, icon: Option<PathBuf>) -> AppEntry {
-    let picture = icon.as_deref().and_then(|p| Image::load_from_path(p).ok());
+    let picture = icon.as_deref().and_then(|p| Image::load_from_path(p).ok()).or_else(|| builtin_icon(id));
     AppEntry {
         id: id.into(),
         name: name.into(),

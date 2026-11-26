@@ -36,6 +36,7 @@ package() {
 	install -Dm755 shell/target/release/cheip-shell "$pkgdir"/usr/bin/cheip-shell
 	install -Dm755 system/cheip-session "$pkgdir"/usr/libexec/cheip/cheip-session
 	install -Dm755 system/cheip-helper "$pkgdir"/usr/libexec/cheip/cheip-helper
+	install -Dm755 system/cheip-preinstall "$pkgdir"/usr/libexec/cheip/cheip-preinstall
 	install -Dm755 system/cheip-shell.initd "$pkgdir"/etc/init.d/cheip-shell
 	install -Dm600 system/cheip.doas.conf "$pkgdir"/etc/doas.d/cheip.conf
 	install -Dm644 system/90-cheip.rules "$pkgdir"/usr/lib/udev/rules.d/90-cheip.rules

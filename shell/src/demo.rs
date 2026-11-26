@@ -121,7 +121,7 @@ pub fn apply(ui: &AppWindow, st: &Shared) {
 
     // App Android finte nella griglia
     controller::set_demo_android(vec![
-        ("org.telegram.messenger".into(), "Telegram".into()),
+        ("com.secondream.novagram".into(), "Novagram".into()),
         ("com.whatsapp".into(), "WhatsApp".into()),
         ("com.spotify.music".into(), "Spotify".into()),
     ]);

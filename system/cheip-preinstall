@@ -1,0 +1,25 @@
+#!/bin/sh
+# App Android preinstallate (per esempio Novagram): appena la sessione Waydroid
+# è attiva le installa una volta sola. Gira in background dalla sessione utente.
+
+dir=/usr/share/cheip/preinstall
+done_dir="$HOME/.local/share/cheip/preinstalled"
+mkdir -p "$done_dir"
+
+ls "$dir"/*.apk >/dev/null 2>&1 || exit 0
+command -v waydroid >/dev/null 2>&1 || exit 0
+
+while :; do
+	pending=0
+	for apk in "$dir"/*.apk; do
+		name=$(basename "$apk" .apk)
+		stamp="$done_dir/$name.$(stat -c %Y "$apk")"
+		[ -e "$stamp" ] && continue
+		pending=1
+		if waydroid status 2>/dev/null | grep -q "Session:.*RUNNING"; then
+			waydroid app install "$apk" && touch "$stamp"
+		fi
+	done
+	[ "$pending" = 0 ] && exit 0
+	sleep 20
+done
