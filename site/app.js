@@ -214,7 +214,7 @@ let dev = null, sd = null, busy = false;
 function setConnected(ok, label) {
   $("#usb-dot").classList.toggle("on", ok);
   $("#usb-state").textContent = label;
-  for (const id of ["#usb-boot", "#usb-info", "#usb-reboot", "#usb-log"]) $(id).disabled = !ok || busy;
+  for (const id of ["#usb-boot", "#usb-info", "#usb-reboot", "#usb-log", "#usb-klog"]) $(id).disabled = !ok || busy;
   $("#usb-install").disabled = !ok || busy || !sd || !manifest;
 }
 
@@ -313,6 +313,15 @@ $("#usb-log").addEventListener("click", async () => {
     log("---- bootloader log ----\n" + r.text + "\n------------------------");
   } catch (e) {
     log("Log failed: " + (e.message || e));
+  }
+});
+
+$("#usb-klog").addEventListener("click", async () => {
+  try {
+    const r = await dev.runCommand("oem ramoops console");
+    log("---- last Linux log ----\n" + (r.text || "(empty: Linux did not start or the memory was cleared)") + "\n------------------------");
+  } catch (e) {
+    log("Linux log failed: " + (e.message || e));
   }
 });
 
