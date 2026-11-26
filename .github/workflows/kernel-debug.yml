@@ -40,9 +40,12 @@ jobs:
             -e PRINTK_TIME -e PANIC_TIMEOUT --set-val PANIC_TIMEOUT 0 \
             -e DEBUG_KERNEL -e MAGIC_SYSRQ -d DEBUG_INFO_BTF \
             -e CMDLINE_EXTEND --set-str CMDLINE "" \
-            -e USB_CONFIGFS_NCM -e USB_CONFIGFS_RNDIS -e USB_F_NCM -e USB_F_RNDIS -e USB_LIBCOMPOSITE
+            -e USB_CONFIGFS_NCM -e USB_CONFIGFS_RNDIS -e USB_F_NCM -e USB_F_RNDIS -e USB_LIBCOMPOSITE \
+            -e USB_GADGET -e USB_CHIPIDEA -e USB_CHIPIDEA_UDC -e USB_CHIPIDEA_MSM -e PHY_QCOM_USB_HS \
+            -e USB_G_SERIAL -e U_SERIAL_CONSOLE -e USB_U_SERIAL -e USB_F_ACM -e USB_F_SERIAL \
+            -e EXTCON -e USB_ROLE_SWITCH
           make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- olddefconfig
-          grep -E "CONFIG_DRM_SIMPLEDRM=|CONFIG_FRAMEBUFFER_CONSOLE=" .config
+          grep -E "CONFIG_DRM_SIMPLEDRM=|CONFIG_FRAMEBUFFER_CONSOLE=|CONFIG_USB_G_SERIAL=|CONFIG_U_SERIAL_CONSOLE=|CONFIG_USB_CHIPIDEA=" .config
 
       - name: Build
         working-directory: linux
@@ -67,6 +70,13 @@ jobs:
           python3 kernel/mkbootimg.py --kernel zimage-dtb --ramdisk initramfs --base 0 --kernel_offset 0x8000 \
             --ramdisk_offset 0x2800000 --tags_offset 0x2600000 --pagesize 2048 \
             --cmdline "console=tty0 loglevel=8 ignore_loglevel nosmp clk_ignore_unused pd_ignore_unused cma=32m cpuidle.off=1 pmos.debug-shell $U" -o out/cheip-debug-b.img
+          # C/D: kernel console over USB serial (a COM port on the PC, read by the site)
+          python3 kernel/mkbootimg.py --kernel zimage-dtb --ramdisk initramfs --base 0 --kernel_offset 0x8000 \
+            --ramdisk_offset 0x2800000 --tags_offset 0x2600000 --pagesize 2048 \
+            --cmdline "console=ttyGS0,115200 console=tty0 loglevel=8 ignore_loglevel pmos.debug-shell $U" -o out/cheip-debug-c.img
+          python3 kernel/mkbootimg.py --kernel zimage-dtb --ramdisk initramfs --base 0 --kernel_offset 0x8000 \
+            --ramdisk_offset 0x2800000 --tags_offset 0x2600000 --pagesize 2048 \
+            --cmdline "console=ttyGS0,115200 console=tty0 loglevel=8 ignore_loglevel nosmp clk_ignore_unused pd_ignore_unused cma=32m cpuidle.off=1 pmos.debug-shell $U" -o out/cheip-debug-d.img
           ls -la out
 
       - name: Publish
@@ -76,3 +86,4 @@ jobs:
           name: Kernel debug (not for users)
           prerelease: true
           files: out/*.img
+          overwrite_files: true
