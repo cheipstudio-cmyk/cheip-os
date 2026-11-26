@@ -151,7 +151,9 @@ function espState(ok, label) {
   $("#esp-state").textContent = label;
 }
 
-$("#esp-install").addEventListener("click", async () => {
+$("#esp-install").addEventListener("click", () => installMenu(false));
+$("#esp-default").addEventListener("click", () => installMenu(true));
+async function installMenu(makeDefault) {
   try {
     const esp = await pickEsp();
     espLog(`EFIESP found (${esp.root.name}).`);
@@ -166,12 +168,12 @@ $("#esp-install").addEventListener("click", async () => {
     await writeFile(esp.sysBoot, "cheipshim.efi", shim);
     await writeFile(esp.root, "emmc_appsboot.mbn", lk);
     espLog("Bootloader copied.");
-    const id = bcdAddCheip(hive);
+    const id = bcdAddCheip(hive, { makeDefault });
     const bcd = writeHive(hive);
     parseHive(bcd); // sanity check before replacing the real one
     await writeFile(esp.bootDir, "BCD", bcd);
     espLog(`Boot menu ready: ${bcdEntries(hive).filter((e) => e.desc).map((e) => e.desc).join(", ")}.`);
-    espLog(`Cheip OS entry ${id}. Go to step 4.`);
+    espLog(`Cheip OS entry ${id}. Starts by default: ${makeDefault ? "Cheip OS" : "Windows Phone"}. Go to step 4.`);
     espState(true, "Boot menu installed");
     markStep(3);
   } catch (e) {
@@ -179,7 +181,7 @@ $("#esp-install").addEventListener("click", async () => {
     espLog("Error: " + (e.message || e));
     espState(false, "Not installed");
   }
-});
+}
 
 $("#esp-remove").addEventListener("click", async () => {
   try {

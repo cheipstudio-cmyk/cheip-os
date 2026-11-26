@@ -197,12 +197,14 @@ footer p { margin-bottom: 6px; }
           <div class="usb">
             <div class="state"><span class="dot" id="esp-dot"></span><span id="esp-state">Waiting for the EFIESP drive</span></div>
             <div class="btns">
-              <button class="btn fill small" id="esp-install">Install boot menu</button>
+              <button class="btn fill small" id="esp-default">Start Cheip OS by default</button>
+              <button class="btn tonal small" id="esp-install">Start Windows Phone by default</button>
               <button class="btn tonal small" id="esp-remove">Remove Cheip OS from the menu</button>
             </div>
             <pre class="log" id="esp-out"></pre>
           </div>
-          <p style="margin-top:12px;font-size:14px">The site copies the Cheip OS bootloader to the phone, keeps a backup of the boot configuration on the phone (BCD.cheipbak) and in your Downloads, and adds a <b>Cheip OS</b> entry next to Windows Phone.</p>
+          <p style="margin-top:12px;font-size:14px">On many Lumias the volume keys can't move inside the boot menu, so the phone starts the default system. Choose Cheip OS as default to install it; you can switch back here any time.</p>
+          <p style="margin-top:8px;font-size:14px">The site copies the Cheip OS bootloader to the phone, keeps a backup of the boot configuration on the phone (BCD.cheipbak) and in your Downloads, and adds a <b>Cheip OS</b> entry next to Windows Phone.</p>
           <label class="check"><input type="checkbox"> Boot menu installed</label>
         </div>
       </div>

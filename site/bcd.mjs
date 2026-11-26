@@ -251,7 +251,7 @@ export function bcdEntries(hive) {
 }
 
 // Adds (or refreshes) the "Cheip OS" entry. Returns its GUID.
-export function bcdAddCheip(hive, { path = "\\Windows\\System32\\Boot\\cheipshim.efi", title = "Cheip OS", timeout = 5 } = {}) {
+export function bcdAddCheip(hive, { path = "\\Windows\\System32\\Boot\\cheipshim.efi", title = "Cheip OS", timeout = 5, makeDefault = false } = {}) {
   const objs = child(hive.root, "Objects");
   const mgr = child(objs, BOOTMGR);
   if (!mgr) throw new Error("Boot manager entry not found in BCD");
@@ -272,6 +272,11 @@ export function bcdAddCheip(hive, { path = "\\Windows\\System32\\Boot\\cheipshim
   if (!order.length && elem(mgr, E.def)) order.push(readSz(elem(mgr, E.def).data));
   if (!order.some((g) => up(g) === up(entry.name))) order.push(entry.name);
   setElem(mgr, E.order, REG_MULTI_SZ, multi(order));
+  if (makeDefault) setElem(mgr, E.def, REG_SZ, sz(entry.name));
+  else if (elem(mgr, E.def) && up(readSz(elem(mgr, E.def).data)) === up(entry.name)) {
+    const win = order.find((g) => up(g) !== up(entry.name));
+    if (win) setElem(mgr, E.def, REG_SZ, sz(win));
+  }
   setElem(mgr, E.menu, REG_BINARY, Uint8Array.of(1));
   const t = new Uint8Array(8); new DataView(t.buffer).setUint32(0, timeout, true);
   setElem(mgr, E.timeout, REG_BINARY, t);
