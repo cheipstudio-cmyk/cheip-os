@@ -6,6 +6,9 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: write
+
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   DEVICE: qcom-msm8226
@@ -165,6 +168,13 @@ jobs:
           aws s3 cp ota/armv7/ "s3://$R2_BUCKET/$OTA_PREFIX/armv7/" --recursive --exclude APKINDEX.tar.gz --endpoint-url "$EP"
           aws s3 cp ota/armv7/APKINDEX.tar.gz "s3://$R2_BUCKET/$OTA_PREFIX/armv7/APKINDEX.tar.gz" --endpoint-url "$EP"
           aws s3 cp ota/manifest.json "s3://$R2_BUCKET/$OTA_PREFIX/manifest.json" --endpoint-url "$EP" --cache-control "no-cache"
+
+      - name: Copia di sicurezza dei file (se la release fallisce)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist-*
+          retention-days: 7
 
       - name: Release GitHub
         uses: softprops/action-gh-release@v2
