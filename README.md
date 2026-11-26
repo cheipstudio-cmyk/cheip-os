@@ -100,4 +100,4 @@ sono nostri.
 
 ## Licenze
 
-Codice GPL-3.0-or-later. Font Inter e Space Grotesk sotto SIL Open Font License 1.1.
+Codice GPL-3.0-or-later. Font Google Sans Flex sotto SIL Open Font License 1.1. Icone Material Symbols (Google) sotto Apache 2.0. Colori dinamici con material-color-utilities (crate material-colors, Apache 2.0).
