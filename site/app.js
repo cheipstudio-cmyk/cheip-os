@@ -279,10 +279,11 @@ async function getChunk(c) {
   }
 }
 
-$("#usb-install").addEventListener("click", async () => {
+$("#usb-install").addEventListener("click", () => installOs(false));
+async function installOs(auto) {
   if (!dev || !sd || !manifest || busy) return;
   if (manifest.size > sd.bytes) return log("The microSD is too small for Cheip OS.");
-  if (!confirm(`Everything on the ${human(sd.bytes)} microSD inside the phone will be erased and replaced by Cheip OS ${manifest.version}. Continue?`)) return;
+  if (!auto && !confirm(`Everything on the ${human(sd.bytes)} microSD inside the phone will be erased and replaced by Cheip OS ${manifest.version}. Continue?`)) return;
   busy = true; setConnected(true, "Installing…");
   phone("busy", "Installing Cheip OS…", "Keep the cable connected and don't touch the phone.");
   const total = manifest.data;
@@ -316,7 +317,7 @@ $("#usb-install").addEventListener("click", async () => {
     log("Install stopped: " + (e.message || e) + "\nNothing is broken: Windows Phone still starts. Reconnect and press Install again.");
     phone("error", "Install stopped", "Nothing is broken. Restart the phone (Power + Volume down), wait for this box to turn green, then press Install again.");
   }
-});
+}
 
 $("#usb-reboot").addEventListener("click", async () => { await dev.reboot().catch(() => {}); setConnected(false, "Restarting"); });
 
@@ -396,9 +397,21 @@ async function captureLogs() {
     dev = new FastbootDevice();
     await dev.connect();
     const product = await dev.getVariable("product").catch(() => "");
-    log(`Phone caught in the bootloader${product ? " (" + product + ")" : ""}. Reading logs…`);
+    log(`Phone caught in the bootloader${product ? " (" + product + ")" : ""}.`);
+    if ($("#auto-install").checked) {
+      try {
+        const r = await dev.runCommand("oem sd-info");
+        const [blocks, bs] = r.text.trim().split(/\s+/).map(Number);
+        if (blocks && bs) sd = { blocks, bs, bytes: blocks * bs };
+      } catch {}
+      await loadManifest();
+      busy = false;
+      $("#auto-install").checked = false;
+      return installOs(true);
+    }
+    log("Reading logs…");
     let all = "";
-    for (const [title, cmd] of [["bootloader log", "oem log"], ["last Linux log", "oem ramoops console"], ["last Linux crash", "oem ramoops dump"]]) {
+    for (const [title, cmd] of [["bootloader log", "oem log"], ["last Linux log", "oem ramoops console"]]) {
       try {
         const t = await fetchStaged(dev, cmd);
         all += `==== ${title} ====\n${t || "(empty)"}\n\n`;
