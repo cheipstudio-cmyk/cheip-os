@@ -456,6 +456,33 @@ if ("usb" in navigator) {
   navigator.usb.getDevices().then((ds) => { if (ds.length === 1 && ds[0].opened === false) ($("#usb-watch").checked ? captureLogs() : (!store.get("cheip-steps", {})[4] && connectPhone(true))); });
 }
 
+// Debug kernels print their console on a USB serial port (a COM port on Windows)
+let serialText = "";
+$("#serial-btn").addEventListener("click", async () => {
+  if (!("serial" in navigator)) return log("This browser has no Web Serial. Use Chrome or Edge.");
+  try {
+    const port = await navigator.serial.requestPort();
+    await port.open({ baudRate: 115200 });
+    phone("busy", "Reading the Linux console…", "Leave the phone as it is. The text appears below and is saved to Downloads as cheip-console.txt.");
+    log("---- Linux console ----");
+    const reader = port.readable.getReader();
+    const dec = new TextDecoder();
+    let last = Date.now();
+    const saver = setInterval(() => { if (Date.now() - last > 4000 && serialText) { saveCopy("cheip-console.txt", new TextEncoder().encode(serialText)); last = Infinity; } }, 1000);
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      const t = dec.decode(value);
+      serialText += t; last = Date.now();
+      $("#usb-out").textContent += t; $("#usb-out").scrollTop = $("#usb-out").scrollHeight;
+    }
+    clearInterval(saver);
+  } catch (e) {
+    if (serialText) saveCopy("cheip-console.txt", new TextEncoder().encode(serialText));
+    log("Console ended: " + (e.message || e));
+  }
+});
+
 renderDevices();
 renderSteps();
 loadRelease();
