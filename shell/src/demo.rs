@@ -74,11 +74,12 @@ pub const PAGE: &str = r#"<html><head><title>Cheip OS 0.3 is here</title></head>
 
 /// Valori di sistema come su un 735 reale, da chiamare dopo controller::wire
 pub fn apply(ui: &AppWindow, st: &Shared) {
+    ui.global::<Sys>().set_demo(true);
     {
         let mut s = st.borrow_mut();
         s.modem_ok = true;
-        s.notify("Marco", "Great. I'll bring the 640 so we can test that too", false);
-        s.notify("System", "Cheip OS 0.3.1 ready to install", false);
+        s.notify("system", "System", "Cheip OS 0.3.1 ready to install");
+        s.notify("messages", "Marco", "Great. I'll bring the 640 so we can test that too");
         controller::push_all(&ui, &s);
     }
     let s = ui.global::<Sys>();

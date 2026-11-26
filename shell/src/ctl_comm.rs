@@ -88,7 +88,13 @@ pub fn push(ui: &AppWindow, st: &State) {
     );
 }
 
-fn show_call(ui: &AppWindow, st: &State) {
+fn show_call(ui: &AppWindow, st: &mut State) {
+    let ringing_now = st.call.as_ref().map(|c| c.incoming && c.answered_at.is_none()).unwrap_or(false);
+    if ringing_now {
+        crate::controller::start_ring(st);
+    } else {
+        crate::controller::stop_ring(st);
+    }
     let p = ui.global::<Phone>();
     match &st.call {
         Some(c) => {
@@ -134,9 +140,7 @@ fn end_call(ui: &AppWindow, st: &mut State) {
         if dir == "missed" {
             st.missed += 1;
             let who = name_or_number(st, &c.number);
-            st.notify("Phone", &format!("Missed call from {who}"), false);
-            push_notifs(ui, st);
-            push_apps(ui, st);
+            crate::controller::post(ui, st, "phone", "Missed call", &who, crate::feedback::Sound::Notification);
         }
     }
     show_call(ui, st);
@@ -152,7 +156,7 @@ fn store_incoming(ui: &AppWindow, st: &mut State, list: Vec<modem::Sms>) {
         if added {
             fresh += 1;
             let who = name_or_number(st, &sms.number);
-            st.notify(&who, &sms.text, false);
+            crate::controller::post(ui, st, "messages", &who, &sms.text, crate::feedback::Sound::Message);
         }
         // Salvato in locale: lo togliamo dalla SIM/modem che ha poco spazio
         modem::delete_sms(&sms.path);
@@ -164,6 +168,25 @@ fn store_incoming(ui: &AppWindow, st: &mut State, list: Vec<modem::Sms>) {
         push_notifs(ui, st);
         push_apps(ui, st);
     }
+}
+
+/// Demo: chiamata in arrivo finta
+pub fn simulate_incoming(ui: &AppWindow, st: &mut State, number: &str) {
+    if st.call.is_some() {
+        return;
+    }
+    st.call = Some(CallState { number: number.into(), incoming: true, started_at: now_ts(), ..Default::default() });
+    show_call(ui, st);
+}
+
+/// Demo: SMS in arrivo finto
+pub fn simulate_message(ui: &AppWindow, st: &mut State, number: &str, text: &str) {
+    let is_open = crate::store::same_number(number, &st.open_thread);
+    st.store.add_message(Message { number: number.into(), text: text.into(), ts: now_ts(), outgoing: false, read: is_open });
+    let who = name_or_number(st, number);
+    push_threads(ui, st);
+    push_conversation(ui, st);
+    crate::controller::post(ui, st, "messages", &who, text, crate::feedback::Sound::Message);
 }
 
 pub fn wire(ui: &AppWindow, st: &Shared) {
@@ -191,7 +214,7 @@ pub fn wire(ui: &AppWindow, st: &Shared) {
             }
         }
         ui.global::<Phone>().set_dial("".into());
-        show_call(&ui, &s);
+        show_call(&ui, &mut s);
     }));
     p.on_answer(with!(ui, st, |ui, s| {
         let live = s.live;
@@ -201,7 +224,7 @@ pub fn wire(ui: &AppWindow, st: &Shared) {
             }
             c.answered_at = Some(now_ts());
         }
-        show_call(&ui, &s);
+        show_call(&ui, &mut s);
     }));
     p.on_hangup(with!(ui, st, |ui, s| {
         if let Some(c) = &s.call {
@@ -316,7 +339,7 @@ pub fn timers(ui: &AppWindow, st: &Shared) -> Vec<slint::Timer> {
                 }
                 _ => return,
             }
-            show_call(&ui, &s);
+            show_call(&ui, &mut s);
         }),
     );
     let sms = slint::Timer::default();

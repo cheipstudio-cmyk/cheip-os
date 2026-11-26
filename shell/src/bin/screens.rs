@@ -162,6 +162,15 @@ fn main() {
     shell.invoke_unlock();
     ctx.advance(800);
     ctx.shot("home");
+    if std::env::var("CHEIP_BATTERY").is_ok() {
+        let sys = ui.global::<Sys>();
+        for (n, lv, ch, eco) in [("78", 78, false, false), ("100", 100, false, false), ("54c", 54, true, false), ("12", 12, false, false), ("40s", 40, false, true), ("5c", 5, true, false)] {
+            sys.set_battery(lv); sys.set_charging(ch); sys.set_eco_on(eco);
+            ctx.advance(900);
+            ctx.shot(&format!("bat-{n}"));
+        }
+        return;
+    }
 
     shell.set_searching(true);
     ctx.advance(300);

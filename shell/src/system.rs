@@ -91,6 +91,13 @@ pub fn brightness() -> Option<f32> {
     Some(if max > 0.0 { cur / max } else { 1.0 })
 }
 
+/// Spegne o riaccende il pannello (bl_power: 0 acceso, 4 spento)
+pub fn set_screen(on: bool) {
+    if let Some(d) = backlight_dir() {
+        let _ = fs::write(d.join("bl_power"), if on { "0" } else { "4" });
+    }
+}
+
 pub fn set_brightness(v: f32) {
     if let Some(d) = backlight_dir() {
         if let Some(max) = read_trim(d.join("max_brightness")).and_then(|m| m.parse::<f32>().ok()) {

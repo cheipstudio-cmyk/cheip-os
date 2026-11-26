@@ -35,7 +35,7 @@ device = [
     "slint/software-renderer-path",
 ]
 # Tutto ciò che parla col sistema: GStreamer, rete, tag audio
-native = ["dep:gstreamer", "dep:gstreamer-app", "dep:gstreamer-video", "dep:lofty", "dep:ureq"]
+native = ["dep:gstreamer", "dep:gstreamer-app", "dep:gstreamer-video", "dep:lofty", "dep:ureq", "dep:evdev"]
 # Demo interattiva nel browser (WebAssembly), con file e media finti incorporati
 web = ["slint/backend-winit", "slint/renderer-femtovg", "dep:wasm-bindgen", "dep:web-sys", "chrono/wasmbind"]
 # Screenshot headless delle schermate
@@ -58,7 +58,8 @@ gstreamer-app = { version = "0.25", optional = true }
 gstreamer-video = { version = "0.25", optional = true }
 lofty = { version = "0.25", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3", optional = true, features = ["Window"] }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Navigator", "AudioContext", "BaseAudioContext", "AudioNode", "AudioParam", "AudioDestinationNode", "OscillatorNode", "OscillatorType", "GainNode", "AudioScheduledSourceNode"] }
+evdev = { version = "0.13", optional = true }
 zip = { version = "9", default-features = false, features = ["deflate"] }
 once_cell = "1"
 

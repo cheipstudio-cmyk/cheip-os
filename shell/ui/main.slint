@@ -127,6 +127,39 @@ export component AppWindow inherits Window {
         animate y { duration: (Shell.controls-drag > 0px || self.lift > 0px) ? 0ms : 380ms; easing: spring(0.15); }
     }
 
+    // Notifica a comparsa: scende dall'alto, tocca per aprire, scorri su per chiudere
+    headsup := Rectangle {
+        property <length> lift: 0px;
+        x: 10px; width: root.width - 20px; height: 76px;
+        y: Shell.headsup-shown && Shell.screen != ScreenId.lock ? 8px - self.lift : -100px;
+        animate y { duration: self.lift > 0px ? 0ms : 420ms; easing: spring(0.2); }
+        border-radius: 22px; background: #1b1b1b;
+        border-width: 1px; border-color: #2e2e2e;
+        Rectangle {
+            x: 14px; width: 44px; height: 44px; border-radius: 22px; background: Theme.accent;
+            Icon { d: Shell.headsup.glyph; size: 20px; tint: #000; }
+        }
+        VerticalLayout {
+            x: 70px; width: parent.width - 84px; alignment: center; spacing: 3px;
+            HorizontalLayout {
+                Text { text: Shell.headsup.app; color: Theme.text; font-family: Theme.body; font-size: 14px; font-weight: 600; overflow: elide; }
+                Rectangle { }
+                Text { text: Shell.headsup.time; color: Theme.muted; font-family: Theme.body; font-size: 11px; }
+            }
+            Text { text: Shell.headsup.text; color: Theme.muted; font-family: Theme.body; font-size: 13px; overflow: elide; }
+        }
+        TouchArea {
+            moved => { headsup.lift = max(0px, self.pressed-y - self.mouse-y); }
+            pointer-event(ev) => {
+                if (ev.kind == PointerEventKind.up) {
+                    if (headsup.lift > 24px) { Shell.headsup-shown = false; }
+                    else if (headsup.lift < 4px) { Shell.headsup-shown = false; Shell.open-notification(Shell.headsup.id); }
+                    headsup.lift = 0px;
+                }
+            }
+        }
+    }
+
     lock := LockScreen {
         width: root.width; height: root.height;
         y: Shell.screen == ScreenId.lock ? 0px : -root.height;
@@ -137,5 +170,40 @@ export component AppWindow inherits Window {
         width: root.width; height: root.height;
         y: (Phone.in-call || Phone.incoming) ? 0px : root.height;
         animate y { duration: Theme.slow; easing: Theme.ease; }
+    }
+
+    // Pannello volume: compare coi tasti laterali, a destra come su Android
+    hud := Rectangle {
+        property <float> level: Sys.volume;
+        x: Shell.volume-hud ? root.width - 72px : root.width + 10px;
+        y: root.height * 0.22;
+        width: 56px; height: 268px;
+        animate x { duration: 360ms; easing: spring(0.2); }
+        border-radius: 28px; background: #1b1b1b;
+        border-width: 1px; border-color: #2e2e2e;
+        // Interruttore suoneria in alto: squillo, vibrazione, silenzioso
+        Rectangle {
+            x: 6px; y: 6px; width: 44px; height: 44px; border-radius: 22px;
+            background: Sys.ringer == 0 ? Theme.accent : Theme.raised;
+            animate background { duration: Theme.fast; }
+            Icon { d: Sys.ringer == 0 ? Icons.bell : (Sys.ringer == 1 ? Icons.vibrate : Icons.bell-off); tint: Sys.ringer == 0 ? #000 : Theme.text; size: 20px; }
+            TouchArea { clicked => { Shell.hud-touch(); Sys.set-ringer(mod(Sys.ringer + 1, 3)); } }
+        }
+        // Barra del volume, trascinabile
+        Rectangle {
+            x: 14px; y: 62px; width: 28px; height: 190px; border-radius: 14px; background: #2a2a2a; clip: true;
+            Rectangle {
+                y: parent.height * (1 - hud.level); height: parent.height * hud.level;
+                background: Sys.ringer == 2 ? Theme.muted : Theme.text;
+                animate y, height { duration: 120ms; }
+            }
+            TouchArea {
+                moved => {
+                    Shell.hud-touch();
+                    Sys.volume = max(0, min(1, 1 - self.mouse-y / self.height));
+                    Sys.volume-changed(Sys.volume);
+                }
+            }
+        }
     }
 }

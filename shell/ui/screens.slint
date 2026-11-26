@@ -1,6 +1,52 @@
 import { Theme } from "theme.slint";
-import { Sys, Shell, Settings, AppEntry, RecentItem, ScreenId } from "data.slint";
+import { Sys, Shell, Settings, AppEntry, RecentItem, ScreenId, NotifItem } from "data.slint";
 import { Icon, Icons, StatusBar, Badge, AppIcon, Dot, RoundButton, PillButton, Card, Title } from "components.slint";
+
+// ---------- Notifica: tocca per aprire, scorri di lato per eliminare ----------
+export component NotifCard inherits Rectangle {
+    in property <NotifItem> item;
+    in property <bool> compact: false;
+    callback open();
+    callback dismiss();
+    property <length> dx: 0px;
+    property <bool> gone: false;
+    height: 68px;
+    Rectangle {
+        x: root.gone ? (root.dx > 0 ? root.width * 1.2 : -root.width * 1.2) : root.dx;
+        width: root.width; height: root.height;
+        opacity: 1 - min(1, abs(self.x) / (root.width * 0.9));
+        animate x { duration: nt.pressed ? 0ms : 300ms; easing: spring(0.2); }
+        border-radius: 18px;
+        background: nt.pressed && abs(root.dx) < 6px ? #222222 : #151515;
+        border-width: 1px; border-color: Theme.line;
+        Rectangle {
+            x: 12px; width: 40px; height: 40px; border-radius: 20px; background: Theme.raised;
+            Icon { d: root.item.glyph; size: 18px; }
+        }
+        VerticalLayout {
+            x: 64px; width: parent.width - 76px;
+            alignment: center; spacing: 3px;
+            HorizontalLayout {
+                spacing: 6px;
+                Text { text: root.item.app; color: Theme.text; font-family: Theme.body; font-size: 13px; font-weight: 600; overflow: elide; }
+                if root.item.android: Badge { }
+                Rectangle { }
+                Text { text: root.item.time; color: Theme.muted; font-family: Theme.body; font-size: 11px; }
+            }
+            Text { text: root.item.text; color: Theme.muted; font-family: Theme.body; font-size: 13px; overflow: elide; }
+        }
+        nt := TouchArea {
+            moved => { root.dx = self.mouse-x - self.pressed-x; }
+            pointer-event(ev) => {
+                if (ev.kind == PointerEventKind.up) {
+                    if (abs(root.dx) > 100px) { root.gone = true; root.dismiss(); }
+                    else if (abs(root.dx) < 6px) { root.open(); }
+                    root.dx = root.gone ? root.dx : 0px;
+                }
+            }
+        }
+    }
+}
 
 // ---------- Blocco ----------
 export component LockScreen inherits Rectangle {
@@ -50,20 +96,11 @@ export component LockScreen inherits Rectangle {
             height: 150px;
             spacing: 8px;
             alignment: start;
-            for n in Sys.notifications: Card {
+            for n in Sys.notifications: NotifCard {
                 height: 62px;
-                VerticalLayout {
-                    padding-left: 14px; padding-right: 14px; padding-top: 11px; padding-bottom: 11px;
-                    spacing: 4px;
-                    HorizontalLayout {
-                        spacing: 6px;
-                        Text { text: n.app; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
-                        if n.android: Badge { }
-                        Rectangle { }
-                        Text { text: n.time; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
-                    }
-                    Text { text: n.text; color: Theme.text; font-family: Theme.body; font-size: 14px; overflow: elide; }
-                }
+                item: n;
+                open => { Shell.open-notification(n.id); }
+                dismiss => { Shell.dismiss-notification(n.id); }
             }
         }
 
@@ -494,51 +531,77 @@ export component ControlsPanel inherits Rectangle {
         changed(v) => { Sys.volume = v; Sys.volume-changed(v); }
     }
 
-    // Memoria
-    Card {
-        x: 16px; y: 358px; width: parent.width - 32px; height: 70px;
-        Icon { x: 14px; y: 14px; d: Icons.chip; size: 18px; tint: Theme.muted; }
-        Text { x: 40px; y: 14px; text: Sys.mem-used + " / " + Sys.mem-total + " MB"; color: Theme.text; font-family: Theme.body; font-size: 13px; font-weight: 600; }
-        Rectangle {
-            x: 14px; y: 42px; width: parent.width - 28px; height: 6px; border-radius: 3px; background: #1c1c1c; clip: true;
-            Rectangle { x: 0; width: parent.width * (Sys.mem-used - Sys.mem-android) / max(1, Sys.mem-total); background: Theme.text; animate width { duration: Theme.slow; easing: Theme.ease; } }
-            Rectangle { x: parent.width * (Sys.mem-used - Sys.mem-android) / max(1, Sys.mem-total); width: parent.width * Sys.mem-android / max(1, Sys.mem-total); background: Theme.accent; }
-        }
-        Text { x: parent.width - self.width - 14px; y: 14px; text: "Android " + Sys.mem-android + " MB"; color: Theme.accent; font-family: Theme.body; font-size: 12px; }
-    }
+    // Notifiche, poi stato del sistema
+    Flickable {
+        x: 16px; y: 352px; width: parent.width - 32px; height: parent.height - 352px - 36px;
+        content-height: col.preferred-height;
+        col := VerticalLayout {
+            width: parent.width;
+            spacing: 8px;
+            alignment: start;
+            HorizontalLayout {
+                height: 32px;
+                Text { text: Sys.notifications.length == 0 ? "No notifications" : "Notifications"; color: Theme.muted; font-family: Theme.body; font-size: 13px; font-weight: 600; vertical-alignment: center; }
+                Rectangle { }
+                if Sys.notifications.length > 0: Text {
+                    text: "Clear all"; color: Theme.accent; font-family: Theme.body; font-size: 13px; font-weight: 600; vertical-alignment: center;
+                    TouchArea { clicked => { Shell.clear-notifications(); } }
+                }
+            }
+            for n in Sys.notifications: NotifCard {
+                item: n;
+                open => { Shell.controls-open = false; Shell.open-notification(n.id); }
+                dismiss => { Shell.dismiss-notification(n.id); }
+            }
+            Rectangle { height: 6px; }
+            // Memoria
+            Card {
+                height: 70px;
+                Icon { x: 14px; y: 14px; d: Icons.chip; size: 18px; tint: Theme.muted; }
+                Text { x: 40px; y: 14px; text: Sys.mem-used + " / " + Sys.mem-total + " MB"; color: Theme.text; font-family: Theme.body; font-size: 13px; font-weight: 600; }
+                Rectangle {
+                    x: 14px; y: 42px; width: parent.width - 28px; height: 6px; border-radius: 3px; background: #1c1c1c; clip: true;
+                    Rectangle { x: 0; width: parent.width * (Sys.mem-used - Sys.mem-android) / max(1, Sys.mem-total); background: Theme.text; animate width { duration: Theme.slow; easing: Theme.ease; } }
+                    Rectangle { x: parent.width * (Sys.mem-used - Sys.mem-android) / max(1, Sys.mem-total); width: parent.width * Sys.mem-android / max(1, Sys.mem-total); background: Theme.accent; }
+                }
+                Text { x: parent.width - self.width - 14px; y: 14px; text: "Android " + Sys.mem-android + " MB"; color: Theme.accent; font-family: Theme.body; font-size: 12px; }
+            }
 
-    // Livello Android
-    Card {
-        x: 16px; y: 438px; width: parent.width - 32px; height: 64px;
-        Icon { x: 14px; d: Icons.android; size: 20px; tint: Sys.android-running ? Theme.accent : Theme.muted; }
-        Text {
-            x: 44px; width: parent.width - 150px; height: parent.height;
-            text: Sys.android-state; color: Theme.muted; font-family: Theme.body; font-size: 12px;
-            vertical-alignment: center; wrap: word-wrap;
-        }
-        PillButton {
-            x: parent.width - self.width - 14px; y: 15px;
-            label: Sys.android-running ? "Suspend" : "Start";
-            solid: true;
-            clicked => { Sys.android-toggle(); }
-        }
-    }
+            // Livello Android
+            Card {
+                height: 64px;
+                Icon { x: 14px; d: Icons.android; size: 20px; tint: Sys.android-running ? Theme.accent : Theme.muted; }
+                Text {
+                    x: 44px; width: parent.width - 150px; height: parent.height;
+                    text: Sys.android-state; color: Theme.muted; font-family: Theme.body; font-size: 12px;
+                    vertical-alignment: center; wrap: word-wrap;
+                }
+                PillButton {
+                    x: parent.width - self.width - 14px; y: 15px;
+                    label: Sys.android-running ? "Suspend" : "Start";
+                    solid: true;
+                    clicked => { Sys.android-toggle(); }
+                }
+            }
 
-    // Aggiornamenti
-    Card {
-        x: 16px; y: 512px; width: parent.width - 32px; height: 64px;
-        Icon { x: 14px; d: Icons.update; size: 20px; tint: Sys.update-available ? Theme.accent : Theme.muted; }
-        VerticalLayout {
-            x: 44px; width: parent.width - 150px;
-            alignment: center; spacing: 2px;
-            Text { text: "Cheip OS " + (Sys.update-available ? Sys.update-version : Sys.version); color: Theme.text; font-family: Theme.body; font-size: 13px; font-weight: 600; }
-            Text { text: Sys.update-state; color: Theme.muted; font-family: Theme.body; font-size: 12px; overflow: elide; }
-        }
-        PillButton {
-            x: parent.width - self.width - 14px; y: 15px;
-            label: Sys.update-available ? "Install" : "Check";
-            solid: Sys.update-available;
-            clicked => { if (Sys.update-available) { Sys.install-update(); } else { Sys.check-update(); } }
+            // Aggiornamenti
+            Card {
+                height: 64px;
+                Icon { x: 14px; d: Icons.update; size: 20px; tint: Sys.update-available ? Theme.accent : Theme.muted; }
+                VerticalLayout {
+                    x: 44px; width: parent.width - 150px;
+                    alignment: center; spacing: 2px;
+                    Text { text: "Cheip OS " + (Sys.update-available ? Sys.update-version : Sys.version); color: Theme.text; font-family: Theme.body; font-size: 13px; font-weight: 600; }
+                    Text { text: Sys.update-state; color: Theme.muted; font-family: Theme.body; font-size: 12px; overflow: elide; }
+                }
+                PillButton {
+                    x: parent.width - self.width - 14px; y: 15px;
+                    label: Sys.update-available ? "Install" : "Check";
+                    solid: Sys.update-available;
+                    clicked => { if (Sys.update-available) { Sys.install-update(); } else { Sys.check-update(); } }
+                }
+            }
+
         }
     }
 

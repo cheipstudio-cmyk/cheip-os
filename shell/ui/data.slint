@@ -1,7 +1,7 @@
 // Strutture e global riempiti dal codice Rust
 
 export struct AppEntry { id: string, name: string, initial: string, android: bool, glyph: string, picture: image, has-picture: bool, badge: int }
-export struct NotifItem { app: string, time: string, text: string, android: bool }
+export struct NotifItem { id: int, app: string, app-id: string, glyph: string, time: string, text: string, android: bool }
 export struct ToggleItem { id: string, label: string, glyph: string, on: bool }
 export struct RecentItem { id: string, name: string, glyph: string, mem: int, state: string, android: bool }
 export struct DayCell { n: int, col: int, row: int, in-month: bool, today: bool, selected: bool, has-events: bool }
@@ -36,6 +36,13 @@ export global Sys {
     in property <bool> data-on: false;
     in property <bool> bt-on: false;
     in property <[NotifItem]> notifications;
+    // Suoni: 0 squillo, 1 vibrazione, 2 silenzioso
+    in-out property <int> ringer: 0;
+    in-out property <int> ringtone: 0;
+    in-out property <bool> vibrate-on-ring: true;
+    in property <bool> demo: false;
+    callback set-ringer(int);
+    callback set-ringtone(int);
     in property <[ToggleItem]> toggles;
     in-out property <float> brightness: 0.55;
     in-out property <float> volume: 0.6;
@@ -73,6 +80,17 @@ export global Shell {
     callback close-all();
     // Modifica della home: riordino, dock, info app
     in-out property <bool> edit-mode: false;
+    // Notifica a comparsa in alto e pannello volume
+    in property <NotifItem> headsup;
+    in-out property <bool> headsup-shown: false;
+    in-out property <bool> volume-hud: false;
+    callback open-notification(int);
+    callback dismiss-notification(int);
+    callback clear-notifications();
+    callback volume-step(int);
+    callback hud-touch();
+    callback demo-call();
+    callback demo-message();
     in-out property <length> close-drag: 0px;
     in-out property <length> controls-drag: 0px;
     in property <bool> dock-full: false;

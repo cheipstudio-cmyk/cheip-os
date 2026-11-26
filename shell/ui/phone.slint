@@ -1,5 +1,5 @@
 import { Theme } from "theme.slint";
-import { Phone } from "data.slint";
+import { Phone, Sys } from "data.slint";
 import { Icon, Icons, StatusBar, RoundButton, Card, Title, Avatar, Field } from "components.slint";
 
 component Key inherits Rectangle {
@@ -197,7 +197,7 @@ export component CallOverlay inherits Rectangle {
     }
     Text {
         y: 314px; width: parent.width;
-        text: Phone.incoming ? "Incoming call" : (Phone.call-time != "" ? Phone.call-time : Phone.call-state);
+        text: Phone.incoming ? (Sys.ringer == 2 ? "Incoming call · silent" : "Incoming call") : (Phone.call-time != "" ? Phone.call-time : Phone.call-state);
         color: Theme.accent; font-family: Theme.body; font-size: 14px; font-weight: 600;
         horizontal-alignment: center;
     }
@@ -208,9 +208,17 @@ export component CallOverlay inherits Rectangle {
         Icon { d: Icons.hangup; tint: #fff; size: 28px; }
         TouchArea { clicked => { Phone.hangup(); } }
     }
+    // Rispondi: pulsa mentre squilla
+    if Phone.incoming: Rectangle {
+        x: parent.width - 136px; y: parent.height - 160px; width: 72px; height: 72px; border-radius: 36px;
+        background: Theme.accent.with-alpha(0.25);
+        transform-scale: 1 + 0.35 * mod(animation-tick() / 1ms, 1400) / 1400;
+        opacity: 1 - mod(animation-tick() / 1ms, 1400) / 1400;
+    }
     if Phone.incoming: Rectangle {
         x: parent.width - 136px; y: parent.height - 160px; width: 72px; height: 72px; border-radius: 36px;
         background: Theme.accent;
+        transform-rotation: sin(animation-tick() / 1ms * 0.02rad) * 8deg;
         accessible-role: button; accessible-label: "Answer";
         Icon { d: Icons.phone; tint: #000; size: 28px; }
         TouchArea { clicked => { Phone.answer(); } }

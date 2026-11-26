@@ -82,6 +82,11 @@ pub struct State {
     pub missed: i32,
     pub open_thread: String,
     pub notifs: Vec<NotifItem>,
+    pub next_notif: i32,
+    pub ring_timer: Option<slint::Timer>,
+    pub hud_timer: Option<slint::Timer>,
+    pub headsup_timer: Option<slint::Timer>,
+    pub screen_off: bool,
     pub tabs: Vec<Tab>,
     pub tab: usize,
     pub cwd: PathBuf,
@@ -142,7 +147,7 @@ pub fn glyph(ui: &AppWindow, id: &str) -> SharedString {
         "files" => i.get_folder(),
         "calendar" => i.get_calendar(),
         "notes" => i.get_notes(),
-        "settings" => i.get_gear(),
+        "settings" | "system" => i.get_gear(),
         "wifi" => i.get_wifi(),
         "dati" => i.get_data(),
         "bt" => i.get_bluetooth(),
@@ -180,6 +185,11 @@ impl State {
             missed: 0,
             open_thread: String::new(),
             notifs: Vec::new(),
+            next_notif: 1,
+            ring_timer: None,
+            hud_timer: None,
+            headsup_timer: None,
+            screen_off: false,
             tabs: vec![Tab::default()],
             tab: 0,
             cwd: crate::files::home(),
@@ -193,10 +203,151 @@ impl State {
         self.toggles.iter().find(|t| t.id == id).map(|t| t.on).unwrap_or(false)
     }
 
-    pub fn notify(&mut self, app: &str, text: &str, android: bool) {
+    /// Aggiunge una notifica all'elenco, senza suoni né banner
+    pub fn notify(&mut self, app_id: &str, title: &str, text: &str) -> NotifItem {
         let now = Local::now();
-        self.notifs.insert(0, NotifItem { app: app.into(), time: format!("{:02}:{:02}", now.hour(), now.minute()).into(), text: text.into(), android });
-        self.notifs.truncate(3);
+        let item = NotifItem {
+            id: self.next_notif,
+            app: title.into(),
+            app_id: app_id.into(),
+            glyph: icon_path(app_id).into(),
+            time: format!("{:02}:{:02}", now.hour(), now.minute()).into(),
+            text: text.into(),
+            android: !SYSTEM_APPS.iter().any(|(id, _, _)| *id == app_id) && app_id != "system",
+        };
+        self.next_notif += 1;
+        self.notifs.retain(|n| !(n.app_id == item.app_id && n.app == item.app));
+        self.notifs.insert(0, item.clone());
+        self.notifs.truncate(8);
+        item
+    }
+}
+
+thread_local! {
+    static UI: RefCell<Option<slint::Weak<AppWindow>>> = const { RefCell::new(None) };
+}
+
+pub fn ui_handle() -> Option<AppWindow> {
+    UI.with(|u| u.borrow().as_ref().and_then(|w| w.upgrade()))
+}
+
+/// Percorso dell'icona di un'app (stesse icone del launcher)
+pub fn icon_path(app_id: &str) -> String {
+    ui_handle().map(|ui| glyph(&ui, app_id).to_string()).unwrap_or_default()
+}
+
+/// Notifica completa: elenco, banner in alto, suono e vibrazione secondo la modalità
+pub fn post(ui: &AppWindow, st: &mut State, app_id: &str, title: &str, text: &str, sound: crate::feedback::Sound) {
+    let item = st.notify(app_id, title, text);
+    push_notifs(ui, st);
+    push_apps(ui, st);
+    let shell = ui.global::<Shell>();
+    let in_app = shell.get_app_open() && shell.get_app_id() == app_id;
+    if !in_app {
+        shell.set_headsup(item);
+        shell.set_headsup_shown(true);
+        let t = slint::Timer::default();
+        t.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis(4200), || {
+            if let Some(ui) = ui_handle() {
+                ui.global::<Shell>().set_headsup_shown(false);
+            }
+        });
+        st.headsup_timer = Some(t);
+    }
+    alert(ui, sound, 220);
+}
+
+/// Suono o vibrazione secondo squillo / vibrazione / silenzioso
+pub fn alert(ui: &AppWindow, sound: crate::feedback::Sound, vibrate_ms: u16) {
+    let sys = ui.global::<Sys>();
+    match sys.get_ringer() {
+        0 => {
+            crate::feedback::play(sound, sys.get_volume());
+            if matches!(sound, crate::feedback::Sound::Ring(_)) && sys.get_vibrate_on_ring() {
+                crate::feedback::vibrate(vibrate_ms);
+            }
+        }
+        1 => crate::feedback::vibrate(vibrate_ms),
+        _ => {}
+    }
+}
+
+/// Squillo continuo per la chiamata in arrivo
+pub fn start_ring(st: &mut State) {
+    if st.ring_timer.is_some() {
+        return;
+    }
+    let tick = || {
+        if let Some(ui) = ui_handle() {
+            let tone = ui.global::<Sys>().get_ringtone();
+            alert(&ui, crate::feedback::Sound::Ring(tone), 900);
+        }
+    };
+    tick();
+    let t = slint::Timer::default();
+    t.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(crate::feedback::RING_CYCLE_MS), tick);
+    st.ring_timer = Some(t);
+}
+
+pub fn stop_ring(st: &mut State) {
+    st.ring_timer = None;
+}
+
+fn show_hud(ui: &AppWindow, st: &mut State) {
+    ui.global::<Shell>().set_volume_hud(true);
+    let t = slint::Timer::default();
+    t.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis(2200), || {
+        if let Some(ui) = ui_handle() {
+            ui.global::<Shell>().set_volume_hud(false);
+        }
+    });
+    st.hud_timer = Some(t);
+}
+
+fn volume_step(ui: &AppWindow, st: &mut State, dir: i32) {
+    let sys = ui.global::<Sys>();
+    let v = (sys.get_volume() + dir as f32 / 15.0).clamp(0.0, 1.0);
+    sys.set_volume(v);
+    if st.live {
+        sys_set_volume(v);
+    }
+    // Come su Android: a zero si passa in vibrazione, risalendo torna lo squillo
+    if v <= 0.001 && sys.get_ringer() == 0 {
+        sys.set_ringer(1);
+        crate::feedback::vibrate(120);
+    } else if v > 0.001 && dir > 0 && sys.get_ringer() != 0 {
+        sys.set_ringer(0);
+    }
+    show_hud(ui, st);
+}
+
+fn sys_set_volume(v: f32) {
+    sys::set_volume(v);
+}
+
+/// Tasti fisici: arrivano dal thread evdev tramite il ciclo eventi
+pub fn on_key(k: crate::keys::Key) {
+    let (Some(ui), Some(st)) = (ui_handle(), shared()) else { return };
+    let mut s = st.borrow_mut();
+    match k {
+        crate::keys::Key::VolumeUp => volume_step(&ui, &mut s, 1),
+        crate::keys::Key::VolumeDown => volume_step(&ui, &mut s, -1),
+        crate::keys::Key::Power => {
+            // Durante uno squillo il tasto accensione silenzia, come sui telefoni veri
+            if s.ring_timer.is_some() {
+                stop_ring(&mut s);
+                return;
+            }
+            s.screen_off = !s.screen_off;
+            if s.screen_off {
+                let g = ui.global::<Shell>();
+                g.set_controls_open(false);
+                g.set_screen(ScreenId::Lock);
+            }
+            if s.live {
+                sys::set_screen(!s.screen_off);
+            }
+        }
     }
 }
 
@@ -475,6 +626,7 @@ fn install_update(ui: &AppWindow, live: bool) {
 /// `live = false` per screenshot e test: niente timer, niente comandi di sistema.
 pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Shared {
     let st: Shared = Rc::new(RefCell::new(State::new(store, now, live)));
+    UI.with(|u| *u.borrow_mut() = Some(ui.as_weak()));
     STATE.with(|s| *s.borrow_mut() = Some(st.clone()));
     {
         let s = ui.global::<Sys>();
@@ -569,6 +721,66 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
         push_recents(&ui, &s);
     }));
     shell.on_close_app(with!(ui, st, |ui, _s| { ui.global::<Shell>().set_app_open(false); }));
+    shell.on_open_notification(with!(ui, st, |ui, s, id| {
+        let Some(n) = s.notifs.iter().find(|n| n.id == id).cloned() else { return };
+        s.notifs.retain(|x| x.id != id);
+        push_notifs(&ui, &s);
+        drop(s);
+        let g = ui.global::<Shell>();
+        g.set_headsup_shown(false);
+        g.set_screen(ScreenId::Home);
+        if !n.app_id.is_empty() && n.app_id != "system" {
+            let w = ui.window().size().to_logical(ui.window().scale_factor());
+            g.invoke_open_app(n.app_id.clone(), w.width / 2.0 - 28.0, 60.0, 56.0);
+        } else if n.app_id == "system" {
+            let w = ui.window().size().to_logical(ui.window().scale_factor());
+            g.invoke_open_app("settings".into(), w.width / 2.0 - 28.0, 60.0, 56.0);
+            ui.global::<Settings>().set_page("update".into());
+        }
+    }));
+    shell.on_dismiss_notification(with!(ui, st, |ui, s, id| {
+        s.notifs.retain(|x| x.id != id);
+        push_notifs(&ui, &s);
+    }));
+    shell.on_clear_notifications(with!(ui, st, |ui, s| {
+        s.notifs.clear();
+        push_notifs(&ui, &s);
+    }));
+    shell.on_volume_step(with!(ui, st, |ui, s, d| { volume_step(&ui, &mut s, d); }));
+    shell.on_hud_touch(with!(ui, st, |ui, s| { show_hud(&ui, &mut s); }));
+    shell.on_demo_call(with!(ui, st, |_ui, _s| {
+        let t = slint::Timer::default();
+        t.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis(2000), || {
+            let (Some(ui), Some(st)) = (ui_handle(), shared()) else { return };
+            let mut s = st.borrow_mut();
+            crate::ctl_comm::simulate_incoming(&ui, &mut s, "+393475567788");
+        });
+        std::mem::forget(t);
+    }));
+    shell.on_demo_message(with!(ui, st, |_ui, _s| {
+        let t = slint::Timer::default();
+        t.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis(2000), || {
+            let (Some(ui), Some(st)) = (ui_handle(), shared()) else { return };
+            let mut s = st.borrow_mut();
+            crate::ctl_comm::simulate_message(&ui, &mut s, "+393331234567", "Are you on the Lumia yet? Send me a screenshot");
+        });
+        std::mem::forget(t);
+    }));
+    let sysg2 = ui.global::<Sys>();
+    sysg2.on_set_ringer(with!(ui, st, |ui, s, m| {
+        ui.global::<Sys>().set_ringer(m);
+        if m == 1 {
+            crate::feedback::vibrate(160);
+        }
+        if ui.global::<Shell>().get_volume_hud() {
+            show_hud(&ui, &mut s);
+        }
+    }));
+    sysg2.on_set_ringtone(with!(ui, st, |ui, _s, t| {
+        let sys = ui.global::<Sys>();
+        sys.set_ringtone(t);
+        crate::feedback::play(crate::feedback::Sound::Ring(t), sys.get_volume());
+    }));
     shell.on_move_app(with!(ui, st, |ui, s, from, to| {
         if !s.search.is_empty() {
             return;

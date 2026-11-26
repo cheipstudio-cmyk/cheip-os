@@ -10,5 +10,9 @@ fn main() -> Result<(), slint::PlatformError> {
     let store = Store::open(Store::data_dir());
     let _state = controller::wire(&ui, store, chrono::Local::now().naive_local(), true);
     let _timers = controller::start_timers(&ui, &_state);
+    // Tasti volume e accensione dal kernel
+    cheip_shell::keys::listen(|k| {
+        let _ = slint::invoke_from_event_loop(move || controller::on_key(k));
+    });
     ui.run()
 }
