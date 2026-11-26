@@ -214,7 +214,7 @@ let dev = null, sd = null, busy = false;
 function setConnected(ok, label) {
   $("#usb-dot").classList.toggle("on", ok);
   $("#usb-state").textContent = label;
-  for (const id of ["#usb-boot", "#usb-info", "#usb-reboot"]) $(id).disabled = !ok || busy;
+  for (const id of ["#usb-boot", "#usb-info", "#usb-reboot", "#usb-log"]) $(id).disabled = !ok || busy;
   $("#usb-install").disabled = !ok || busy || !sd || !manifest;
 }
 
@@ -304,6 +304,15 @@ $("#usb-info").addEventListener("click", async () => {
   for (const v of ["product", "version-bootloader", "serialno", "max-download-size", "unlocked"]) {
     const val = await dev.getVariable(v).catch(() => "");
     log(`${v}: ${val || "?"}`);
+  }
+});
+
+$("#usb-log").addEventListener("click", async () => {
+  try {
+    const r = await dev.runCommand("oem log");
+    log("---- bootloader log ----\n" + r.text + "\n------------------------");
+  } catch (e) {
+    log("Log failed: " + (e.message || e));
   }
 });
 
