@@ -39,11 +39,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release download --repo "$GITHUB_REPOSITORY" --pattern "dist-cheip-os-web.tar" --dir /tmp/web; then
+          # Newest release that actually has the web image (a failed build has none)
+          TAG=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=20" -q '[.[] | select(.assets | map(.name) | index("dist-cheip-os-web.tar"))][0].tag_name')
+          if [ -n "$TAG" ] && gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "dist-cheip-os-web.tar" --dir /tmp/web; then
             tar -C site -xf /tmp/web/dist-cheip-os-web.tar --exclude=os/boot
-            du -sh site/os
+            echo "Image from $TAG"; du -sh site/os
           else
-            echo "::warning::No web image in the latest release yet"
+            echo "::warning::No web image in any release yet"
           fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
