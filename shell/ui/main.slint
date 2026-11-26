@@ -9,6 +9,7 @@ import { FilesApp } from "files.slint";
 import { SettingsApp } from "settings.slint";
 import { ClockApp, AlarmOverlay } from "clock.slint";
 import { Icon, Icons } from "components.slint";
+import { BootSplash } from "splash.slint";
 
 export { Theme, Icons, Style, Clock, Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow, CatRow, AlarmRow, CityRow, LapRow, SRow, Swatch }
 
@@ -237,4 +238,7 @@ export component AppWindow inherits Window {
             Icon { y: parent.height - 44px; d: Icons.tune; size: 22px; tint: Theme.on-surface-variant; }
         }
     }
+
+    // Boot animation on top of everything, removes itself when done
+    if Shell.show-splash: BootSplash { width: root.width; height: root.height; }
 }

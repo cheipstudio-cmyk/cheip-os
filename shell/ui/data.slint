@@ -68,6 +68,8 @@ export global Sys {
 }
 
 export global Shell {
+    // Boot animation (off in the web demo screenshots)
+    in-out property <bool> show-splash: true;
     in-out property <ScreenId> screen: ScreenId.lock;
     in-out property <bool> controls-open: false;
     in-out property <bool> app-open: false;

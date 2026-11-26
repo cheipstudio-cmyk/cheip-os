@@ -145,6 +145,8 @@ fn main() {
     let mut ctx = Ctx { window: window.clone(), clock, out: out.clone(), frames: vec![] };
 
     let ui = AppWindow::new().unwrap();
+    let splash = std::env::var("CHEIP_SPLASH").is_ok();
+    ui.global::<Shell>().set_show_splash(splash);
     ui.show().unwrap();
     window.dispatch_event(WindowEvent::ScaleFactorChanged { scale_factor: 2.0 });
     window.set_size(slint::PhysicalSize::new(W, H));
@@ -157,6 +159,14 @@ fn main() {
     let set = ui.global::<Settings>();
     let open = |id: &str| shell.invoke_open_app(id.into(), 152.0, 300.0, 56.0);
 
+    if splash {
+        ui.global::<Style>().invoke_set_wallpaper(1);
+        for (ms, name) in [(150u64, "boot-1"), (450, "boot-2"), (900, "boot-3"), (1700, "boot-4"), (700, "boot-5")] {
+            ctx.advance(ms);
+            ctx.shot(name);
+        }
+        return;
+    }
     ctx.advance(600);
     if std::env::var("CHEIP_M3").is_ok() {
         let style = ui.global::<Style>();

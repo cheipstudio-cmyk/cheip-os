@@ -1,0 +1,94 @@
+// Boot animation: shapes bloom out of the dark, the wordmark rises,
+// then the whole thing lifts away onto the lock screen.
+import { Theme } from "theme.slint";
+import { Shapes } from "shapes.slint";
+
+export component BootSplash inherits Rectangle {
+    // 0 dark, 1 bloom, 2 wordmark, 3 leaving, 4 gone
+    property <int> phase: 0;
+    property <int> beat: 0;
+    background: #0a0d0c;
+    visible: self.phase < 4;
+    opacity: self.phase >= 3 ? 0 : 1;
+    animate opacity { duration: 480ms; easing: ease-in-out; }
+
+    Timer { interval: 80ms; running: root.phase == 0; triggered => { root.phase = 1; } }
+    Timer { interval: 700ms; running: root.phase == 1; triggered => { root.phase = 2; } }
+    Timer { interval: 1500ms; running: root.phase == 2; triggered => { root.phase = 3; } }
+    Timer { interval: 520ms; running: root.phase == 3; triggered => { root.phase = 4; } }
+    // Heartbeat of the shapes while the system finishes starting
+    Timer { interval: 420ms; running: root.phase >= 1 && root.phase < 4; triggered => { root.beat = mod(root.beat + 1, 4); } }
+
+    property <length> logo: min(root.width, root.height) * 0.34;
+    property <length> cy: root.height * 0.42;
+
+    // Outer halo
+    Path {
+        x: (root.width - self.width) / 2; y: root.cy - self.height / 2;
+        width: root.logo * 1.9; height: self.width;
+        commands: Shapes.sunny; viewbox-width: 100; viewbox-height: 100;
+        fill: Theme.primary.with-alpha(0.14);
+        opacity: root.phase >= 1 ? 1 : 0;
+        transform-scale: root.phase == 0 ? 0.3 : (root.phase >= 3 ? 1.6 : (mod(root.beat, 2) == 0 ? 1 : 1.06));
+        animate transform-scale { duration: 700ms; easing: spring(0.25); }
+        animate opacity { duration: 500ms; }
+    }
+    // Middle clover
+    Path {
+        x: (root.width - self.width) / 2; y: root.cy - self.height / 2;
+        width: root.logo * 1.4; height: self.width;
+        commands: Shapes.clover; viewbox-width: 100; viewbox-height: 100;
+        fill: Theme.secondary-container;
+        opacity: root.phase >= 1 ? 0.9 : 0;
+        transform-scale: root.phase == 0 ? 0.2 : (root.phase >= 3 ? 1.4 : (root.beat == 1 ? 1.05 : 1));
+        animate transform-scale { duration: 620ms; delay: 60ms; easing: spring(0.3); }
+        animate opacity { duration: 420ms; delay: 60ms; }
+    }
+    // Core cookie
+    Path {
+        x: (root.width - self.width) / 2; y: root.cy - self.height / 2;
+        width: root.logo; height: self.width;
+        commands: Shapes.cookie; viewbox-width: 100; viewbox-height: 100;
+        fill: @linear-gradient(160deg, Theme.primary.brighter(0.2) 0%, Theme.primary 60%, Theme.primary.darker(0.15) 100%);
+        opacity: root.phase >= 1 ? 1 : 0;
+        transform-scale: root.phase == 0 ? 0.1 : (root.phase >= 3 ? 1.25 : (root.beat == 2 ? 1.08 : 1));
+        animate transform-scale { duration: 560ms; delay: 120ms; easing: spring(0.35); }
+        animate opacity { duration: 300ms; delay: 120ms; }
+    }
+    // Initial inside the core
+    Text {
+        x: 0; width: root.width;
+        y: root.cy - self.height / 2;
+        text: "C";
+        horizontal-alignment: center;
+        font-family: Theme.display; font-weight: 700; font-size: root.logo * 0.5;
+        color: Theme.on-primary;
+        opacity: root.phase >= 1 ? 1 : 0;
+        animate opacity { duration: 300ms; delay: 260ms; }
+    }
+
+    // Wordmark
+    Text {
+        x: 0; width: root.width;
+        y: root.cy + root.logo * 1.05 + (root.phase >= 2 ? 0px : 24px);
+        text: "Cheip OS";
+        horizontal-alignment: center;
+        font-family: Theme.display; font-weight: 700; font-size: 34px;
+        letter-spacing: -0.5px;
+        color: #f2f5f3;
+        opacity: root.phase >= 2 && root.phase < 3 ? 1 : 0;
+        animate y { duration: 520ms; easing: spring(0.3); }
+        animate opacity { duration: 360ms; }
+    }
+
+    // Three-dot pulse at the bottom
+    HorizontalLayout {
+        x: (root.width - 64px) / 2; y: root.height - 96px;
+        width: 64px; height: 12px; spacing: 14px;
+        for i in 3: Rectangle {
+            width: 12px; height: 12px; border-radius: 6px;
+            background: root.beat == i ? Theme.primary : #ffffff33;
+            animate background { duration: 260ms; }
+        }
+    }
+}
