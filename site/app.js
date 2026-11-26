@@ -341,6 +341,44 @@ $("#boot-file").addEventListener("change", async (ev) => {
   }
 });
 
+// Debug watch: the Cheip bootloader waits a few seconds for a host before
+// booting. A phone this page already knows connects without a click.
+async function captureLogs() {
+  if (busy) return;
+  busy = true;
+  try {
+    setDebugLevel(0);
+    dev = new FastbootDevice();
+    await dev.connect();
+    const product = await dev.getVariable("product").catch(() => "");
+    log(`Phone caught in the bootloader${product ? " (" + product + ")" : ""}. Reading logs…`);
+    for (const [title, cmd] of [["bootloader log", "oem log"], ["last Linux log", "oem ramoops console"]]) {
+      try {
+        const r = await dev.runCommand(cmd);
+        log(`---- ${title} ----\n${r.text || "(empty)"}\n------------------------`);
+      } catch (e) {
+        log(`${title} failed: ${e.message || e}`);
+      }
+    }
+    sd = null;
+    try {
+      const r = await dev.runCommand("oem sd-info");
+      const [blocks, bs] = r.text.trim().split(/\s+/).map(Number);
+      if (blocks && bs) sd = { blocks, bs, bytes: blocks * bs };
+    } catch {}
+    busy = false;
+    setConnected(true, "Held in the bootloader (debug)");
+  } catch (e) {
+    busy = false;
+    log("Debug capture failed: " + (e.message || e));
+  }
+}
+if ("usb" in navigator) {
+  $("#usb-watch").checked = store.get("cheip-watch", false);
+  $("#usb-watch").addEventListener("change", (e) => store.set("cheip-watch", e.target.checked));
+  navigator.usb.addEventListener("connect", () => { if ($("#usb-watch").checked) captureLogs(); });
+}
+
 renderDevices();
 renderSteps();
 loadRelease();

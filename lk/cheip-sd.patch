@@ -1,29 +1,43 @@
 diff --git a/app/aboot/aboot.c b/app/aboot/aboot.c
-index b44a5c2..72d31f1 100644
+index b44a5c2..714c80f 100644
 --- a/app/aboot/aboot.c
 +++ b/app/aboot/aboot.c
-@@ -5577,8 +5577,28 @@ void aboot_init(const struct app_descriptor *app)
+@@ -5486,6 +5486,24 @@ void aboot_fastboot_register_commands(void)
+ 	}
+ }
+ 
++#ifdef CHEIP_FASTBOOT_WINDOW
++extern volatile int cheip_fastboot_seen;
++static int cheip_autoboot(void *arg)
++{
++	thread_sleep(CHEIP_FASTBOOT_WINDOW);
++	if (cheip_fastboot_seen)
++		return 0;
++	dprintf(ALWAYS, "Cheip OS: no host, booting\n");
++	fastboot_stop();
++#if WITH_LK2ND_BOOT
++	lk2nd_boot();
++#endif
++	dprintf(ALWAYS, "Cheip OS: nothing to boot, back to fastboot\n");
++	fastboot_init(target_get_scratch_address(), target_get_max_flash_size());
++	return 0;
++}
++#endif
++
+ void aboot_init(const struct app_descriptor *app)
+ {
+ 	unsigned reboot_mode = 0;
+@@ -5577,8 +5595,17 @@ void aboot_init(const struct app_descriptor *app)
  	 * Check power off reason if user force reset,
  	 * if yes phone will do normal boot.
  	 */
-+#ifdef CHEIP_KEY_WAIT
++#ifdef CHEIP_FASTBOOT_WINDOW
 +	/*
-+	 * Cheip OS on Lumia: the volume keys at power-on belong to the Nokia UEFI,
-+	 * so give the user a window once BootShim has started lk: press either
-+	 * volume key to stay in fastboot (web installer, logs).
++	 * Cheip OS on Lumia: the volume keys at power-on belong to the Nokia UEFI.
++	 * Start fastboot first; if no host talks to us within the window, boot.
 +	 */
-+	{
-+		int waited;
-+		dprintf(ALWAYS, "Cheip OS: press a volume key now to stay in fastboot\n");
-+		for (waited = 0; waited < CHEIP_KEY_WAIT; waited += 50) {
-+			if (keys_get_state(KEY_VOLUMEUP) || keys_get_state(KEY_VOLUMEDOWN)) {
-+				dprintf(ALWAYS, "Cheip OS: fastboot\n");
-+				boot_into_fastboot = true;
-+				goto normal_boot;
-+			}
-+			mdelay(50);
-+		}
-+	}
++	boot_into_fastboot = true;
++	goto normal_boot;
 +#else
  	if (is_user_force_reset())
  		goto normal_boot;
@@ -31,8 +45,18 @@ index b44a5c2..72d31f1 100644
  
  	/* Check if we should do something other than booting up */
  	if (keys_get_state(KEY_VOLUMEUP) && keys_get_state(KEY_VOLUMEDOWN))
+@@ -5735,6 +5762,9 @@ fastboot:
+ 	/* initialize and start fastboot */
+ #if !VERIFIED_BOOT_2
+ 	fastboot_init(target_get_scratch_address(), target_get_max_flash_size());
++#ifdef CHEIP_FASTBOOT_WINDOW
++	thread_resume(thread_create("cheip-autoboot", cheip_autoboot, NULL, DEFAULT_PRIORITY, DEFAULT_STACK_SIZE));
++#endif
+ #else
+ 	/* Add salt buffer offset at start of image address to copy VB salt */
+ 	fastboot_init(ADD_SALT_BUFF_OFFSET(target_get_scratch_address()),
 diff --git a/app/aboot/fastboot.c b/app/aboot/fastboot.c
-index c6b8e90..13d8a68 100644
+index c6b8e90..110c29f 100644
 --- a/app/aboot/fastboot.c
 +++ b/app/aboot/fastboot.c
 @@ -70,7 +70,7 @@ static struct udc_endpoint *fastboot_endpoints[2];
@@ -44,6 +68,23 @@ index c6b8e90..13d8a68 100644
  	.manufacturer = "Google",
  	.product      = "Android",
  };
+@@ -552,6 +552,8 @@ static void cmd_oem_help(const char *arg, void *data, unsigned sz)
+ 	fastboot_okay("");
+ }
+ 
++volatile int cheip_fastboot_seen;
++
+ static void fastboot_command_loop(void)
+ {
+ 	struct fastboot_cmd *cmd;
+@@ -582,6 +584,7 @@ again:
+ 		if (r < 0) break;
+ 		buffer[r] = 0;
+ 		dprintf(INFO,"fastboot: %s\n", buffer);
++		cheip_fastboot_seen = 1;
+ 
+ #if CHECK_BAT_VOLTAGE
+ 		/* check battery voltage before erase or flash image */
 diff --git a/lk2nd/boot/extlinux.c b/lk2nd/boot/extlinux.c
 index 5bcf607..e0c9747 100644
 --- a/lk2nd/boot/extlinux.c
@@ -251,7 +292,7 @@ index 730a9c3..3d20eb7 100644
  	bio_register_device(&bdev->dev);
  	partition_publish(name, 0);
 diff --git a/lk2nd/project/lk1st.mk b/lk2nd/project/lk1st.mk
-index 688ae73..51edcaf 100644
+index 688ae73..c060c27 100644
 --- a/lk2nd/project/lk1st.mk
 +++ b/lk2nd/project/lk1st.mk
 @@ -13,3 +13,7 @@ endif
@@ -259,8 +300,8 @@ index 688ae73..51edcaf 100644
  $(info NOTE: Device module is disabled without bundling a device DTB (LK2ND_BUNDLE_DTB))
  endif
 +
-+ifneq ($(CHEIP_KEY_WAIT),)
-+DEFINES += CHEIP_KEY_WAIT=$(CHEIP_KEY_WAIT)
++ifneq ($(CHEIP_FASTBOOT_WINDOW),)
++DEFINES += CHEIP_FASTBOOT_WINDOW=$(CHEIP_FASTBOOT_WINDOW)
 +endif
 diff --git a/lk2nd/ramoops/ramoops.c b/lk2nd/ramoops/ramoops.c
 index 39cee71..5373e42 100644
