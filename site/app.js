@@ -456,32 +456,44 @@ if ("usb" in navigator) {
   navigator.usb.getDevices().then((ds) => { if (ds.length === 1 && ds[0].opened === false) ($("#usb-watch").checked ? captureLogs() : (!store.get("cheip-steps", {})[4] && connectPhone(true))); });
 }
 
-// Debug kernels print their console on a USB serial port (a COM port on Windows)
+// Debug kernels print their console on a USB serial port (a COM port on Windows).
+// After the port has been allowed once, it is opened by itself on every boot.
 let serialText = "";
-$("#serial-btn").addEventListener("click", async () => {
-  if (!("serial" in navigator)) return log("This browser has no Web Serial. Use Chrome or Edge.");
+async function readSerial(port) {
   try {
-    const port = await navigator.serial.requestPort();
     await port.open({ baudRate: 115200 });
-    phone("busy", "Reading the Linux console…", "Leave the phone as it is. The text appears below and is saved to Downloads as cheip-console.txt.");
-    log("---- Linux console ----");
-    const reader = port.readable.getReader();
-    const dec = new TextDecoder();
-    let last = Date.now();
-    const saver = setInterval(() => { if (Date.now() - last > 4000 && serialText) { saveCopy("cheip-console.txt", new TextEncoder().encode(serialText)); last = Infinity; } }, 1000);
+  } catch (e) { return; }
+  phone("busy", "Reading the Linux console…", "Leave the phone as it is. The text appears below and is saved to Downloads as cheip-console.txt.");
+  log("---- Linux console ----");
+  const reader = port.readable.getReader();
+  const dec = new TextDecoder();
+  try {
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
       const t = dec.decode(value);
-      serialText += t; last = Date.now();
+      serialText += t;
       $("#usb-out").textContent += t; $("#usb-out").scrollTop = $("#usb-out").scrollHeight;
     }
-    clearInterval(saver);
   } catch (e) {
-    if (serialText) saveCopy("cheip-console.txt", new TextEncoder().encode(serialText));
-    log("Console ended: " + (e.message || e));
+    log("\nConsole ended: " + (e.message || e));
+  }
+  if (serialText) saveCopy("cheip-console.txt", new TextEncoder().encode(serialText));
+}
+$("#serial-btn").addEventListener("click", async () => {
+  if (!("serial" in navigator)) return log("This browser has no Web Serial. Use Chrome or Edge.");
+  try {
+    // Only the Linux USB serial gadget (Linux Foundation, g_serial / ACM)
+    const port = await navigator.serial.requestPort({ filters: [{ usbVendorId: 0x0525 }, { usbVendorId: 0x1d6b }] });
+    readSerial(port);
+  } catch (e) {
+    log("No Linux serial port picked: " + (e.message || e));
   }
 });
+if ("serial" in navigator) {
+  navigator.serial.addEventListener("connect", (e) => readSerial(e.target));
+  navigator.serial.getPorts().then((ps) => ps.forEach(readSerial));
+}
 
 renderDevices();
 renderSteps();
