@@ -90,6 +90,16 @@ section { margin-bottom: 72px; }
 code { background: var(--c3); padding: 2px 8px; border-radius: 6px; font-size: 14px; }
 
 /* console usb */
+.phone-status { position: sticky; top: 72px; z-index: 5; display: flex; gap: 16px; align-items: center; background: var(--c2); border: 2px solid var(--c3); border-radius: 24px; padding: 16px 20px; margin: 8px 0 24px; box-shadow: 0 8px 24px #0006; }
+.phone-status .big-dot { flex: none; width: 18px; height: 18px; border-radius: 50%; background: var(--outline); }
+.phone-status[data-kind="ok"] { border-color: var(--primary); }
+.phone-status[data-kind="ok"] .big-dot { background: var(--primary); box-shadow: 0 0 0 8px #82d5c733; }
+.phone-status[data-kind="busy"] .big-dot { background: #f2c14e; animation: pulse 1s infinite alternate; }
+.phone-status[data-kind="error"] { border-color: #ffb4ab; }
+.phone-status[data-kind="error"] .big-dot { background: #ffb4ab; }
+@keyframes pulse { from { opacity: .4 } to { opacity: 1 } }
+.phone-status .t { font-weight: 700; font-size: 18px; }
+.phone-status .h { color: var(--on2); font-size: 14px; margin-top: 2px; }
 .usb { background: var(--c2); border-radius: 20px; padding: 18px; margin-top: 16px; }
 .usb .state { display: flex; align-items: center; gap: 10px; font-weight: 600; }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--outline); }
@@ -158,6 +168,10 @@ footer p { margin-bottom: 6px; }
 
   <section id="install">
     <h2 class="round" id="install-title">Install on Lumia 735</h2>
+    <div class="phone-status" id="phone-status" data-kind="idle">
+      <div class="big-dot"></div>
+      <div><div class="t" id="ps-title">Phone not detected</div><div class="h" id="ps-hint">Connect the Lumia with the USB cable and follow the steps below. This box always tells you what the phone is doing and what to do next.</div></div>
+    </div>
     <p class="lead">About 20 minutes, phone connected to a Windows PC the whole time. No card to take out, no extra programs after the unlock. Windows Phone stays and you choose the system at every start.</p>
     <div class="steps">
       <div class="step" data-step="1">
@@ -225,13 +239,13 @@ footer p { margin-bottom: 6px; }
               <button class="btn fill small" id="usb-install" disabled>Install Cheip OS</button>
               <button class="btn tonal small" id="usb-reboot" disabled>Restart phone</button>
             </div>
-            <label class="check" style="margin-top:10px"><input type="checkbox" id="usb-watch"> Debug: when the phone appears, keep it in the bootloader and read its logs</label>
-            <div style="margin-top:6px;font-size:14px">Debug test image (booted right after the logs): <input type="file" id="test-img" accept=".img"></div>
             <p id="img-info" style="margin-top:10px;font-size:14px"></p>
             <div class="bar" id="usb-bar"><i></i></div>
             <pre class="log" id="usb-out"></pre>
             <details style="margin-top:10px;font-size:14px">
               <summary>Advanced</summary>
+              <label class="check" style="margin-top:10px"><input type="checkbox" id="usb-watch"> Debug: when the phone appears, keep it in the bootloader and read its logs</label>
+              <div style="margin-top:6px;font-size:14px">Debug test image (booted right after the logs): <input type="file" id="test-img" accept=".img"></div>
               <div class="btns">
                 <button class="btn tonal small" id="usb-boot" disabled>Boot a boot.img from RAM</button>
                 <input type="file" id="boot-file" accept=".img" hidden>

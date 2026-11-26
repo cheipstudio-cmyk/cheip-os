@@ -175,11 +175,13 @@ async function installMenu(makeDefault) {
     espLog(`Boot menu ready: ${bcdEntries(hive).filter((e) => e.desc).map((e) => e.desc).join(", ")}.`);
     espLog(`Cheip OS entry ${id}. Starts by default: ${makeDefault ? "Cheip OS" : "Windows Phone"}. Go to step 4.`);
     espState(true, "Boot menu installed");
+    phone("ok", makeDefault ? "Boot menu written · Cheip OS starts by default" : "Boot menu written · Windows Phone starts by default", makeDefault ? "Now restart the phone: hold Power + Volume down until it vibrates. In about 10 seconds this box turns green." : "Restart the phone (Power + Volume down): Windows Phone starts and charges as usual.");
     markStep(3);
   } catch (e) {
     if (e.name === "AbortError") return;
     espLog("Error: " + (e.message || e));
     espState(false, "Not installed");
+    phone("error", "Couldn't write the boot menu", "The phone must be in Mass Storage (WPInternals > Manual mode > Mass Storage). Then pick the EFIESP folder inside the MainOS drive.");
   }
 }
 
@@ -211,6 +213,15 @@ const bar = $("#usb-bar");
 const progress = (p) => { bar.style.display = "block"; bar.firstElementChild.style.width = (p * 100).toFixed(1) + "%"; };
 let dev = null, sd = null, busy = false;
 
+// Big status box at the top of the install section: what the phone is doing, what to do next
+function phone(kind, title, hint) {
+  const el = $("#phone-status");
+  if (!el) return;
+  el.dataset.kind = kind;
+  $("#ps-title").textContent = title;
+  $("#ps-hint").textContent = hint;
+}
+
 function setConnected(ok, label) {
   $("#usb-dot").classList.toggle("on", ok);
   $("#usb-state").textContent = label;
@@ -218,7 +229,9 @@ function setConnected(ok, label) {
   $("#usb-install").disabled = !ok || busy || !sd || !manifest;
 }
 
-$("#usb-connect").addEventListener("click", async () => {
+$("#usb-connect").addEventListener("click", () => connectPhone());
+async function connectPhone(auto = false) {
+  if (busy) return;
   if (!("usb" in navigator)) return log("This browser has no WebUSB. Open the page in Chrome or Edge on a PC.");
   try {
     setDebugLevel(0);
@@ -239,12 +252,15 @@ $("#usb-connect").addEventListener("click", async () => {
     await loadManifest();
     setConnected(true, `Connected · microSD ${human(sd.bytes)}`);
     log(`Cheip OS bootloader ready. microSD: ${human(sd.bytes)}.`);
+    phone("ok", `Phone connected · Cheip bootloader · microSD ${human(sd.bytes)}`, manifest ? "Ready. Press Install Cheip OS in step 4." : "Connected. The system image is not on the site yet.");
     if (manifest && manifest.size > sd.bytes) log(`The card is too small: Cheip OS needs ${human(manifest.size)}.`);
   } catch (e) {
     setConnected(false, "Not connected");
-    log("Connection failed: " + (e.message || e) + "\nThe phone must show the Cheip OS bootloader (step 4). If Android is missing from the list, unplug and plug the cable again.");
+    if (auto) return;
+    log("Connection failed: " + (e.message || e));
+    phone("error", "Can't reach the phone", "The phone must be in the Cheip bootloader. Restart it (Power + Volume down until it vibrates) and wait 10 seconds: this box turns green by itself.");
   }
-});
+}
 
 async function sha256hex(buf) {
   return [...new Uint8Array(await crypto.subtle.digest("SHA-256", buf))].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -268,6 +284,7 @@ $("#usb-install").addEventListener("click", async () => {
   if (manifest.size > sd.bytes) return log("The microSD is too small for Cheip OS.");
   if (!confirm(`Everything on the ${human(sd.bytes)} microSD inside the phone will be erased and replaced by Cheip OS ${manifest.version}. Continue?`)) return;
   busy = true; setConnected(true, "Installing…");
+  phone("busy", "Installing Cheip OS…", "Keep the cable connected and don't touch the phone.");
   const total = manifest.data;
   let done = 0;
   const t0 = performance.now();
@@ -283,18 +300,21 @@ $("#usb-install").addEventListener("click", async () => {
       progress(done / total);
       const mbs = done / 1048576 / ((performance.now() - t0) / 1000);
       $("#usb-state").textContent = `Installing… ${Math.round((done / total) * 100)}% · ${mbs.toFixed(1)} MB/s`;
+      $("#ps-title").textContent = `Installing Cheip OS… ${Math.round((done / total) * 100)}%`;
     }
     log(`Cheip OS ${manifest.version} written in ${Math.round((performance.now() - t0) / 1000)} s.`);
     busy = false;
     setConnected(true, "Installed");
     markStep(4);
     log("Restarting into Cheip OS…");
+    phone("busy", "Cheip OS is starting", "The phone restarts by itself. Wait a couple of minutes and look at its screen.");
     await dev.reboot().catch(() => {});
     setConnected(false, "Restarting");
   } catch (e) {
     busy = false;
     setConnected(!!dev, "Install stopped");
     log("Install stopped: " + (e.message || e) + "\nNothing is broken: Windows Phone still starts. Reconnect and press Install again.");
+    phone("error", "Install stopped", "Nothing is broken. Restart the phone (Power + Volume down), wait for this box to turn green, then press Install again.");
   }
 });
 
@@ -416,9 +436,24 @@ async function captureLogs() {
 if ("usb" in navigator) {
   $("#usb-watch").checked = store.get("cheip-watch", false);
   $("#usb-watch").addEventListener("change", (e) => store.set("cheip-watch", e.target.checked));
-  navigator.usb.addEventListener("connect", () => { if ($("#usb-watch").checked) captureLogs(); });
+  navigator.usb.addEventListener("connect", () => {
+    if ($("#usb-watch").checked) return captureLogs();
+    // Once Cheip OS is installed, holding the bootloader would stop it from starting:
+    // only grab the phone if the install is not done yet
+    if (store.get("cheip-steps", {})[4]) {
+      phone("ok", "Cheip bootloader detected", "Cheip OS starts in a few seconds. To reinstall or update instead, press Connect phone now.");
+      return;
+    }
+    phone("busy", "Phone found · connecting…", "The Cheip bootloader is starting.");
+    connectPhone(true);
+  });
+  navigator.usb.addEventListener("disconnect", () => {
+    if (busy) return;
+    setConnected(false, "Not connected");
+    phone("idle", "Phone not connected to the bootloader", "Normal while it is in Windows Phone, in Mass Storage or starting Cheip OS. To install or update, restart it (Power + Volume down): this box turns green when it's ready.");
+  });
   // Phone already sitting in the bootloader when the page loads
-  navigator.usb.getDevices().then((ds) => { if (ds.length === 1 && $("#usb-watch").checked) captureLogs(); });
+  navigator.usb.getDevices().then((ds) => { if (ds.length === 1 && ds[0].opened === false) ($("#usb-watch").checked ? captureLogs() : (!store.get("cheip-steps", {})[4] && connectPhone(true))); });
 }
 
 renderDevices();
