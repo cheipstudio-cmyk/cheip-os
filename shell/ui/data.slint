@@ -218,6 +218,19 @@ export global Files {
     in property <image> track-cover;
     in property <bool> has-cover: false;
     in property <string> status: "";
+    // Installatore APK
+    in-out property <bool> apk-shown: false;
+    in property <string> apk-label: "";
+    in property <string> apk-package: "";
+    in property <string> apk-version: "";
+    in property <string> apk-details: "";
+    in property <bool> apk-compat: true;
+    in property <string> apk-note: "";
+    // "ready", "installing", "done", "error"
+    in property <string> apk-state: "ready";
+    in property <string> apk-msg: "";
+    callback apk-install();
+    callback apk-open();
     callback open-home();
     callback open-category(string);
     callback open-storage();

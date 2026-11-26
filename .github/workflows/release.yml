@@ -103,16 +103,6 @@ jobs:
           cp -r packaging/cheip-shell packaging/postmarketos-ui-cheip "$APORTS/cheip/"
           git archive --format=tar.gz --prefix="cheip-os-$VER/" -o "$APORTS/cheip/cheip-shell/cheip-os-$VER.tar.gz" HEAD
           cp keys/cheip-os.rsa.pub "$APORTS/cheip/postmarketos-ui-cheip/"
-          # Novagram preinstallato: ultimo APK pubblicato su GitHub, solo se ha le librerie a 32 bit
-          URL=$(curl -fsSL -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/repos/cheipstudio-cmyk/novagram/releases \
-            | python3 -c "import json,sys;r=[a['browser_download_url'] for x in json.load(sys.stdin) for a in x['assets'] if a['name'].endswith('.apk')];print(r[0] if r else '')" || true)
-          if [ -n "$URL" ] && curl -fsSL -o /tmp/novagram.apk "$URL" && unzip -l /tmp/novagram.apk | grep -q "lib/armeabi-v7a/"; then
-            cp /tmp/novagram.apk "$APORTS/cheip/postmarketos-ui-cheip/novagram.apk"
-            sed -i 's/^source="cheip-os.rsa.pub"/source="cheip-os.rsa.pub novagram.apk"/' "$APORTS/cheip/postmarketos-ui-cheip/APKBUILD"
-            echo "Novagram preinstallato da $URL"
-          else
-            echo "::warning::Novagram non incluso: nessun APK con armeabi-v7a nelle release"
-          fi
           pmbootstrap checksum cheip-shell postmarketos-ui-cheip
           pmbootstrap config ui cheip
 

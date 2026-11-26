@@ -14,6 +14,7 @@ pub enum Kind {
     Audio,
     Pdf,
     Doc,
+    Apk,
     Other,
 }
 
@@ -60,6 +61,7 @@ pub fn kind_of(name: &str, is_dir: bool) -> Kind {
         "mp3" | "ogg" | "oga" | "opus" | "flac" | "wav" | "m4a" | "aac" | "wma" => Kind::Audio,
         "pdf" => Kind::Pdf,
         "docx" | "odt" => Kind::Doc,
+        "apk" => Kind::Apk,
         _ => Kind::Other,
     }
 }

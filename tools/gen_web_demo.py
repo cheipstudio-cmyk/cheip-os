@@ -71,6 +71,8 @@ for dirpath, dirs, files in os.walk(SRC):
             for i in range(1, pages + 1):
                 run("mutool", "draw", "-q", "-w", "720", "-o", "/tmp/gen_p.png", p, str(i))
                 e["pages"].append(asset(f"page{i}.png", "/tmp/gen_p.png"))
+        elif ext == "apk":
+            e["data"] = asset("app.apk", p)
         elif ext in ("docx", "txt"):
             e["data"] = asset(f"doc.{ext}", p)
         entries.append(e)

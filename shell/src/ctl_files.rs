@@ -33,6 +33,7 @@ pub struct FilesState {
     pub video: bool,
     pub queue: Vec<Entry>,
     pub qidx: usize,
+    pub apk: Option<(PathBuf, crate::apk::ApkInfo)>,
 }
 
 fn kind_id(k: &Kind) -> i32 {
@@ -45,6 +46,7 @@ fn kind_id(k: &Kind) -> i32 {
         Kind::Audio => 5,
         Kind::Pdf => 6,
         Kind::Doc => 7,
+        Kind::Apk => 8,
     }
 }
 
@@ -491,6 +493,7 @@ pub fn wire(ui: &AppWindow, st: &Shared) {
                 f.set_viewer_text(text.into());
                 f.set_viewer("text".into());
             }
+            Kind::Apk => show_apk(&ui, &mut s, &e.path),
             Kind::Other => {
                 f.set_viewer_title(e.name.into());
                 f.set_viewer_pos("".into());
@@ -638,4 +641,91 @@ pub fn timer(ui: &AppWindow, st: &Shared) -> slint::Timer {
         }),
     );
     t
+}
+
+// ---------- Installatore APK ----------
+
+fn show_apk(ui: &AppWindow, st: &mut State, path: &Path) {
+    let f = ui.global::<Files>();
+    match crate::apk::read(path) {
+        Ok(info) => {
+            f.set_apk_label(info.label.clone().into());
+            f.set_apk_package(info.package.clone().into());
+            f.set_apk_version(format!("Version {}{}", info.version_name, if info.version_code > 0 { format!(" ({})", info.version_code) } else { String::new() }).into());
+            let abis = if info.abis.is_empty() { "No native code".to_string() } else { info.abis.join(", ") };
+            f.set_apk_details(format!("{} · Needs {} · {}", files::human_size(info.size), crate::apk::android_name(info.min_sdk), abis).into());
+            let ok = info.runs_on_armv7();
+            f.set_apk_compat(ok);
+            f.set_apk_note(
+                if !ok {
+                    "This app only ships 64-bit code. This phone has a 32-bit processor, so it will not start."
+                } else {
+                    "Android apps run in the Android layer. The first start downloads Android once, so keep Wi-Fi on."
+                }
+                .into(),
+            );
+            f.set_apk_state("ready".into());
+            f.set_apk_msg("".into());
+            st.fx.apk = Some((path.to_path_buf(), info));
+            f.set_apk_shown(true);
+        }
+        Err(e) => {
+            f.set_apk_label(path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default().into());
+            f.set_apk_package("".into());
+            f.set_apk_version("".into());
+            f.set_apk_details("".into());
+            f.set_apk_compat(false);
+            f.set_apk_note(format!("Can't read this APK: {e}").into());
+            f.set_apk_state("error".into());
+            f.set_apk_msg("".into());
+            st.fx.apk = None;
+            f.set_apk_shown(true);
+        }
+    }
+}
+
+fn apk_result(ok: bool, msg: String) {
+    let Some(ui) = crate::controller::ui_handle() else { return };
+    let f = ui.global::<Files>();
+    f.set_apk_state(if ok { "done" } else { "error" }.into());
+    f.set_apk_msg(msg.into());
+    if let Some(st) = crate::controller::shared() {
+        if let Ok(s) = st.try_borrow() {
+            crate::controller::push_apps(&ui, &s);
+        }
+    }
+}
+
+pub fn wire_apk(ui: &AppWindow, st: &Shared) {
+    let f = ui.global::<Files>();
+    f.on_apk_install(with!(ui, st, |ui, s| {
+        let Some((path, info)) = s.fx.apk.clone() else { return };
+        let f = ui.global::<Files>();
+        f.set_apk_state("installing".into());
+        f.set_apk_msg("Installing…".into());
+        if !s.live {
+            // Demo: installazione simulata, l'app compare nella home
+            let t = slint::Timer::default();
+            t.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis(1800), move || {
+                crate::controller::add_demo_android(&info.package, &info.label);
+                apk_result(true, format!("{} is installed. You'll find it on the home screen.", info.label));
+            });
+            std::mem::forget(t);
+            return;
+        }
+        let label = info.label.clone();
+        std::thread::spawn(move || {
+            let res = crate::system::install_apk(&path);
+            let _ = slint::invoke_from_event_loop(move || match res {
+                Ok(()) => apk_result(true, format!("{label} is installed. You'll find it on the home screen.")),
+                Err(e) => apk_result(false, e),
+            });
+        });
+    }));
+    f.on_apk_open(with!(ui, st, |ui, s| {
+        let Some((_, info)) = s.fx.apk.clone() else { return };
+        drop(s);
+        let w = ui.window().size().to_logical(ui.window().scale_factor());
+        ui.global::<Shell>().invoke_open_app(info.package.into(), w.width / 2.0 - 28.0, w.height / 2.0, 56.0);
+    }));
 }

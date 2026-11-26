@@ -121,6 +121,7 @@ fn demo_home(home: &std::path::Path) {
     z.finish().unwrap();
     std::fs::write(home.join("Documents/groceries.txt"), "Milk\nBread\nCat food\n").unwrap();
     std::fs::write(home.join("Downloads/firmware.zip"), vec![0u8; 3_400_000]).unwrap();
+    std::fs::write(home.join("Downloads/Speed Launcher.apk"), cheip_shell::apk::demo_apk("org.cheipstudio.speedlauncher", "2.4.0", 24, 26)).unwrap();
 }
 
 fn main() {
@@ -163,6 +164,31 @@ fn main() {
         style.invoke_set_wallpaper(1);
         ctx.advance(800);
         ctx.shot("m3-lock");
+        if std::env::var("CHEIP_APK").is_ok() {
+            shell.invoke_unlock();
+            cheip_shell::ctl_files::index(&ui, &st, false);
+            open("files");
+            ctx.advance(800);
+            let files = ui.global::<Files>();
+            files.invoke_open_category("downloads".into());
+            ctx.advance(300);
+            ctx.shot("apk-downloads");
+            let i = st.borrow().fx.list.iter().position(|e| e.name.ends_with(".apk")).unwrap_or(0) as i32;
+            files.invoke_open(i);
+            ctx.advance(900);
+            ctx.shot("apk-sheet");
+            files.invoke_apk_install();
+            ctx.advance(400);
+            ctx.shot("apk-installing");
+            ctx.advance(1000);
+            ctx.advance(800);
+            ctx.shot("apk-done");
+            files.set_apk_shown(false);
+            shell.invoke_close_app();
+            ctx.advance(800);
+            ctx.shot("apk-home");
+            return;
+        }
         shell.invoke_unlock();
         ctx.advance(900);
         ctx.shot("m3-home");

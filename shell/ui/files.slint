@@ -1,6 +1,6 @@
 import { Theme } from "theme.slint";
 import { Files, FileRow } from "data.slint";
-import { Icon, Icons, StatusBar, RoundButton, Title, Field, Card, PillButton } from "components.slint";
+import { Icon, Icons, Shapes, StatusBar, RoundButton, Title, Field, Card, PillButton } from "components.slint";
 
 // Icona per tipo: 0 cartella, 1 testo, 2 immagine, 3 altro, 4 video, 5 audio, 6 pdf, 7 documento
 export global Kinds {
@@ -10,6 +10,7 @@ export global Kinds {
         if (k == 4) { return Icons.video; }
         if (k == 5) { return Icons.music; }
         if (k == 6 || k == 7 || k == 1) { return Icons.doc; }
+        if (k == 8) { return Icons.android-f; }
         return Icons.file;
     }
 }
@@ -360,6 +361,78 @@ export component FilesApp inherits Rectangle {
                 RoundButton { x: 4px; y: 4px; icon: Icons.back; outlined: false; clicked => { Files.prev(); } }
                 Text { text: Files.viewer-pos; color: Theme.text; font-family: Theme.body; font-size: 13px; }
                 RoundButton { x: parent.width - 48px; y: 4px; icon: Icons.fwd; outlined: false; clicked => { Files.next(); } }
+            }
+        }
+    }
+
+    // Installatore APK: foglio dal basso
+    if Files.apk-shown: Rectangle {
+        background: #00000080;
+        TouchArea { clicked => { if (Files.apk-state != "installing") { Files.apk-shown = false; } } }
+    }
+    apk := Rectangle {
+        y: Files.apk-shown ? root.height - self.height : root.height + 10px;
+        height: 420px;
+        animate y { duration: 480ms; easing: spring(0.25); }
+        border-top-left-radius: 28px; border-top-right-radius: 28px;
+        background: Theme.container-low;
+        TouchArea { }
+        Rectangle { y: 12px; width: 32px; height: 4px; border-radius: 2px; background: Theme.on-surface-variant.with-alpha(0.4); }
+        Path {
+            x: 24px; y: 36px; width: 64px; height: 64px;
+            commands: Shapes.cookie; viewbox-width: 100; viewbox-height: 100;
+            fill: Theme.tertiary-container;
+            transform-rotation: Files.apk-state == "installing" ? mod(animation-tick() / 1ms, 3000) / 3000 * 360deg : 0deg;
+        }
+        Icon { x: 40px; y: 52px; d: Icons.android-f; size: 32px; tint: Theme.on-tertiary-container; }
+        VerticalLayout {
+            x: 104px; y: 36px; width: parent.width - 128px; height: 64px; alignment: center; spacing: 2px;
+            Text { text: Files.apk-label; color: Theme.on-surface; font-family: Theme.display; font-size: 22px; font-weight: 500; overflow: elide; }
+            Text { text: Files.apk-package; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 13px; overflow: elide; }
+        }
+        Text {
+            x: 24px; y: 120px; width: parent.width - 48px;
+            text: Files.apk-version + "\n" + Files.apk-details;
+            color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; wrap: word-wrap;
+        }
+        if Files.apk-note != "": Rectangle {
+            x: 16px; y: 186px; width: parent.width - 32px; height: 72px; border-radius: 16px;
+            background: Files.apk-compat ? Theme.secondary-container : Theme.error-container;
+            Icon { x: 14px; d: Files.apk-compat ? Icons.info-f : Icons.info-f; size: 22px; tint: Files.apk-compat ? Theme.on-secondary-container : Theme.on-error-container; }
+            Text {
+                x: 48px; width: parent.width - 60px; height: parent.height;
+                text: Files.apk-note; wrap: word-wrap; vertical-alignment: center;
+                color: Files.apk-compat ? Theme.on-secondary-container : Theme.on-error-container;
+                font-family: Theme.body; font-size: 13px;
+            }
+        }
+        if Files.apk-msg != "": Text {
+            x: 24px; y: 272px; width: parent.width - 48px;
+            text: Files.apk-msg; wrap: word-wrap;
+            color: Files.apk-state == "error" ? Theme.error : Theme.primary;
+            font-family: Theme.body; font-size: 14px; font-weight: 500;
+        }
+        // Barra di avanzamento indeterminata durante l'installazione
+        if Files.apk-state == "installing": Rectangle {
+            x: 24px; y: 312px; width: parent.width - 48px; height: 6px; border-radius: 3px; background: Theme.secondary-container; clip: true;
+            Rectangle {
+                width: parent.width * 0.35; border-radius: 3px; background: Theme.primary;
+                x: -self.width + (parent.width + self.width) * mod(animation-tick() / 1ms, 1400) / 1400;
+            }
+        }
+        HorizontalLayout {
+            y: parent.height - 84px; height: 52px; padding-left: 24px; padding-right: 24px; spacing: 10px; alignment: end;
+            PillButton {
+                height: 52px;
+                label: Files.apk-state == "done" ? "Done" : "Cancel";
+                clicked => { if (Files.apk-state != "installing") { Files.apk-shown = false; } }
+            }
+            if Files.apk-state == "done": PillButton { height: 52px; pad: 28px; label: "Open"; solid: true; clicked => { Files.apk-shown = false; Files.apk-open(); } }
+            if Files.apk-state != "done": PillButton {
+                height: 52px; pad: 28px;
+                label: Files.apk-state == "installing" ? "Installing…" : (Files.apk-state == "error" ? "Try again" : "Install");
+                solid: true;
+                clicked => { if (Files.apk-state != "installing") { Files.apk-install(); } }
             }
         }
     }

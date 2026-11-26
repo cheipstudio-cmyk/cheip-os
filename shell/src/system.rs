@@ -340,3 +340,38 @@ mod tests {
         assert_eq!(parse_volume(s), Some(0.65));
     }
 }
+
+/// Installa un APK in Waydroid. Se la sessione Android è spenta la avvia e aspetta
+/// che sia pronta (al primo avvio Waydroid scarica l'immagine Android).
+pub fn install_apk(path: &Path) -> Result<(), String> {
+    if !waydroid_installed() {
+        return Err("The Android layer (Waydroid) is not installed on this build.".into());
+    }
+    if !waydroid_running() {
+        helper(&["android", "start"]);
+        let _ = Command::new("setsid")
+            .args(["waydroid", "session", "start"])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+        let mut ready = false;
+        for _ in 0..90 {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            if waydroid_running() {
+                ready = true;
+                break;
+            }
+        }
+        if !ready {
+            return Err("Android didn't start in time. Open Settings > Android apps and try again.".into());
+        }
+    }
+    let out = Command::new("waydroid").args(["app", "install"]).arg(path).output().map_err(|e| e.to_string())?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        Err(if err.is_empty() { "Installation failed.".into() } else { err })
+    }
+}
