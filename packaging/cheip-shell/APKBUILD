@@ -19,7 +19,7 @@ builddir="$srcdir/cheip-os-$pkgver"
 prepare() {
 	default_prepare
 	cd shell
-	cargo fetch --target="$CTARGET" --locked
+	cargo fetch --locked
 }
 
 build() {
