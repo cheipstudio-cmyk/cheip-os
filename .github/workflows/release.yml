@@ -130,13 +130,15 @@ jobs:
           ls -la dist-* || true
 
       - name: Repository OTA
+        # Not blocking: the image and the web installer go out anyway
+        continue-on-error: true
         run: |
           mkdir -p ota/armv7
           PKGDIR="$(ls -d "$WORK"/packages/*/armv7 | head -1)"
           cp "$PKGDIR"/cheip-shell-*.apk "$PKGDIR"/postmarketos-ui-cheip-*.apk ota/armv7/
           # Indice firmato con la nostra chiave, dentro il chroot di pmbootstrap
           sudo cp -r ota/armv7 "$WORK/chroot_native/tmp/ota"
-          pmbootstrap chroot -- sh -c 'cd /tmp/ota && apk index --allow-untrusted -o APKINDEX.tar.gz *.apk && abuild-sign -k /home/pmos/.abuild/cheip-os.rsa APKINDEX.tar.gz'
+          pmbootstrap chroot --add=abuild,apk-tools -- sh -c 'cd /tmp/ota && apk index --allow-untrusted -o APKINDEX.tar.gz *.apk && abuild-sign -k /home/pmos/.abuild/cheip-os.rsa APKINDEX.tar.gz'
           sudo cp "$WORK/chroot_native/tmp/ota/APKINDEX.tar.gz" ota/armv7/
           sudo chown -R "$USER" ota
           NOTES="$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")"
