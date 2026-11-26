@@ -50,7 +50,6 @@ jobs:
           sed -i "0,/^version = .*/s//version = \"$VER\"/" shell/Cargo.toml
           sed -i "s/^pkgver=.*/pkgver=$VER/" packaging/*/APKBUILD
           test -f keys/cheip-os.rsa.pub || { echo "Manca keys/cheip-os.rsa.pub: lancia scripts/gen-key.sh"; exit 1; }
-          test -n "$CHEIP_APK_KEY" || { echo "Manca il secret CHEIP_APK_KEY"; exit 1; }
 
       - name: Commit locale della versione (serve a git archive)
         run: |

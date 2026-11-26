@@ -13,7 +13,7 @@ jobs:
       - name: GStreamer, FFmpeg e MuPDF per i test media
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good gstreamer1.0-libav ffmpeg mupdf-tools
+          sudo apt-get install -y -qq libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-good gstreamer1.0-libav ffmpeg mupdf-tools libfontconfig1-dev libxkbcommon-dev libudev-dev libinput-dev libgbm-dev libdrm-dev
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
