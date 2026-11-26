@@ -99,6 +99,8 @@ jobs:
           cp keys/cheip-os.rsa.pub "$WORK/config_apk_keys/cheip-os.rsa.pub"
           echo 'PACKAGER_PRIVKEY="/home/pmos/.abuild/cheip-os.rsa"' > "$WORK/config_abuild/abuild.conf"
           chmod 600 "$WORK/config_abuild/cheip-os.rsa"
+          # Readable by the pmos user (uid 12345) inside the build chroot
+          sudo chown -R 12345:12345 "$WORK/config_abuild"
 
       - name: Pacchetti Cheip nei pmaports
         run: |
