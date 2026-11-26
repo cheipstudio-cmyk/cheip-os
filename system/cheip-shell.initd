@@ -34,6 +34,10 @@ start_pre() {
 	fi
 	pkill -f 'getty.*tty1' 2>/dev/null
 	printf '\033[2J\033[H\033[?25l' > /dev/tty1 2>/dev/null
+	uid=$(id -u "$cheip_user")
+	mkdir -p "/run/user/$uid"
+	chown "$cheip_user" "/run/user/$uid"
+	chmod 700 "/run/user/$uid"
 	touch /var/log/cheip-shell.log
 	chown "$cheip_user" /var/log/cheip-shell.log
 	return 0

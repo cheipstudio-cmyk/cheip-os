@@ -15,6 +15,10 @@ if [ -z "$SLINT_BACKEND" ]; then
 	fi
 fi
 
+# Nessun seatd/logind sul telefono: la shell apre schermo e input da sola
+# (permessi dati da cheip-shell start_pre). Senza questo libseat fallisce con ENOSYS.
+export LIBSEAT_BACKEND="${LIBSEAT_BACKEND:-noop}"
+
 # 720x1280 a densità 2x: 360x640 punti logici come nel design
 export SLINT_SCALE_FACTOR="${SLINT_SCALE_FACTOR:-2}"
 
