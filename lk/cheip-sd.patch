@@ -40,6 +40,38 @@ index 14d2676..5866c9c 100644
 +ifneq ($(LK2ND_DTB_HINT),)
 +DEFINES += LK2ND_DTB_HINT="$(LK2ND_DTB_HINT)"
 +endif
+diff --git a/lk2nd/display/rules.mk b/lk2nd/display/rules.mk
+index 177b20d..fa80924 100644
+--- a/lk2nd/display/rules.mk
++++ b/lk2nd/display/rules.mk
+@@ -13,3 +13,7 @@ include $(LOCAL_DIR)/panel/rules.mk
+ else
+ $(error Please specify the display with LK2ND_DISPLAY option)
+ endif
++
++ifneq ($(LK2ND_SIMPLEFB_DEFAULT),)
++DEFINES += LK2ND_SIMPLEFB_DEFAULT="$(LK2ND_SIMPLEFB_DEFAULT)"
++endif
+diff --git a/lk2nd/display/simplefb.c b/lk2nd/display/simplefb.c
+index 12af15d..bee4764 100644
+--- a/lk2nd/display/simplefb.c
++++ b/lk2nd/display/simplefb.c
+@@ -37,8 +37,14 @@ static int lk2nd_simplefb_dt_update(void *dtb, const char *cmdline,
+ 	if (boot_type & (BOOT_DOWNSTREAM | BOOT_LK2ND))
+ 		return 0;
+ 
+-	if (!lk2nd_cmdline_scan_arg(cmdline, "lk2nd.pass-simplefb", args, sizeof(args)))
++	if (!lk2nd_cmdline_scan_arg(cmdline, "lk2nd.pass-simplefb", args, sizeof(args))) {
++#ifdef LK2ND_SIMPLEFB_DEFAULT
++		/* Cheip OS: Lumia always needs the UEFI screen handed to Linux */
++		strlcpy(args, LK2ND_SIMPLEFB_DEFAULT, sizeof(args));
++#else
+ 		return 0;
++#endif
++	}
+ 
+ 	if (IS_ENABLED(LK2ND_DISPLAY_CONT_SPLASH)) {
+ 		if (strstr(args, "autorefresh")) {
 diff --git a/lk2nd/fastboot/cheip.c b/lk2nd/fastboot/cheip.c
 new file mode 100644
 index 0000000..6d38d67
