@@ -394,8 +394,20 @@ async function captureLogs() {
       const [blocks, bs] = r.text.trim().split(/\s+/).map(Number);
       if (blocks && bs) sd = { blocks, bs, bytes: blocks * bs };
     } catch {}
+    const test = $("#test-img").files[0];
+    if (test) {
+      log(`Booting ${test.name} (${human(test.size)}) from RAM…`);
+      await dev.bootBlob(test, progress);
+      log("Test image started: watch the phone screen.");
+      busy = false;
+      setConnected(false, "Test image booting");
+      return;
+    }
     busy = false;
     setConnected(true, "Held in the bootloader (debug)");
+    // The bootloader's USB goes to sleep when idle: keep talking to it
+    clearInterval(window.cheipKeep);
+    window.cheipKeep = setInterval(() => { if (!busy && dev) dev.getVariable("product").catch(() => clearInterval(window.cheipKeep)); }, 1500);
   } catch (e) {
     busy = false;
     log("Debug capture failed: " + (e.message || e));
