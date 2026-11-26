@@ -100,19 +100,19 @@ const logTo = (el) => (t) => { el.textContent += t + "\n"; el.scrollTop = el.scr
 // ---------- Step 3: boot menu on EFIESP (File System Access API) ----------
 const espLog = logTo($("#esp-out"));
 
+// Direct lookups (the PC's file system ignores case). Listing a drive root
+// fails on "System Volume Information", so we never iterate unless needed.
 async function dirPath(root, parts, create = false) {
   let d = root;
   for (const p of parts) {
-    let found = null;
-    for await (const [name, h] of d.entries()) if (h.kind === "directory" && name.toLowerCase() === p.toLowerCase()) { found = h; break; }
-    if (!found) { if (!create) return null; found = await d.getDirectoryHandle(p, { create: true }); }
-    d = found;
+    try { d = await d.getDirectoryHandle(p, { create }); }
+    catch (e) { if (e.name === "NotFoundError" || e.name === "TypeMismatchError") return null; throw e; }
   }
   return d;
 }
 async function fileIn(dir, name) {
-  for await (const [n, h] of dir.entries()) if (h.kind === "file" && n.toLowerCase() === name.toLowerCase()) return h;
-  return null;
+  try { return await dir.getFileHandle(name); }
+  catch (e) { if (e.name === "NotFoundError" || e.name === "TypeMismatchError") return null; throw e; }
 }
 async function writeFile(dir, name, data) {
   const h = (await fileIn(dir, name)) || (await dir.getFileHandle(name, { create: true }));
@@ -135,11 +135,14 @@ async function fetchBin(path) {
 
 async function pickEsp() {
   if (!("showDirectoryPicker" in window)) throw new Error("This browser can't write to the phone. Use Chrome or Edge on the PC.");
-  const root = await window.showDirectoryPicker({ id: "efiesp", mode: "readwrite" });
+  let root = await window.showDirectoryPicker({ id: "efiesp", mode: "readwrite" });
+  // Picked MainOS instead of its EFIESP folder: step inside
+  const inner = await dirPath(root, ["EFIESP"]);
+  if (inner && (await dirPath(inner, ["efi"]))) root = inner;
   const bootDir = await dirPath(root, ["efi", "Microsoft", "Boot"]);
   const bcdH = bootDir && (await fileIn(bootDir, "BCD"));
   const sysBoot = await dirPath(root, ["Windows", "System32", "Boot"]);
-  if (!bcdH || !sysBoot) throw new Error(`"${root.name}" is not the EFIESP drive: efi\\Microsoft\\Boot\\BCD is missing. Pick the drive named EFIESP.`);
+  if (!bcdH || !sysBoot) throw new Error(`"${root.name}" is not EFIESP: efi\\Microsoft\\Boot\\BCD is missing. Pick the EFIESP drive or the EFIESP folder inside MainOS.`);
   return { root, bootDir, bcdH, sysBoot };
 }
 
