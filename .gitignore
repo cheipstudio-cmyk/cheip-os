@@ -5,3 +5,4 @@ dist-*
 ota/
 out/
 web-demo/pkg/
+/boot/

@@ -15,11 +15,33 @@ env:
   CHEIP_APK_KEY: ${{ secrets.CHEIP_APK_KEY }}
 
 jobs:
+  lk1st:
+    # Bootloader caricato da BootShim al posto di resetphone.efi
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build lk1st msm8226
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q gcc-arm-none-eabi device-tree-compiler
+          git clone --depth 1 https://github.com/Mainline4Lumia/lk2nd lk2nd
+          cd lk2nd
+          make TOOLCHAIN_PREFIX=arm-none-eabi- lk1st-msm8226 LK2ND_COMPATIBLE="microsoft,superman-lte" DEBUG_FBCON=1 -j"$(nproc)"
+          mkdir -p ../boot && cp build-lk1st-msm8226/lk_s.elf ../boot/emmc_appsboot.mbn
+          curl -fsSL -o ../boot/BootShim.efi https://github.com/imbushuo/boot-shim/releases/download/elf-loader-pre3/BootShim.efi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: boot
+          path: boot/
+
   release:
+    needs: lk1st
     runs-on: ubuntu-latest
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: boot
+          path: boot/
 
       - name: Versione dal tag
         run: |
@@ -62,6 +84,13 @@ jobs:
         # mettendoci la nostra, il repository è subito verificabile dai telefoni.
         run: |
           mkdir -p "$WORK/config_abuild" "$WORK/config_apk_keys"
+          if [ -z "$CHEIP_APK_KEY" ]; then
+            # Senza il segreto: chiave usa e getta, va bene per le build di prova
+            echo "::warning::CHEIP_APK_KEY mancante: build di prova con chiave temporanea"
+            openssl genrsa -out /tmp/tmp.rsa 2048
+            openssl rsa -in /tmp/tmp.rsa -pubout -out keys/cheip-os.rsa.pub
+            CHEIP_APK_KEY="$(cat /tmp/tmp.rsa)"
+          fi
           printf '%s\n' "$CHEIP_APK_KEY" > "$WORK/config_abuild/cheip-os.rsa"
           cp keys/cheip-os.rsa.pub "$WORK/config_abuild/cheip-os.rsa.pub"
           cp keys/cheip-os.rsa.pub "$WORK/config_apk_keys/cheip-os.rsa.pub"
@@ -86,6 +115,8 @@ jobs:
           mkdir -p out
           pmbootstrap export out
           for f in out/*.img; do xz -T0 -6 -c "$(readlink -f "$f")" > "dist-$(basename "$f").xz"; done
+          # boot.img per l'avvio da RAM con "fastboot boot" da lk1st
+          for f in out/boot.img*; do [ -e "$f" ] && cp "$(readlink -f "$f")" "dist-$(basename "$f")"; done
           ls -la dist-* || true
 
       - name: Repository OTA
@@ -127,7 +158,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist-*.xz
+            dist-*
+            boot/BootShim.efi
+            boot/emmc_appsboot.mbn
             ota/armv7/*.apk
             ota/manifest.json
 
