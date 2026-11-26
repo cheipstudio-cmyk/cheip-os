@@ -25,8 +25,8 @@ start_pre() {
 		return 1
 	fi
 	# Schermo, tocco e tasti: la shell disegna direttamente su DRM e legge evdev
-	for g in video input audio; do addgroup "$cheip_user" "$g" >/dev/null 2>&1; done
-	chmod 666 /dev/dri/card* /dev/input/event* 2>/dev/null
+	for g in video input audio tty; do addgroup "$cheip_user" "$g" >/dev/null 2>&1; done
+	chmod 666 /dev/dri/card* /dev/input/event* /dev/tty0 /dev/tty1 2>/dev/null
 	# Il login testuale su tty1 non deve contendere lo schermo alla shell
 	if grep -q '^tty1::' /etc/inittab 2>/dev/null; then
 		sed -i 's/^tty1::/#tty1::/' /etc/inittab
