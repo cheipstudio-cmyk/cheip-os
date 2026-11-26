@@ -158,7 +158,7 @@ footer p { margin-bottom: 6px; }
 
   <section id="install">
     <h2 class="round" id="install-title">Install on Lumia 735</h2>
-    <p class="lead">About 30 minutes on a Windows PC. Windows Phone stays on the phone and you choose the system at every start.</p>
+    <p class="lead">About 20 minutes, phone connected to a Windows PC the whole time. No card to take out, no extra programs after the unlock. Windows Phone stays and you choose the system at every start.</p>
     <div class="steps">
       <div class="step" data-step="1">
         <div class="num">1</div>
@@ -166,8 +166,8 @@ footer p { margin-bottom: 6px; }
           <h3>Get ready</h3>
           <ul>
             <li>Charge the phone above 70%. Charging does not work inside Cheip OS yet: you charge from Windows Phone.</li>
-            <li>A microSD card of 8 GB or more, inside the phone. Everything on it will be erased.</li>
-            <li>A Windows PC and a USB data cable.</li>
+            <li>A microSD card of 8 GB or more, inside the phone. Everything on it will be erased. You never take it out.</li>
+            <li>A Windows PC with Chrome or Edge, and a USB data cable.</li>
             <li>Save your photos and files: unlocking can go wrong.</li>
           </ul>
           <label class="check"><input type="checkbox"> I'm ready</label>
@@ -178,12 +178,11 @@ footer p { margin-bottom: 6px; }
         <div class="num">2</div>
         <div>
           <h3>Unlock the bootloader</h3>
-          <p>Lumia phones only start systems signed by Microsoft until you unlock them. Use <a href="https://github.com/ReneLergner/WPinternals/releases" target="_blank" rel="noopener">WPInternals</a> (official GitHub page).</p>
+          <p>Lumia phones only start systems signed by Microsoft until you unlock them. This is done once, with <a href="https://github.com/ReneLergner/WPinternals/releases" target="_blank" rel="noopener">WPInternals</a> (official GitHub page).</p>
           <ul>
             <li>Run WPInternals as administrator and connect the phone.</li>
-            <li>Under <b>Platform &gt; Download</b>, or with <b>Add existing FFU-file</b>, load an FFU for your model with a supported OS version (for the 735: 02040.x, Windows Phone 8.1).</li>
-            <li>Open <b>Unlock &gt; Unlock bootloader</b> and follow the steps. Don't unplug the cable.</li>
-            <li>Check in <b>Phone &gt; Info</b> that "Effective bootloader security" is no longer Enabled.</li>
+            <li>Open <b>Unlock &gt; Unlock bootloader</b>. It asks for the FFU of your phone (profile), the Engineering SBL3 / programmer for your model and a donor FFU with a Windows 10 Mobile version WPInternals supports (for example 10.0.10586 or 10.0.15063).</li>
+            <li>Press Unlock and don't unplug the cable until it's done.</li>
           </ul>
           <div class="warn">This is the only risky step. If it's interrupted the phone may not start, and you can usually recover it by flashing the FFU again.</div>
           <label class="check"><input type="checkbox"> Bootloader unlocked</label>
@@ -194,14 +193,16 @@ footer p { margin-bottom: 6px; }
         <div class="num">3</div>
         <div>
           <h3>Add Cheip OS to the boot menu</h3>
-          <p>Put the phone in Mass Storage mode (WPInternals &gt; Manual mode &gt; Mass Storage), download these four files into the same folder, then double click <code>cheip-lumia-setup.bat</code>.</p>
-          <div class="btns">
-            <a class="btn tonal small dl" data-file="cheip-lumia-setup.bat" href="tools/cheip-lumia-setup.bat" download>Setup launcher</a>
-            <a class="btn tonal small dl" data-file="cheip-lumia-setup.ps1" href="tools/cheip-lumia-setup.ps1" download>Setup script</a>
-            <a class="btn tonal small dl" data-asset="BootShim.efi">BootShim.efi</a>
-            <a class="btn tonal small dl" data-asset="emmc_appsboot.mbn">lk1st bootloader</a>
+          <p>In WPInternals open <b>Manual mode</b> and choose <b>Mass Storage</b>. The phone's drives appear on the PC. Then press the button and pick the drive called <b>EFIESP</b>.</p>
+          <div class="usb">
+            <div class="state"><span class="dot" id="esp-dot"></span><span id="esp-state">Waiting for the EFIESP drive</span></div>
+            <div class="btns">
+              <button class="btn fill small" id="esp-install">Install boot menu</button>
+              <button class="btn tonal small" id="esp-remove">Remove Cheip OS from the menu</button>
+            </div>
+            <pre class="log" id="esp-out"></pre>
           </div>
-          <p style="margin-top:12px">The script backs up the boot configuration to your Documents, keeps the Windows Phone reset app untouched and adds a <b>Cheip OS</b> entry. Run it again with <code>-Uninstall</code> to remove it.</p>
+          <p style="margin-top:12px;font-size:14px">The site copies the Cheip OS bootloader to the phone, keeps a backup of the boot configuration on the phone (BCD.cheipbak) and in your Downloads, and adds a <b>Cheip OS</b> entry next to Windows Phone.</p>
           <label class="check"><input type="checkbox"> Boot menu installed</label>
         </div>
       </div>
@@ -209,13 +210,33 @@ footer p { margin-bottom: 6px; }
       <div class="step" data-step="4">
         <div class="num">4</div>
         <div>
-          <h3>Write Cheip OS to the microSD</h3>
-          <p>Take the card out of the phone and put it in the PC (an adapter is fine). Write the image with <a href="https://rufus.ie" target="_blank" rel="noopener">Rufus</a> or <a href="https://etcher.balena.io" target="_blank" rel="noopener">balenaEtcher</a>: both accept the compressed file directly.</p>
-          <div class="btns">
-            <a class="btn fill small dl" data-asset-match="\.img\.xz$" id="img-btn">Cheip OS image</a>
+          <h3>Install Cheip OS</h3>
+          <ul>
+            <li>Close WPInternals and restart the phone (hold Power until it vibrates). Keep the cable connected.</li>
+            <li>In the boot menu choose <b>Cheip OS</b> with the volume keys and press Power. The screen shows the Cheip OS bootloader.</li>
+            <li>Press <b>Connect phone</b>, select <b>Android</b> in the list, then <b>Install</b>. The system is written straight to the microSD inside the phone.</li>
+          </ul>
+          <div class="usb">
+            <div class="state"><span class="dot" id="usb-dot"></span><span id="usb-state">Not connected</span></div>
+            <div class="btns">
+              <button class="btn tonal small" id="usb-connect">Connect phone</button>
+              <button class="btn fill small" id="usb-install" disabled>Install Cheip OS</button>
+              <button class="btn tonal small" id="usb-reboot" disabled>Restart phone</button>
+            </div>
+            <p id="img-info" style="margin-top:10px;font-size:14px"></p>
+            <div class="bar" id="usb-bar"><i></i></div>
+            <pre class="log" id="usb-out"></pre>
+            <details style="margin-top:10px;font-size:14px">
+              <summary>Advanced</summary>
+              <div class="btns">
+                <button class="btn tonal small" id="usb-boot" disabled>Boot a boot.img from RAM</button>
+                <input type="file" id="boot-file" accept=".img" hidden>
+                <button class="btn tonal small" id="usb-info" disabled>Device info</button>
+                <a class="btn tonal small dl" data-asset="boot.img" href="#">boot.img</a>
+              </div>
+            </details>
           </div>
-          <p id="img-info" style="margin-top:10px;font-size:14px"></p>
-          <label class="check"><input type="checkbox"> microSD ready and back in the phone</label>
+          <label class="check"><input type="checkbox"> Cheip OS installed</label>
         </div>
       </div>
 
@@ -223,20 +244,7 @@ footer p { margin-bottom: 6px; }
         <div class="num">5</div>
         <div>
           <h3>Start Cheip OS</h3>
-          <p>Restart the phone: in the menu choose <b>Cheip OS</b> with the volume keys and press Power. The first start takes a couple of minutes.</p>
-          <p style="margin-top:8px">If the screen stays black, connect the phone to this PC and use the USB console below: it talks to the Cheip OS bootloader directly from the browser (Chrome or Edge).</p>
-          <div class="usb">
-            <div class="state"><span class="dot" id="usb-dot"></span><span id="usb-state">Not connected</span></div>
-            <div class="btns">
-              <button class="btn tonal small" id="usb-connect">Connect phone</button>
-              <button class="btn fill small" id="usb-boot" disabled>Boot Cheip OS now</button>
-              <input type="file" id="boot-file" accept=".img" hidden>
-              <button class="btn tonal small" id="usb-info" disabled>Device info</button>
-            </div>
-            <div class="bar" id="usb-bar"><i></i></div>
-            <pre class="log" id="usb-out"></pre>
-            <p style="margin-top:8px;font-size:13px">"Boot Cheip OS now" asks for <a class="dl" data-asset="boot.img" href="#">boot.img</a> from the release and starts it from RAM: nothing is written to the phone.</p>
-          </div>
+          <p>From now on the phone asks at every start: <b>Windows Phone</b> or <b>Cheip OS</b>. The first start of Cheip OS takes a couple of minutes while it grows to fill the microSD. Updates arrive over the air.</p>
           <label class="check"><input type="checkbox"> Cheip OS is running</label>
         </div>
       </div>

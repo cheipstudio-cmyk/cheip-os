@@ -1,5 +1,6 @@
 // Cheip OS installer: dispositivi, avanzamento passi, link alle release, console USB (fastboot)
 import { FastbootDevice, setDebugLevel } from "./vendor/fastboot.min.mjs";
+import { parseHive, writeHive, bcdAddCheip, bcdEntries } from "./bcd.mjs";
 
 // Repository pubblico che ospita le release scaricabili
 const REPO = "cheipstudio-cmyk/cheip-os";
@@ -73,64 +74,243 @@ async function loadRelease() {
     if (asset) {
       a.href = asset.browser_download_url;
       a.removeAttribute("disabled");
-      if (a.id === "img-btn") $("#img-info").textContent = `${rel.name || rel.tag_name} · ${human(asset.size)}`;
     } else {
       a.setAttribute("disabled", "");
       a.href = "#";
-      if (a.id === "img-btn") $("#img-info").textContent = "The first public build is on its way.";
     }
   });
 }
 
-// ---------- Console USB ----------
-const out = $("#usb-out");
-const log = (t) => { out.textContent += t + "\n"; out.scrollTop = out.scrollHeight; };
-let dev = null;
+// ---------- Image served by this site ----------
+const OS = "os/";
+let manifest = null;
+async function loadManifest() {
+  try {
+    const r = await fetch(OS + "manifest.json", { cache: "no-cache" });
+    if (r.ok) manifest = await r.json();
+  } catch {}
+  $("#img-info").textContent = manifest
+    ? `Cheip OS ${manifest.version} · ${human(manifest.download)} to download, ${human(manifest.data)} written`
+    : "The first public build is on its way.";
+  return manifest;
+}
+
+const logTo = (el) => (t) => { el.textContent += t + "\n"; el.scrollTop = el.scrollHeight; };
+
+// ---------- Step 3: boot menu on EFIESP (File System Access API) ----------
+const espLog = logTo($("#esp-out"));
+
+async function dirPath(root, parts, create = false) {
+  let d = root;
+  for (const p of parts) {
+    let found = null;
+    for await (const [name, h] of d.entries()) if (h.kind === "directory" && name.toLowerCase() === p.toLowerCase()) { found = h; break; }
+    if (!found) { if (!create) return null; found = await d.getDirectoryHandle(p, { create: true }); }
+    d = found;
+  }
+  return d;
+}
+async function fileIn(dir, name) {
+  for await (const [n, h] of dir.entries()) if (h.kind === "file" && n.toLowerCase() === name.toLowerCase()) return h;
+  return null;
+}
+async function writeFile(dir, name, data) {
+  const h = (await fileIn(dir, name)) || (await dir.getFileHandle(name, { create: true }));
+  const w = await h.createWritable();
+  await w.write(data);
+  await w.close();
+}
+function saveCopy(name, data) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([data]));
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+async function fetchBin(path) {
+  const r = await fetch(OS + path, { cache: "no-cache" });
+  if (!r.ok) throw new Error(`${path} is not on the site yet (${r.status})`);
+  return new Uint8Array(await r.arrayBuffer());
+}
+
+async function pickEsp() {
+  if (!("showDirectoryPicker" in window)) throw new Error("This browser can't write to the phone. Use Chrome or Edge on the PC.");
+  const root = await window.showDirectoryPicker({ id: "efiesp", mode: "readwrite" });
+  const bootDir = await dirPath(root, ["efi", "Microsoft", "Boot"]);
+  const bcdH = bootDir && (await fileIn(bootDir, "BCD"));
+  const sysBoot = await dirPath(root, ["Windows", "System32", "Boot"]);
+  if (!bcdH || !sysBoot) throw new Error(`"${root.name}" is not the EFIESP drive: efi\\Microsoft\\Boot\\BCD is missing. Pick the drive named EFIESP.`);
+  return { root, bootDir, bcdH, sysBoot };
+}
+
+function espState(ok, label) {
+  $("#esp-dot").classList.toggle("on", ok);
+  $("#esp-state").textContent = label;
+}
+
+$("#esp-install").addEventListener("click", async () => {
+  try {
+    const esp = await pickEsp();
+    espLog(`EFIESP found (${esp.root.name}).`);
+    const [shim, lk] = await Promise.all([fetchBin("boot/BootShim.efi"), fetchBin("boot/emmc_appsboot.mbn")]);
+    const original = new Uint8Array(await (await esp.bcdH.getFile()).arrayBuffer());
+    const hive = parseHive(original);
+    if (!(await fileIn(esp.bootDir, "BCD.cheipbak"))) {
+      await writeFile(esp.bootDir, "BCD.cheipbak", original);
+      saveCopy("BCD-lumia-backup", original);
+      espLog("Backup saved on the phone and in Downloads.");
+    }
+    await writeFile(esp.sysBoot, "cheipshim.efi", shim);
+    await writeFile(esp.root, "emmc_appsboot.mbn", lk);
+    espLog("Bootloader copied.");
+    const id = bcdAddCheip(hive);
+    const bcd = writeHive(hive);
+    parseHive(bcd); // sanity check before replacing the real one
+    await writeFile(esp.bootDir, "BCD", bcd);
+    espLog(`Boot menu ready: ${bcdEntries(hive).filter((e) => e.desc).map((e) => e.desc).join(", ")}.`);
+    espLog(`Cheip OS entry ${id}. Go to step 4.`);
+    espState(true, "Boot menu installed");
+    markStep(3);
+  } catch (e) {
+    if (e.name === "AbortError") return;
+    espLog("Error: " + (e.message || e));
+    espState(false, "Not installed");
+  }
+});
+
+$("#esp-remove").addEventListener("click", async () => {
+  try {
+    const esp = await pickEsp();
+    const bak = await fileIn(esp.bootDir, "BCD.cheipbak");
+    if (!bak) throw new Error("No backup on this phone: Cheip OS was never added here.");
+    await writeFile(esp.bootDir, "BCD", new Uint8Array(await (await bak.getFile()).arrayBuffer()));
+    for (const [dir, n] of [[esp.sysBoot, "cheipshim.efi"], [esp.root, "emmc_appsboot.mbn"], [esp.bootDir, "BCD.cheipbak"]])
+      if (await fileIn(dir, n)) await dir.removeEntry(n);
+    espLog("Original boot menu restored. The microSD keeps Cheip OS until you format it.");
+    espState(false, "Removed");
+  } catch (e) {
+    if (e.name !== "AbortError") espLog("Error: " + (e.message || e));
+  }
+});
+
+function markStep(n) {
+  const done = store.get("cheip-steps", {});
+  done[n] = true;
+  store.set("cheip-steps", done);
+  renderSteps();
+}
+
+// ---------- Step 4: install over USB (lk1st fastboot, WebUSB) ----------
+const log = logTo($("#usb-out"));
+const bar = $("#usb-bar");
+const progress = (p) => { bar.style.display = "block"; bar.firstElementChild.style.width = (p * 100).toFixed(1) + "%"; };
+let dev = null, sd = null, busy = false;
 
 function setConnected(ok, label) {
   $("#usb-dot").classList.toggle("on", ok);
   $("#usb-state").textContent = label;
-  $("#usb-boot").disabled = !ok;
-  $("#usb-info").disabled = !ok;
+  for (const id of ["#usb-boot", "#usb-info", "#usb-reboot"]) $(id).disabled = !ok || busy;
+  $("#usb-install").disabled = !ok || busy || !sd || !manifest;
 }
 
 $("#usb-connect").addEventListener("click", async () => {
-  if (!("usb" in navigator)) {
-    log("This browser has no WebUSB. Open the page in Chrome or Edge on a PC.");
-    return;
-  }
+  if (!("usb" in navigator)) return log("This browser has no WebUSB. Open the page in Chrome or Edge on a PC.");
   try {
     setDebugLevel(0);
     dev = new FastbootDevice();
     await dev.connect();
     const product = await dev.getVariable("product").catch(() => "");
-    setConnected(true, `Connected${product ? " · " + product : ""}`);
-    log("Bootloader found. You can boot Cheip OS from RAM.");
+    sd = null;
+    try {
+      const r = await dev.runCommand("oem sd-info");
+      const [blocks, bs] = r.text.trim().split(/\s+/).map(Number);
+      if (blocks && bs) sd = { blocks, bs, bytes: blocks * bs };
+    } catch {}
+    if (!sd) {
+      setConnected(true, `Connected${product ? " · " + product : ""}`);
+      log("Bootloader found, but it can't see a microSD or it's an older bootloader. Repeat step 3, then put a card in the phone.");
+      return;
+    }
+    await loadManifest();
+    setConnected(true, `Connected · microSD ${human(sd.bytes)}`);
+    log(`Cheip OS bootloader ready. microSD: ${human(sd.bytes)}.`);
+    if (manifest && manifest.size > sd.bytes) log(`The card is too small: Cheip OS needs ${human(manifest.size)}.`);
   } catch (e) {
     setConnected(false, "Not connected");
-    log("Connection failed: " + (e.message || e) + "\nOn Windows the phone needs the Android bootloader (fastboot) driver.");
+    log("Connection failed: " + (e.message || e) + "\nThe phone must show the Cheip OS bootloader (step 4). If Android is missing from the list, unplug and plug the cable again.");
   }
 });
 
+async function sha256hex(buf) {
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", buf))].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function getChunk(c) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const r = await fetch(OS + c.file);
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const buf = await new Response(r.body.pipeThrough(new DecompressionStream("gzip"))).arrayBuffer();
+      if (buf.byteLength !== c.length || (await sha256hex(buf)) !== c.sha256) throw new Error("corrupted download");
+      return buf;
+    } catch (e) {
+      if (attempt >= 3) throw new Error(`${c.file}: ${e.message || e}`);
+    }
+  }
+}
+
+$("#usb-install").addEventListener("click", async () => {
+  if (!dev || !sd || !manifest || busy) return;
+  if (manifest.size > sd.bytes) return log("The microSD is too small for Cheip OS.");
+  if (!confirm(`Everything on the ${human(sd.bytes)} microSD inside the phone will be erased and replaced by Cheip OS ${manifest.version}. Continue?`)) return;
+  busy = true; setConnected(true, "Installing…");
+  const total = manifest.data;
+  let done = 0;
+  const t0 = performance.now();
+  try {
+    let next = getChunk(manifest.chunks[0]);
+    for (let i = 0; i < manifest.chunks.length; i++) {
+      const c = manifest.chunks[i];
+      const buf = await next;
+      if (i + 1 < manifest.chunks.length) next = getChunk(manifest.chunks[i + 1]); // download ahead while writing
+      await dev.upload("sd", buf, (p) => progress((done + p * c.length) / total));
+      await dev.runCommand(`oem sd-write ${(c.offset / sd.bs).toString(16)}`);
+      done += c.length;
+      progress(done / total);
+      const mbs = done / 1048576 / ((performance.now() - t0) / 1000);
+      $("#usb-state").textContent = `Installing… ${Math.round((done / total) * 100)}% · ${mbs.toFixed(1)} MB/s`;
+    }
+    log(`Cheip OS ${manifest.version} written in ${Math.round((performance.now() - t0) / 1000)} s.`);
+    busy = false;
+    setConnected(true, "Installed");
+    markStep(4);
+    log("Restarting into Cheip OS…");
+    await dev.reboot().catch(() => {});
+    setConnected(false, "Restarting");
+  } catch (e) {
+    busy = false;
+    setConnected(!!dev, "Install stopped");
+    log("Install stopped: " + (e.message || e) + "\nNothing is broken: Windows Phone still starts. Reconnect and press Install again.");
+  }
+});
+
+$("#usb-reboot").addEventListener("click", async () => { await dev.reboot().catch(() => {}); setConnected(false, "Restarting"); });
+
 $("#usb-info").addEventListener("click", async () => {
-  for (const v of ["product", "version-bootloader", "serialno", "secure", "unlocked"]) {
+  for (const v of ["product", "version-bootloader", "serialno", "max-download-size", "unlocked"]) {
     const val = await dev.getVariable(v).catch(() => "");
     log(`${v}: ${val || "?"}`);
   }
 });
 
 $("#usb-boot").addEventListener("click", () => $("#boot-file").click());
-
 $("#boot-file").addEventListener("change", async (ev) => {
   const file = ev.target.files[0];
   if (!file || !dev) return;
-  const bar = $("#usb-bar");
-  bar.style.display = "block";
   log(`Sending ${file.name} (${human(file.size)})…`);
   try {
-    await dev.bootBlob(file, (p) => { bar.firstElementChild.style.width = Math.round(p * 100) + "%"; });
-    log("Started. Cheip OS is booting: the phone disconnects now.");
-    setConnected(false, "Booting Cheip OS");
+    await dev.bootBlob(file, progress);
+    log("Started from RAM: the phone disconnects now.");
+    setConnected(false, "Booting");
   } catch (e) {
     log("Boot failed: " + (e.message || e));
   } finally {
@@ -141,3 +321,4 @@ $("#boot-file").addEventListener("change", async (ev) => {
 renderDevices();
 renderSteps();
 loadRelease();
+loadManifest();

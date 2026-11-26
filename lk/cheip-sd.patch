@@ -1,0 +1,182 @@
+diff --git a/app/aboot/fastboot.c b/app/aboot/fastboot.c
+index c6b8e90..13d8a68 100644
+--- a/app/aboot/fastboot.c
++++ b/app/aboot/fastboot.c
+@@ -70,7 +70,7 @@ static struct udc_endpoint *fastboot_endpoints[2];
+ static struct udc_device surf_udc_device = {
+ 	.vendor_id    = 0x18d1,
+ 	.product_id   = 0xD00D,
+-	.version_id   = 0x0100,
++	.version_id   = 0x0C05, /* Cheip OS: new id, Windows reads the MS OS descriptors again */
+ 	.manufacturer = "Google",
+ 	.product      = "Android",
+ };
+diff --git a/lk2nd/fastboot/cheip.c b/lk2nd/fastboot/cheip.c
+new file mode 100644
+index 0000000..6d38d67
+--- /dev/null
++++ b/lk2nd/fastboot/cheip.c
+@@ -0,0 +1,84 @@
++// SPDX-License-Identifier: BSD-3-Clause
++/* Cheip OS: installazione sulla microSD interna dal sito, via WebUSB fastboot */
++
++#include <debug.h>
++#include <fastboot.h>
++#include <lib/bio.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++
++#include <lk2nd/hw/bdev.h>
++
++static bdev_t *sd_open(void)
++{
++	static bool init_done;
++	bdev_t *b = bio_open("mmc2");
++
++	if (!b && !init_done) {
++		init_done = true;
++		lk2nd_bdev_init();
++		b = bio_open("mmc2");
++	}
++	return b;
++}
++
++/* fastboot oem sd-info  ->  "<blocchi> <dimensione blocco>" */
++static void cmd_oem_sd_info(const char *arg, void *data, unsigned sz)
++{
++	char resp[64];
++	bdev_t *b = sd_open();
++
++	if (!b) {
++		fastboot_fail("no sd card");
++		return;
++	}
++	snprintf(resp, sizeof(resp), "%u %u", (unsigned)b->block_count, (unsigned)b->block_size);
++	bio_close(b);
++	fastboot_info(resp);
++	fastboot_okay(resp);
++}
++FASTBOOT_REGISTER("oem sd-info", cmd_oem_sd_info);
++
++/* fastboot oem sd-write <settore esadecimale>: scrive i dati scaricati */
++static void cmd_oem_sd_write(const char *arg, void *data, unsigned sz)
++{
++	unsigned long sector;
++	unsigned count;
++	bdev_t *b;
++	ssize_t ret;
++
++	while (*arg == ' ')
++		arg++;
++	if (!*arg || !sz) {
++		fastboot_fail("usage: download, then oem sd-write <sector-hex>");
++		return;
++	}
++	sector = strtoul(arg, NULL, 16);
++
++	b = sd_open();
++	if (!b) {
++		fastboot_fail("no sd card");
++		return;
++	}
++
++	count = (sz + b->block_size - 1) / b->block_size;
++	if (count * b->block_size != sz)
++		memset((uint8_t *)data + sz, 0, count * b->block_size - sz);
++
++	if (sector + count > b->block_count) {
++		bio_close(b);
++		fastboot_fail("beyond end of sd card");
++		return;
++	}
++
++	ret = bio_write_block(b, data, sector, count);
++	bio_close(b);
++
++	if (ret != (ssize_t)(count * b->block_size)) {
++		fastboot_fail("sd write failed");
++		return;
++	}
++	fastboot_okay("");
++}
++FASTBOOT_REGISTER("oem sd-write", cmd_oem_sd_write);
+diff --git a/lk2nd/fastboot/rules.mk b/lk2nd/fastboot/rules.mk
+index b0d7725..2829288 100644
+--- a/lk2nd/fastboot/rules.mk
++++ b/lk2nd/fastboot/rules.mk
+@@ -5,6 +5,7 @@ OBJS += \
+ 	$(LOCAL_DIR)/fetch.o \
+ 	$(LOCAL_DIR)/hash.o \
+ 	$(LOCAL_DIR)/misc.o \
++	$(LOCAL_DIR)/cheip.o \
+ 
+ ifneq ($(filter DISPLAY_SPLASH_SCREEN=1,$(DEFINES)),)
+ OBJS += \
+diff --git a/lk2nd/hw/bdev/mmc_sdhci.c b/lk2nd/hw/bdev/mmc_sdhci.c
+index 730a9c3..3d20eb7 100644
+--- a/lk2nd/hw/bdev/mmc_sdhci.c
++++ b/lk2nd/hw/bdev/mmc_sdhci.c
+@@ -55,6 +55,30 @@ static ssize_t lk2nd_mmc_sdhci_bdev_read_block(struct bdev *bdev, void *buf, bnu
+ 	return count * block_size;
+ }
+ 
++/* Cheip OS: scrittura sulla microSD per l'installer via fastboot */
++static ssize_t lk2nd_mmc_sdhci_bdev_write_block(struct bdev *bdev, const void *buf, bnum_t block, uint count)
++{
++	struct mmc_bdev *dev = container_of(bdev, struct mmc_bdev, dev);
++	uint32_t block_size = dev->dev.block_size;
++	uint32_t max = SDHCI_ADMA_MAX_TRANS_SZ / block_size;
++	uint8_t *sptr = (uint8_t *)buf;
++	uint64_t blk = block;
++	uint left = count;
++
++	arch_clean_invalidate_cache_range((addr_t)buf, count * block_size);
++
++	while (left) {
++		uint n = left > max ? max : left;
++		if (mmc_sdhci_write(dev->mmc, sptr, blk, n))
++			return ERR_IO;
++		sptr += n * block_size;
++		blk += n;
++		left -= n;
++	}
++
++	return count * block_size;
++}
++
+ void lk2nd_mmc_sdhci_bio_register(void)
+ {
+ 	struct mmc_bdev *bdev = malloc(sizeof(*bdev));
+@@ -75,6 +99,7 @@ void lk2nd_mmc_sdhci_bio_register(void)
+ 
+ 	bdev->mmc = mmc;
+ 	bdev->dev.read_block = lk2nd_mmc_sdhci_bdev_read_block;
++	bdev->dev.write_block = lk2nd_mmc_sdhci_bdev_write_block;
+ 
+ 	bio_register_device(&bdev->dev);
+ 	partition_publish(name, 0);
+diff --git a/platform/msm_shared/hsusb.c b/platform/msm_shared/hsusb.c
+index 364d290..fb7afc8 100644
+--- a/platform/msm_shared/hsusb.c
++++ b/platform/msm_shared/hsusb.c
+@@ -540,6 +540,19 @@ static void handle_setup(struct udc_endpoint *ept)
+ 	DBG("handle_setup type=0x%02x req=0x%02x val=%d idx=%d len=%d (%s)\n",
+ 	    s.type, s.request, s.value, s.index, s.length, reqname(s.request));
+ 
++	/* Cheip OS: MS OS 1.0 descriptors, Windows binds WinUSB by itself (WebUSB) */
++	if (s.type == DEVICE_READ && s.request == GET_DESCRIPTOR && s.value == 0x03EE) {
++		static const unsigned char msft[18] = { 18, 3, 'M',0,'S',0,'F',0,'T',0,'1',0,'0',0,'0',0, 0x43, 0 };
++		setup_tx((void *)msft, s.length < 18 ? s.length : 18);
++		return;
++	}
++	if (s.type == 0xC0 && s.request == 0x43 && s.index == 4) {
++		static const unsigned char compat[40] = { 40,0,0,0, 0,1, 4,0, 1, 0,0,0,0,0,0,0,
++			0, 1, 'W','I','N','U','S','B',0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0 };
++		setup_tx((void *)compat, s.length < 40 ? s.length : 40);
++		return;
++	}
++
+ 	switch (SETUP(s.type, s.request)) {
+ 	case SETUP(DEVICE_READ, GET_STATUS):
+ 		{

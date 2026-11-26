@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths: ["site/**", "shell/**", "web-demo/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
+  # A new release puts its image chunks on the site
+  workflow_run:
+    workflows: ["Release Cheip OS"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -31,6 +35,16 @@ jobs:
           cargo build --lib --release --target wasm32-unknown-unknown --no-default-features --features web
           wasm-bindgen --target web --no-typescript --out-dir ../site/demo/pkg target/wasm32-unknown-unknown/release/cheip_shell.wasm
           cp ../web-demo/index.html ../site/demo/index.html
+      - name: Cheip OS image for the web installer (latest release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release download --repo "$GITHUB_REPOSITORY" --pattern "dist-cheip-os-web.tar" --dir /tmp/web; then
+            tar -C site -xf /tmp/web/dist-cheip-os-web.tar
+            du -sh site/os
+          else
+            echo "::warning::No web image in the latest release yet"
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

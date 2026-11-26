@@ -20,11 +20,14 @@ jobs:
     # Bootloader caricato da BootShim al posto di resetphone.efi
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - name: Build lk1st msm8226
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q gcc-arm-none-eabi device-tree-compiler
           git clone --depth 1 https://github.com/Mainline4Lumia/lk2nd lk2nd
           cd lk2nd
+          # SD write commands for the web installer + WinUSB descriptors for WebUSB
+          git apply ../lk/cheip-sd.patch
           make TOOLCHAIN_PREFIX=arm-none-eabi- lk1st-msm8226 LK2ND_COMPATIBLE="microsoft,superman-lte" DEBUG_FBCON=1 -j"$(nproc)"
           mkdir -p ../boot && cp build-lk1st-msm8226/lk_s.elf ../boot/emmc_appsboot.mbn
           curl -fsSL -o ../boot/BootShim.efi https://github.com/imbushuo/boot-shim/releases/download/elf-loader-pre3/BootShim.efi
@@ -117,6 +120,11 @@ jobs:
           for f in out/*.img; do xz -T0 -6 -c "$(readlink -f "$f")" > "dist-$(basename "$f").xz"; done
           # boot.img per l'avvio da RAM con "fastboot boot" da lk1st
           for f in out/boot.img*; do [ -e "$f" ] && cp "$(readlink -f "$f")" "dist-$(basename "$f")"; done
+          # Chunks for the web installer (served by GitHub Pages, same origin)
+          IMG="$(ls out/*.img | grep -v boot.img | head -1)"
+          python3 scripts/mkchunks.py "$(readlink -f "$IMG")" web/os "$VER"
+          mkdir -p web/os/boot && cp boot/BootShim.efi boot/emmc_appsboot.mbn web/os/boot/
+          tar -C web -cf dist-cheip-os-web.tar os
           ls -la dist-* || true
 
       - name: Repository OTA
