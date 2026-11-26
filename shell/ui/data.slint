@@ -1,6 +1,6 @@
 // Strutture e global riempiti dal codice Rust
 
-export struct AppEntry { id: string, name: string, initial: string, android: bool, glyph: string, picture: image, has-picture: bool, badge: int }
+export struct AppEntry { id: string, name: string, initial: string, android: bool, glyph: string, picture: image, has-picture: bool, badge: int, tone: color, tone-on: color }
 export struct NotifItem { id: int, app: string, app-id: string, glyph: string, time: string, text: string, android: bool }
 export struct ToggleItem { id: string, label: string, glyph: string, on: bool }
 export struct RecentItem { id: string, name: string, glyph: string, mem: int, state: string, android: bool }
@@ -16,6 +16,13 @@ export struct TabRow { title: string, url: string }
 export struct FileRow { name: string, info: string, kind: int, thumb: image, has-thumb: bool }
 export struct CatRow { id: string, label: string, glyph: string, detail: string }
 export struct WifiRow { ssid: string, signal: int, secure: bool, active: bool }
+
+export struct AlarmRow { id: int, time: string, label: string, days: string, on: bool, next: string, mask: int }
+export struct CityRow { city: string, time: string, diff: string, night: bool }
+export struct LapRow { n: int, lap: string, total: string }
+// Riga di impostazioni: 0 titolo sezione, 1 pagina, 2 interruttore, 3 valore, 4 cursore, 5 scelta, 6 azione, 7 azione pericolosa, 8 testo
+export struct SRow { kind: int, key: string, title: string, subtitle: string, glyph: string, on: bool, value: float }
+export struct Swatch { id: int, label: string, primary: color, secondary: color, tertiary: color, selected: bool }
 
 export enum ScreenId { lock, home, switcher }
 
@@ -84,6 +91,8 @@ export global Shell {
     in property <NotifItem> headsup;
     in-out property <bool> headsup-shown: false;
     in-out property <bool> volume-hud: false;
+    in property <string> toast: "";
+    in-out property <bool> toast-shown: false;
     callback open-notification(int);
     callback dismiss-notification(int);
     callback clear-notifications();
@@ -246,7 +255,84 @@ export global Settings {
     in property <string> info-id: "";
     in property <string> info-glyph: "";
     in property <bool> info-android: false;
+    in property <[SRow]> rows;
+    in property <string> title: "Settings";
+    in property <int> depth: 0;
     callback open-page(string);
+    callback back();
+    callback row-clicked(string);
+    callback row-toggled(string, bool);
+    callback row-slid(string, float);
     callback wifi-scan();
     callback wifi-connect(string, string);
+}
+
+// Aspetto: tema, sfondo, colori, forme e pacchetto icone
+export global Style {
+    // 0 scuro, 1 chiaro, 2 automatico
+    in-out property <int> theme-mode: 0;
+    in-out property <int> wallpaper: 0;
+    in property <[image]> wallpapers: [
+        @image-url("wallpapers/petal.jpg"), @image-url("wallpapers/lagoon.jpg"), @image-url("wallpapers/dune.jpg"),
+        @image-url("wallpapers/bloom.jpg"), @image-url("wallpapers/graphite.jpg")];
+    in property <[string]> wallpaper-names: ["Petal", "Lagoon", "Dune", "Bloom", "Graphite"];
+    // 0 cerchio, 1 squircle, 2 cookie, 3 trifoglio, 4 sole
+    in-out property <int> icon-shape: 2;
+    // 0 a tema, 1 colori, 2 mono, 3 contorno
+    in-out property <int> icon-pack: 0;
+    // Inchiostro sopra lo sfondo (chiaro o scuro secondo la luminosita) e accento per l'orologio
+    in property <color> wp-ink: #ffffff;
+    in property <color> wp-accent: #d3e3fd;
+    in property <bool> wp-light: false;
+    in property <[Swatch]> swatches;
+    in-out property <int> palette: 0;
+    // 0 tonal spot, 1 vibrante, 2 espressivo, 3 neutro, 4 monocromo
+    in-out property <int> scheme: 0;
+    in-out property <float> font-scale: 1.0;
+    in-out property <bool> bold-text: false;
+    callback set-theme(int);
+    callback set-wallpaper(int);
+    callback set-palette(int);
+    callback set-scheme(int);
+    callback set-icon-shape(int);
+    callback set-icon-pack(int);
+}
+
+export global Clock {
+    in-out property <int> tab: 0;
+    in property <[AlarmRow]> alarms;
+    in property <string> next-alarm: "";
+    in property <[CityRow]> cities;
+    in property <string> local-city: "Rome";
+    // Timer: 0 fermo, 1 in corso, 2 in pausa, 3 finito
+    in property <int> timer-state: 0;
+    in property <string> timer-label: "00:00";
+    in property <float> timer-progress: 0;
+    in-out property <string> timer-input: "";
+    // Cronometro
+    in property <string> sw-label: "00:00.00";
+    in property <bool> sw-running: false;
+    in property <float> sw-sweep: 0;
+    in property <[LapRow]> laps;
+    // Sveglia che suona
+    in property <bool> ringing: false;
+    in property <string> ring-time: "";
+    in property <string> ring-label: "";
+    in property <string> ring-kind: "alarm";
+    callback alarm-add(int, int, string);
+    callback alarm-toggle(int, bool);
+    callback alarm-delete(int);
+    callback alarm-day(int, int);
+    callback city-add();
+    callback city-remove(int);
+    callback timer-start();
+    callback timer-pause();
+    callback timer-resume();
+    callback timer-reset();
+    callback timer-plus();
+    callback sw-toggle();
+    callback sw-lap();
+    callback sw-reset();
+    callback ring-stop();
+    callback ring-snooze();
 }

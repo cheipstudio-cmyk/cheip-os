@@ -34,7 +34,7 @@ component FileListRow inherits Rectangle {
     animate background { duration: Theme.fast; }
     if root.item.kind == 0: Rectangle {
         x: 0; y: 10px; width: 44px; height: 44px; border-radius: 22px; background: Theme.accent;
-        Icon { d: Icons.folder; tint: #000; size: 20px; }
+        Icon { d: Icons.folder; tint: Theme.on-primary; size: 20px; }
     }
     if root.item.kind != 0: Thumb { x: 0; y: 10px; width: 44px; height: 44px; item: root.item; radius: root.item.kind == 5 ? 22px : 10px; }
     VerticalLayout {
@@ -55,7 +55,7 @@ component Seek inherits Rectangle {
     callback seek(float);
     height: 24px;
     Rectangle {
-        y: 10px; height: 4px; border-radius: 2px; background: #ffffff33;
+        y: 10px; height: 4px; border-radius: 2px; background: Theme.outline-variant;
         Rectangle { x: 0; width: parent.width * root.value; border-radius: 2px; background: Theme.accent; }
     }
     Rectangle {
@@ -104,11 +104,11 @@ export component FilesApp inherits Rectangle {
             x: 16px + mod(i, 2) * (root.cell2 + 10px);
             y: 238px + floor(i / 2) * 82px;
             width: root.cell2; height: 72px;
-            border-radius: 18px; background: cta.pressed ? #262626 : Theme.raised;
+            border-radius: 18px; background: cta.pressed ? Theme.container-highest : Theme.raised;
             animate background { duration: Theme.fast; }
             Rectangle {
                 x: 14px; y: 16px; width: 40px; height: 40px; border-radius: 20px; background: Theme.accent;
-                Icon { d: c.glyph; tint: #000; size: 18px; }
+                Icon { d: c.glyph; tint: Theme.on-primary; size: 18px; }
             }
             Text { x: 64px; y: 17px; text: c.label; color: Theme.text; font-family: Theme.body; font-size: 14px; font-weight: 600; }
             Text { x: 64px; y: 37px; width: parent.width - 72px; text: c.detail; color: Theme.muted; font-family: Theme.body; font-size: 11px; overflow: elide; }
@@ -145,7 +145,7 @@ export component FilesApp inherits Rectangle {
         x: 16px; y: 92px; width: parent.width - 32px; height: 44px; spacing: 8px;
         Field { placeholder: "Folder name"; text <=> root.new-name; }
         RoundButton {
-            icon: Icons.folder; fill: Theme.accent; tint: #000; outlined: false;
+            icon: Icons.folder; fill: Theme.accent; tint: Theme.on-primary; outlined: false;
             clicked => { Files.mkdir(root.new-name); root.new-name = ""; root.creating = false; }
         }
     }
@@ -204,7 +204,7 @@ export component FilesApp inherits Rectangle {
         x: 12px; y: parent.height - 92px; width: parent.width - 24px; height: 64px;
         border-radius: 20px; background: Theme.raised;
         Rectangle {
-            x: 10px; y: 10px; width: 44px; height: 44px; border-radius: 22px; background: #2a2a2a; clip: true;
+            x: 10px; y: 10px; width: 44px; height: 44px; border-radius: 22px; background: Theme.container-highest; clip: true;
             if !Files.has-cover: Icon { d: Icons.music; size: 18px; tint: Theme.accent; }
             if Files.has-cover: Image { width: 44px; height: 44px; source: Files.track-cover; image-fit: cover; }
         }
@@ -271,7 +271,7 @@ export component FilesApp inherits Rectangle {
         Rectangle {
             x: (parent.width - 72px) / 2; y: base + 142px; width: 72px; height: 72px; border-radius: 36px;
             background: Theme.accent;
-            Icon { d: Files.playing ? Icons.pause : Icons.play; tint: #000; size: 26px; weight: 2.4px; }
+            Icon { d: Files.playing ? Icons.pause : Icons.play; tint: Theme.on-primary; size: 26px; weight: 2.4px; }
             TouchArea { clicked => { Files.play-pause(); } }
         }
         RoundButton { x: parent.width / 2 + 52px; y: base + 150px; size: 56px; icon: Icons.next; outlined: false; clicked => { Files.track-next(); } }
@@ -279,7 +279,7 @@ export component FilesApp inherits Rectangle {
 
     // ---------- Visori ----------
     if Files.viewer != "": Rectangle {
-        background: #000;
+        background: Theme.on-primary;
         property <length> drag-start;
 
         // Contenuto

@@ -57,6 +57,13 @@ pub fn store() -> Store {
             Bookmark { title: "postmarketOS wiki".into(), url: "https://wiki.postmarketos.org".into() },
             Bookmark { title: "Weather Sesto Calende".into(), url: "https://html.duckduckgo.com/html/?q=weather%20sesto%20calende".into() },
         ],
+        alarms: vec![
+            crate::store::Alarm { id: 1, h: 7, m: 0, label: "Work".into(), days: 0x1f, on: true },
+            crate::store::Alarm { id: 2, h: 9, m: 30, label: "Weekend".into(), days: 0x60, on: false },
+        ],
+        cities: crate::store::default_cities(),
+        style: crate::store::StyleCfg::default(),
+        ..Default::default()
     })
 }
 

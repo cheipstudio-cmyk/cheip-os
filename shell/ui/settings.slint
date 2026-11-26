@@ -1,108 +1,215 @@
 import { Theme } from "theme.slint";
-import { Sys, Settings, Phone, Shell } from "data.slint";
-import { Icon, Icons, StatusBar, RoundButton, PillButton, Card, Title, ListRow, Field } from "components.slint";
+import { Sys, Settings, Phone, Shell, Style, SRow, Swatch } from "data.slint";
+import { Icon, Icons, Shapes, StatusBar, RoundButton, PillButton, Card, Title, ListRow, Field, Switch, Slider, Segmented, AppIcon } from "components.slint";
 
-component Switch inherits Rectangle {
-    in property <bool> on;
-    callback toggled();
-    width: 48px; height: 28px; border-radius: 14px;
-    background: root.on ? Theme.accent : Theme.raised;
+// Gruppo espressivo: elementi staccati, angoli grandi in cima e in fondo
+component GroupItem inherits Rectangle {
+    in property <bool> first;
+    in property <bool> last;
+    in property <bool> pressed;
+    border-top-left-radius: root.first ? 28px : 6px;
+    border-top-right-radius: root.first ? 28px : 6px;
+    border-bottom-left-radius: root.last ? 28px : 6px;
+    border-bottom-right-radius: root.last ? 28px : 6px;
+    background: root.pressed ? Theme.container-highest : Theme.container-high;
     animate background { duration: Theme.fast; }
+}
+
+// Voce del menu principale con icona colorata
+component MainRow inherits GroupItem {
+    in property <string> icon;
+    in property <string> label;
+    in property <string> detail;
+    in property <int> hue;
+    callback clicked();
+    height: 76px;
+    pressed: ta.pressed;
     Rectangle {
-        x: root.on ? 22px : 2px; y: 2px; width: 24px; height: 24px; border-radius: 12px;
-        background: root.on ? #000 : Theme.muted;
-        animate x { duration: Theme.fast; easing: Theme.ease; }
+        x: 16px; width: 40px; height: 40px; border-radius: 20px;
+        background: mod(root.hue, 3) == 0 ? Theme.primary-container : mod(root.hue, 3) == 1 ? Theme.tertiary-container : Theme.secondary-container;
+        Icon { d: root.icon; size: 22px; tint: mod(root.hue, 3) == 0 ? Theme.on-primary-container : mod(root.hue, 3) == 1 ? Theme.on-tertiary-container : Theme.on-secondary-container; }
     }
-    TouchArea { clicked => { root.toggled(); } }
+    VerticalLayout {
+        x: 72px; width: parent.width - 88px; alignment: center; spacing: 2px;
+        Text { text: root.label; color: Theme.on-surface; font-family: Theme.body; font-size: 17px; font-weight: 500; overflow: elide; }
+        if root.detail != "": Text { text: root.detail; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; overflow: elide; }
+    }
+    ta := TouchArea { clicked => { root.clicked(); } }
 }
 
-component SwitchRow inherits Rectangle {
-    in property <string> label;
-    in property <bool> on;
-    callback toggled();
-    height: 56px;
-    Text { x: 0; height: parent.height; text: root.label; color: Theme.text; font-family: Theme.body; font-size: 15px; vertical-alignment: center; }
-    Switch { x: parent.width - 48px; on: root.on; toggled => { root.toggled(); } }
-}
-
-component InfoRow inherits Rectangle {
-    in property <string> label;
-    in property <string> value;
+component Header inherits Text {
     height: 44px;
-    Text { x: 0; height: parent.height; text: root.label; color: Theme.muted; font-family: Theme.body; font-size: 14px; vertical-alignment: center; }
-    Text { x: parent.width - self.width; height: parent.height; text: root.value; color: Theme.text; font-family: Theme.body; font-size: 14px; vertical-alignment: center; }
+    color: Theme.primary; font-family: Theme.body; font-size: 14px; font-weight: 600;
+    vertical-alignment: bottom;
 }
 
-component Slider inherits Rectangle {
-    in property <string> glyph;
-    in-out property <float> value;
-    callback changed(float);
-    height: 40px; border-radius: 20px; background: Theme.raised; clip: true;
-    Rectangle { x: 0; width: max(40px, parent.width * root.value); border-radius: 20px; background: Theme.text; }
-    Icon { x: 12px; d: root.glyph; size: 18px; tint: #000; }
-    TouchArea {
-        moved => { root.value = max(0.02, min(1.0, self.mouse-x / self.width)); root.changed(root.value); }
-        pointer-event(ev) => {
-            if (ev.kind == PointerEventKind.down) { root.value = max(0.02, min(1.0, self.mouse-x / self.width)); root.changed(root.value); }
-        }
+// Riga generica guidata dai dati
+component GenRow inherits GroupItem {
+    in property <SRow> item;
+    callback picked();
+    property <bool> has-sub: root.item.subtitle != "";
+    height: root.item.kind == 4 ? 96px : (root.has-sub ? 76px : 60px);
+    pressed: ta.pressed && root.item.kind != 4;
+    opacity: root.item.kind == 8 ? 1 : 1;
+    if root.item.glyph != "": Icon { x: 18px; d: root.item.glyph; size: 24px; tint: root.item.kind == 7 ? Theme.error : Theme.on-surface-variant; y: root.item.kind == 4 ? 16px : (parent.height - 24px) / 2; }
+    property <length> tx: root.item.glyph != "" ? 58px : 20px;
+    VerticalLayout {
+        x: root.tx; y: root.item.kind == 4 ? 12px : 0px; height: root.item.kind == 4 ? 32px : parent.height;
+        width: parent.width - root.tx - (root.item.kind == 2 || root.item.kind == 5 ? 76px : 16px);
+        alignment: center; spacing: 2px;
+        Text { text: root.item.title; color: root.item.kind == 7 ? Theme.error : Theme.on-surface; font-family: Theme.body; font-size: 17px; overflow: elide; wrap: root.item.kind == 8 ? word-wrap : no-wrap; }
+        if root.has-sub && root.item.kind != 4: Text { text: root.item.subtitle; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; overflow: elide; }
+    }
+    if root.item.kind == 2: Switch {
+        x: parent.width - 68px; on: root.item.on;
+        toggled(v) => { Settings.row-toggled(root.item.key, v); }
+    }
+    if root.item.kind == 5: Rectangle {
+        x: parent.width - 48px; width: 24px; height: 24px; border-radius: 12px;
+        border-width: 2px; border-color: root.item.on ? Theme.primary : Theme.on-surface-variant;
+        Rectangle { width: root.item.on ? 12px : 0px; height: self.width; border-radius: self.width / 2; background: Theme.primary; animate width { duration: 260ms; easing: spring(0.35); } }
+    }
+    if root.item.kind == 4: Slider {
+        x: 16px; y: 46px; width: parent.width - 32px;
+        value: root.item.value;
+        changed(v) => { Settings.row-slid(root.item.key, v); }
+    }
+    ta := TouchArea {
+        enabled: root.item.kind != 4 && root.item.kind != 8;
+        clicked => { root.picked(); }
     }
 }
 
 component Page inherits Rectangle {
     in property <string> title;
-    background: Theme.bg;
+    background: Theme.surface;
     StatusBar { y: 0; width: parent.width; }
-    RoundButton { x: 8px; y: 30px; icon: Icons.back; outlined: false; clicked => { Settings.page = ""; } }
+    RoundButton { x: 8px; y: 30px; icon: Icons.back; tint: Theme.on-surface; clicked => { Settings.back(); } }
     Text {
-        x: 56px; y: 30px; height: 44px;
-        text: root.title; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 24px;
-        vertical-alignment: center;
+        x: 20px; y: 80px;
+        text: root.title; color: Theme.on-surface; font-family: Theme.display; font-weight: 500; font-size: 34px;
+        width: parent.width - 40px; overflow: elide;
     }
     Flickable {
-        x: 16px; y: 88px; width: parent.width - 32px; height: parent.height - 88px - 28px;
-        content-height: body.preferred-height + 16px;
+        x: 12px; y: 132px; width: parent.width - 24px; height: parent.height - 132px - 20px;
+        content-height: body.preferred-height + 24px;
         body := VerticalLayout {
             width: parent.width;
             alignment: start;
-            spacing: 4px;
+            spacing: 2px;
             @children
         }
     }
 }
 
+component RadioRow inherits GroupItem {
+    in property <string> label;
+    in property <bool> on;
+    callback clicked();
+    height: 60px;
+    pressed: ta.pressed;
+    Text { x: 20px; height: parent.height; text: root.label; color: Theme.on-surface; font-family: Theme.body; font-size: 17px; vertical-alignment: center; }
+    Rectangle {
+        x: parent.width - 48px; width: 24px; height: 24px; border-radius: 12px;
+        border-width: 2px; border-color: root.on ? Theme.primary : Theme.on-surface-variant;
+        Rectangle { width: root.on ? 12px : 0px; height: self.width; border-radius: self.width / 2; background: Theme.primary; animate width { duration: 260ms; easing: spring(0.35); } }
+    }
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+component SwitchItem inherits GroupItem {
+    in property <string> label;
+    in property <string> detail;
+    in property <bool> on;
+    callback toggled(bool);
+    height: root.detail != "" ? 76px : 60px;
+    VerticalLayout {
+        x: 20px; width: parent.width - 100px; alignment: center; spacing: 2px;
+        Text { text: root.label; color: Theme.on-surface; font-family: Theme.body; font-size: 17px; }
+        if root.detail != "": Text { text: root.detail; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; overflow: elide; }
+    }
+    Switch { x: parent.width - 68px; on: root.on; toggled(v) => { root.toggled(v); } }
+}
+
+component InfoItem inherits GroupItem {
+    in property <string> label;
+    in property <string> value;
+    height: 76px;
+    VerticalLayout {
+        x: 20px; width: parent.width - 40px; alignment: center; spacing: 2px;
+        Text { text: root.label; color: Theme.on-surface; font-family: Theme.body; font-size: 17px; }
+        Text { text: root.value; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; overflow: elide; }
+    }
+}
+
 export component SettingsApp inherits Rectangle {
-    background: Theme.bg;
+    background: Theme.surface;
     property <string> pw-ssid;
     property <string> pw;
+    property <bool> main: Settings.page == "";
 
+    // Elenco principale: arretra quando entra una sottopagina
     Rectangle {
-        // Elenco principale: arretra e si scurisce quando entra una sottopagina
-        x: Settings.page == "" ? 0px : -root.width * 0.25;
-        opacity: Settings.page == "" ? 1 : 0.0;
-        animate x { duration: 380ms; easing: Theme.ease; }
-        animate opacity { duration: 260ms; }
+        x: root.main ? 0px : -root.width * 0.2;
+        opacity: root.main ? 1 : 0;
+        animate x { duration: 420ms; easing: Theme.ease; }
+        animate opacity { duration: 220ms; }
         StatusBar { y: 0; width: parent.width; }
-        Title { x: 16px; y: 34px; text: "Settings"; }
         Flickable {
-            x: 16px; y: 88px; width: parent.width - 32px; height: parent.height - 88px - 28px;
-            content-height: list.preferred-height + 16px;
+            y: 28px; height: parent.height - 28px;
+            content-height: list.preferred-height + 24px;
             list := VerticalLayout {
-                width: parent.width; alignment: start;
-                ListRow { icon: Icons.wifi; label: "Wi-Fi"; detail: Sys.wifi-on ? "On" : "Off"; clicked => { Settings.open-page("wifi"); } }
-                ListRow { icon: Icons.bluetooth; label: "Bluetooth"; detail: Sys.bt-on ? "On" : "Off"; clicked => { Settings.open-page("bt"); } }
-                ListRow { icon: Icons.data; label: "Mobile network"; detail: Phone.modem-ok ? Settings.modem-operator : "Modem not available"; clicked => { Settings.open-page("mobile"); } }
-                ListRow { icon: Icons.sun; label: "Display"; detail: "Brightness, accent color"; clicked => { Settings.open-page("display"); } }
-                ListRow { icon: Sys.ringer == 0 ? Icons.bell : (Sys.ringer == 1 ? Icons.vibrate : Icons.bell-off); label: "Sound and vibration"; detail: (Sys.ringer == 0 ? "Ring" : (Sys.ringer == 1 ? "Vibrate" : "Silent")) + " · " + round(Sys.volume * 100) + "%"; clicked => { Settings.open-page("sound"); } }
-                ListRow { icon: Icons.battery; label: "Battery"; detail: Sys.battery + "%" + (Sys.charging ? " charging" : ""); clicked => { Settings.open-page("battery"); } }
-                ListRow { icon: Icons.disk; label: "Storage and memory"; detail: Settings.storage-used + " of " + Settings.storage-total; clicked => { Settings.open-page("storage"); } }
-                ListRow { icon: Icons.android; label: "Android apps"; detail: Sys.android-running ? "Running" : "Suspended"; clicked => { Settings.open-page("android"); } }
-                ListRow { icon: Icons.clock; label: "Date and time"; detail: Settings.timezone; clicked => { Settings.open-page("time"); } }
-                ListRow { icon: Icons.update; label: "Updates"; detail: Sys.update-available ? "Available: " + Sys.update-version : "Version " + Sys.version; clicked => { Settings.open-page("update"); } }
-                ListRow { icon: Icons.info; label: "About phone"; detail: Sys.model; clicked => { Settings.open-page("about"); } }
-                if Sys.demo: Text { height: 40px; text: "Try it (demo only)"; color: Theme.muted; font-family: Theme.body; font-size: 12px; vertical-alignment: bottom; }
-                if Sys.demo: ListRow { icon: Icons.phone; label: "Simulate incoming call"; detail: "Rings in 2 seconds"; chevron: false; clicked => { Shell.demo-call(); } }
-                if Sys.demo: ListRow { icon: Icons.message; label: "Simulate new message"; detail: "Arrives in 2 seconds"; chevron: false; clicked => { Shell.demo-message(); } }
-                if Sys.demo: ListRow { icon: Icons.speaker; label: "Show volume panel"; detail: "Like pressing a volume key"; chevron: false; clicked => { Shell.volume-step(1); } }
+                padding-left: 12px; padding-right: 12px; alignment: start; spacing: 2px;
+                Text { height: 96px; text: "Settings"; color: Theme.on-surface; font-family: Theme.display; font-weight: 500; font-size: 40px; vertical-alignment: center; horizontal-alignment: center; }
+                Rectangle {
+                    height: 56px; border-radius: 28px; background: Theme.container-high;
+                    Icon { x: 18px; d: Icons.search; size: 24px; tint: Theme.on-surface-variant; }
+                    Text { x: 56px; height: parent.height; text: "Search settings"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 16px; vertical-alignment: center; }
+                }
+                Rectangle { height: 14px; }
+                MainRow { first: true; icon: Icons.wifi-f; hue: 0; label: "Network & internet"; detail: Sys.wifi-on ? "Wi-Fi, mobile data, hotspot" : "Wi-Fi off"; clicked => { Settings.open-page("network"); } }
+                MainRow { last: true; icon: Icons.devices; hue: 0; label: "Connected devices"; detail: "Bluetooth, NFC, cast"; clicked => { Settings.open-page("devices"); } }
+                Rectangle { height: 14px; }
+                MainRow { first: true; icon: Icons.apps; hue: 1; label: "Apps"; detail: "Recent apps, default apps"; clicked => { Settings.open-page("apps"); } }
+                MainRow { icon: Icons.bell-f; hue: 1; label: "Notifications"; detail: "History, conversations"; clicked => { Settings.open-page("notifications"); } }
+                MainRow { icon: Icons.battery-f; hue: 1; label: "Battery"; detail: Sys.battery + "%" + (Sys.charging ? " · Charging" : ""); clicked => { Settings.open-page("battery"); } }
+                MainRow { last: true; icon: Icons.storage; hue: 1; label: "Storage"; detail: Settings.storage-used + " used of " + Settings.storage-total; clicked => { Settings.open-page("storage"); } }
+                Rectangle { height: 14px; }
+                MainRow { first: true; icon: Sys.ringer == 0 ? Icons.speaker-f : (Sys.ringer == 1 ? Icons.vibrate-f : Icons.bell-off-f); hue: 2; label: "Sound & vibration"; detail: (Sys.ringer == 0 ? "Ring" : (Sys.ringer == 1 ? "Vibrate" : "Silent")) + " · Volume " + round(Sys.volume * 100) + "%"; clicked => { Settings.open-page("sound"); } }
+                MainRow { icon: Icons.brightness; hue: 2; label: "Display & touch"; detail: "Dark theme, font size, brightness"; clicked => { Settings.open-page("display"); } }
+                MainRow { icon: Icons.palette-f; hue: 2; label: "Wallpaper & style"; detail: "Colors, themed icons, app grid"; clicked => { Settings.open-page("style"); } }
+                MainRow { last: true; icon: Icons.a11y; hue: 2; label: "Accessibility"; detail: "Display, interaction, audio"; clicked => { Settings.open-page("a11y"); } }
+                Rectangle { height: 14px; }
+                MainRow { first: true; icon: Icons.security-f; hue: 0; label: "Security & privacy"; detail: "Screen lock, permissions"; clicked => { Settings.open-page("security"); } }
+                MainRow { last: true; icon: Icons.location-f; hue: 0; label: "Location"; detail: "On · Apps with location access"; clicked => { Settings.open-page("location"); } }
+                Rectangle { height: 14px; }
+                MainRow { first: true; icon: Icons.android-f; hue: 1; label: "Android apps"; detail: Sys.android-running ? "Running" : "Suspended"; clicked => { Settings.open-page("android"); } }
+                MainRow { icon: Icons.phone-device; hue: 1; label: "System"; detail: "Languages, gestures, time, reset"; clicked => { Settings.open-page("system"); } }
+                MainRow { icon: Icons.update-f; hue: 1; label: "System update"; detail: Sys.update-available ? "Update available: " + Sys.update-version : "Cheip OS " + Sys.version; clicked => { Settings.open-page("update"); } }
+                MainRow { last: true; icon: Icons.info-f; hue: 1; label: "About phone"; detail: Sys.model; clicked => { Settings.open-page("about"); } }
+                if Sys.demo: Header { text: "   Try it (demo only)"; }
+                if Sys.demo: MainRow { first: true; icon: Icons.phone-f; hue: 2; label: "Simulate incoming call"; detail: "Rings in 2 seconds"; clicked => { Shell.demo-call(); } }
+                if Sys.demo: MainRow { icon: Icons.message-f; hue: 2; label: "Simulate new message"; detail: "Arrives in 2 seconds"; clicked => { Shell.demo-message(); } }
+                if Sys.demo: MainRow { last: true; icon: Icons.speaker-f; hue: 2; label: "Show volume panel"; detail: "Like pressing a volume key"; clicked => { Shell.volume-step(1); } }
+            }
+        }
+    }
+
+    // Pagina generica: elenco calcolato da Rust
+    Page {
+        x: Settings.page == "gen" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: 420ms; easing: Theme.ease; }
+        title: Settings.title;
+        for r[i] in Settings.rows: Rectangle {
+            height: r.kind == 0 ? 48px : g.height;
+            property <bool> first: i == 0 || Settings.rows[i - 1].kind == 0;
+            property <bool> last: i == Settings.rows.length - 1 || Settings.rows[i + 1].kind == 0;
+            if r.kind == 0: Header { x: 20px; width: parent.width - 20px; height: 48px; text: r.title; }
+            g := GenRow {
+                visible: r.kind != 0;
+                item: r; first: parent.first; last: parent.last;
+                picked => { Settings.row-clicked(r.key); }
             }
         }
     }
@@ -110,26 +217,37 @@ export component SettingsApp inherits Rectangle {
     Page {
         x: Settings.page == "wifi" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 380ms; easing: Theme.ease; }
-        title: "Wi-Fi";
-        SwitchRow { label: "Wi-Fi"; on: Sys.wifi-on; toggled => { Sys.toggle("wifi"); } }
-        HorizontalLayout {
-            height: 44px; spacing: 8px;
-            Text { text: Settings.wifi-busy ? "Scanning…" : Settings.wifi-msg; color: Theme.muted; font-family: Theme.body; font-size: 13px; vertical-alignment: center; }
-            RoundButton { icon: Icons.refresh; outlined: false; clicked => { Settings.wifi-scan(); } }
+        animate x { duration: 420ms; easing: Theme.ease; }
+        title: "Internet";
+        Rectangle {
+            height: 72px; border-radius: 36px; background: Sys.wifi-on ? Theme.primary-container : Theme.container-high;
+            animate background { duration: 240ms; }
+            Text { x: 24px; height: parent.height; text: "Use Wi-Fi"; color: Sys.wifi-on ? Theme.on-primary-container : Theme.on-surface; font-family: Theme.body; font-size: 19px; font-weight: 500; vertical-alignment: center; }
+            Switch { x: parent.width - 76px; on: Sys.wifi-on; toggled => { Sys.toggle("wifi"); } }
         }
-        for n in Settings.networks: Rectangle {
-            height: root.pw-ssid == n.ssid ? 160px : 56px;
-            animate height { duration: Theme.fast; easing: Theme.ease; }
+        HorizontalLayout {
+            height: 48px; spacing: 8px; padding-left: 8px;
+            Text { text: Settings.wifi-busy ? "Scanning…" : (Settings.wifi-msg != "" ? Settings.wifi-msg : "Available networks"); color: Theme.primary; font-family: Theme.body; font-size: 14px; font-weight: 600; vertical-alignment: center; }
+            RoundButton { icon: Icons.refresh; clicked => { Settings.wifi-scan(); } }
+        }
+        for n[i] in Settings.networks: GroupItem {
+            first: i == 0; last: i == Settings.networks.length - 1;
+            height: root.pw-ssid == n.ssid ? 184px : 68px;
+            animate height { duration: 420ms; easing: spring(0.3); }
+            clip: true;
             Rectangle {
-                y: 6px; width: 36px; height: 36px; x: 0; border-radius: 18px;
-                background: n.active ? Theme.accent : Theme.raised;
-                Icon { d: Icons.wifi; size: 18px; tint: n.active ? #000 : (n.signal > 50 ? Theme.text : Theme.muted); }
+                x: 14px; y: 12px; width: 44px; height: 44px; border-radius: 22px;
+                background: n.active ? Theme.primary : Theme.secondary-container;
+                Icon { d: Icons.wifi-f; size: 22px; tint: n.active ? Theme.on-primary : Theme.on-secondary-container; opacity: n.signal > 50 ? 1 : 0.6; }
             }
-            Text { x: 50px; y: 6px; height: 36px; text: n.ssid; color: Theme.text; font-family: Theme.body; font-size: 15px; vertical-alignment: center; }
-            if n.secure: Icon { x: parent.width - 20px; y: 15px; d: Icons.lock; size: 16px; tint: Theme.faint; }
+            VerticalLayout {
+                x: 72px; y: 0; height: 68px; alignment: center; spacing: 2px;
+                Text { text: n.ssid; color: Theme.on-surface; font-family: Theme.body; font-size: 17px; }
+                if n.active: Text { text: "Connected"; color: Theme.primary; font-family: Theme.body; font-size: 14px; }
+            }
+            if n.secure: Icon { x: parent.width - 40px; y: 24px; d: Icons.lock-f; size: 20px; tint: Theme.on-surface-variant; }
             TouchArea {
-                height: 48px; y: 0;
+                height: 68px; y: 0;
                 clicked => {
                     if (n.active) { return; }
                     if (n.secure) { root.pw-ssid = root.pw-ssid == n.ssid ? "" : n.ssid; root.pw = ""; }
@@ -137,7 +255,7 @@ export component SettingsApp inherits Rectangle {
                 }
             }
             if root.pw-ssid == n.ssid: VerticalLayout {
-                y: 56px; height: 96px; spacing: 8px;
+                x: 14px; y: 72px; width: parent.width - 28px; height: 104px; spacing: 10px;
                 Field { placeholder: "Password"; kind: InputType.password; text <=> root.pw; }
                 HorizontalLayout {
                     alignment: end;
@@ -148,148 +266,100 @@ export component SettingsApp inherits Rectangle {
     }
 
     Page {
-        x: Settings.page == "bt" ? 0px : root.width;
-        visible: self.x < root.width;
-        animate x { duration: 380ms; easing: Theme.ease; }
-        title: "Bluetooth";
-        SwitchRow { label: "Bluetooth"; on: Sys.bt-on; toggled => { Sys.toggle("bt"); } }
-        Text { text: "Paired devices"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 32px; vertical-alignment: bottom; }
-        for d in Settings.bt-devices: ListRow { icon: Icons.bluetooth; label: d; chevron: false; }
-        if Settings.bt-devices.length == 0: Text { text: "None"; color: Theme.faint; font-family: Theme.body; font-size: 14px; height: 40px; vertical-alignment: center; }
-    }
-
-    Page {
-        x: Settings.page == "mobile" ? 0px : root.width;
-        visible: self.x < root.width;
-        animate x { duration: 380ms; easing: Theme.ease; }
-        title: "Mobile network";
-        SwitchRow { label: "Dati mobili"; on: Sys.data-on; toggled => { Sys.toggle("dati"); } }
-        InfoRow { label: "Carrier"; value: Phone.modem-ok ? Settings.modem-operator : "None"; }
-        InfoRow { label: "Signal"; value: Settings.modem-signal; }
-        InfoRow { label: "Status"; value: Phone.modem-ok ? Settings.modem-state : Phone.modem-label; }
-    }
-
-    Page {
-        x: Settings.page == "display" ? 0px : root.width;
-        visible: self.x < root.width;
-        animate x { duration: 380ms; easing: Theme.ease; }
-        title: "Display";
-        Text { text: "Brightness"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 28px; vertical-alignment: bottom; }
-        Slider { glyph: Icons.sun; value: Sys.brightness; changed(v) => { Sys.brightness = v; Sys.brightness-changed(v); } }
-        Text { text: "Accent color"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 40px; vertical-alignment: bottom; }
-        HorizontalLayout {
-            spacing: 12px; alignment: start; height: 56px; padding-top: 8px;
-            for c in [#c6ff3d, #ff7a1a, #3da9ff, #ff4fa3, #b18cff]: Rectangle {
-                width: 44px; height: 44px; border-radius: 22px;
-                background: c;
-                border-width: Theme.accent == c ? 3px : 0px;
-                border-color: Theme.text;
-                TouchArea { clicked => { Theme.accent = c; } }
-            }
-        }
-        InfoRow { label: "Theme"; value: "AMOLED black"; }
-    }
-
-    Page {
         x: Settings.page == "sound" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 380ms; easing: Theme.ease; }
-        title: "Sound and vibration";
-        Text { text: "Mode"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 28px; vertical-alignment: bottom; }
-        HorizontalLayout {
-            height: 64px; spacing: 8px; padding-top: 8px;
-            for m[i] in [{ l: "Ring", g: Icons.bell }, { l: "Vibrate", g: Icons.vibrate }, { l: "Silent", g: Icons.bell-off }]: Rectangle {
-                border-radius: 18px;
-                background: Sys.ringer == i ? Theme.accent : Theme.raised;
-                animate background { duration: Theme.fast; }
-                HorizontalLayout {
-                    alignment: center; spacing: 8px;
-                    Icon { d: m.g; size: 18px; tint: Sys.ringer == i ? #000 : Theme.text; y: 15px; }
-                    Text { text: m.l; color: Sys.ringer == i ? #000 : Theme.text; font-family: Theme.body; font-size: 14px; font-weight: 600; vertical-alignment: center; }
-                }
-                TouchArea { clicked => { Sys.set-ringer(i); } }
-            }
+        animate x { duration: 420ms; easing: Theme.ease; }
+        title: "Sound & vibration";
+        Segmented { items: ["Ring", "Vibrate", "Silent"]; selected: Sys.ringer; height: 52px; picked(i) => { Sys.set-ringer(i); } }
+        Header { text: "   Volume"; }
+        GroupItem {
+            first: true; last: true; height: 76px;
+            Slider { x: 16px; width: parent.width - 32px; icon: Icons.speaker-f; value: Sys.volume; changed(v) => { Sys.volume = v; Sys.volume-changed(v); } }
         }
-        Text { text: "Volume"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 36px; vertical-alignment: bottom; }
-        Slider { glyph: Icons.speaker; value: Sys.volume; changed(v) => { Sys.volume = v; Sys.volume-changed(v); } }
-        Text { text: "Ringtone"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 40px; vertical-alignment: bottom; }
-        for r[i] in ["Lakeside", "Overtake", "Lumen"]: Rectangle {
-            height: 52px;
-            Rectangle {
-                x: 0; y: 14px; width: 24px; height: 24px; border-radius: 12px;
-                border-width: 2px; border-color: Sys.ringtone == i ? Theme.accent : Theme.muted;
-                Rectangle { width: 12px; height: 12px; border-radius: 6px; background: Sys.ringtone == i ? Theme.accent : transparent; }
-            }
-            Text { x: 40px; height: parent.height; text: r; color: Theme.text; font-family: Theme.body; font-size: 15px; vertical-alignment: center; }
-            TouchArea { clicked => { Sys.set-ringtone(i); } }
+        Header { text: "   Phone ringtone"; }
+        for r[i] in ["Lakeside", "Overtake", "Lumen"]: RadioRow {
+            first: i == 0; last: i == 2;
+            label: r; on: Sys.ringtone == i;
+            clicked => { Sys.set-ringtone(i); }
         }
-        SwitchRow { label: "Vibrate when ringing"; on: Sys.vibrate-on-ring; toggled => { Sys.vibrate-on-ring = !Sys.vibrate-on-ring; } }
+        Rectangle { height: 14px; }
+        SwitchItem { first: true; last: true; label: "Vibrate when ringing"; detail: "Also vibrate for calls"; on: Sys.vibrate-on-ring; toggled(v) => { Sys.vibrate-on-ring = v; } }
     }
 
     Page {
         x: Settings.page == "battery" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 380ms; easing: Theme.ease; }
+        animate x { duration: 420ms; easing: Theme.ease; }
         title: "Battery";
-        Text { text: Sys.battery + "%"; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 56px; height: 72px; }
-        Rectangle {
-            height: 12px; border-radius: 6px; background: Theme.raised; clip: true;
-            Rectangle { x: 0; width: parent.width * Sys.battery / 100; background: Sys.battery <= 15 ? #ff6b6b : Theme.accent; }
+        GroupItem {
+            first: true; last: true; height: 170px;
+            Text { x: 24px; y: 18px; text: Sys.battery + "%"; color: Theme.on-surface; font-family: Theme.display; font-weight: 500; font-size: 64px; }
+            Text { x: 26px; y: 96px; text: Sys.charging ? "Charging" : (Sys.eco-on ? "Battery Saver is on" : "Discharging"); color: Theme.on-surface-variant; font-family: Theme.body; font-size: 15px; }
+            Rectangle {
+                x: 24px; y: 134px; width: parent.width - 48px; height: 14px; border-radius: 7px; background: Theme.secondary-container; clip: true;
+                Rectangle { x: 0; width: parent.width * Sys.battery / 100; border-radius: 7px; background: Sys.battery <= 20 ? Theme.error : Theme.primary; animate width { duration: 600ms; easing: Theme.ease; } }
+            }
         }
-        InfoRow { label: "Status"; value: Sys.charging ? "Charging" : "Discharging"; }
-        SwitchRow { label: "Battery saver"; on: Sys.eco-on; toggled => { Sys.toggle("eco"); } }
+        Rectangle { height: 14px; }
+        SwitchItem { first: true; label: "Battery Saver"; detail: "Limits background work"; on: Sys.eco-on; toggled => { Sys.toggle("eco"); } }
+        SwitchItem { label: "Battery percentage"; detail: "Show it in the status bar"; on: true; }
+        SwitchItem { last: true; label: "Adaptive charging"; detail: "Slows charging overnight"; on: false; }
     }
 
     Page {
         x: Settings.page == "storage" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 380ms; easing: Theme.ease; }
+        animate x { duration: 420ms; easing: Theme.ease; }
         title: "Storage";
-        Text { text: Settings.storage-used + " of " + Settings.storage-total; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 26px; height: 44px; }
-        Rectangle {
-            height: 12px; border-radius: 6px; background: Theme.raised; clip: true;
-            Rectangle { x: 0; width: parent.width * Settings.storage-ratio; background: Theme.text; }
+        GroupItem {
+            first: true; last: true; height: 140px;
+            Text { x: 24px; y: 18px; text: Settings.storage-used; color: Theme.on-surface; font-family: Theme.display; font-weight: 500; font-size: 44px; }
+            Text { x: 26px; y: 74px; text: "used of " + Settings.storage-total; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 15px; }
+            Rectangle {
+                x: 24px; y: 106px; width: parent.width - 48px; height: 14px; border-radius: 7px; background: Theme.secondary-container; clip: true;
+                Rectangle { x: 0; width: parent.width * Settings.storage-ratio; border-radius: 7px; background: Theme.primary; }
+            }
         }
-        Rectangle { height: 16px; }
-        InfoRow { label: "RAM"; value: Sys.mem-used + " / " + Sys.mem-total + " MB"; }
-        InfoRow { label: "Used by Android apps"; value: Sys.mem-android + " MB"; }
+        Rectangle { height: 14px; }
+        InfoItem { first: true; label: "Memory (RAM)"; value: Sys.mem-used + " of " + Sys.mem-total + " MB in use"; }
+        InfoItem { last: true; label: "Android apps"; value: Sys.mem-android + " MB"; }
     }
 
     Page {
         x: Settings.page == "android" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 380ms; easing: Theme.ease; }
+        animate x { duration: 420ms; easing: Theme.ease; }
         title: "Android apps";
-        InfoRow { label: "Android layer"; value: Sys.android-running ? "Running" : "Suspended"; }
-        Text { text: Sys.android-state; color: Theme.muted; font-family: Theme.body; font-size: 13px; wrap: word-wrap; }
-        HorizontalLayout {
-            alignment: start; padding-top: 12px; height: 46px;
-            PillButton { label: Sys.android-running ? "Suspend" : "Start"; solid: true; clicked => { Sys.android-toggle(); } }
+        GroupItem {
+            first: true; last: true; height: 160px;
+            Rectangle {
+                x: 20px; y: 20px; width: 56px; height: 56px; border-radius: 28px; background: Theme.tertiary-container;
+                Icon { d: Icons.android-f; size: 30px; tint: Theme.on-tertiary-container; }
+            }
+            Text { x: 92px; y: 24px; text: Sys.android-running ? "Running" : "Suspended"; color: Theme.on-surface; font-family: Theme.display; font-size: 24px; font-weight: 500; }
+            Text { x: 92px; y: 56px; width: parent.width - 110px; text: Sys.android-state; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; wrap: word-wrap; }
+            PillButton { x: 20px; y: 104px; label: Sys.android-running ? "Suspend" : "Start"; solid: true; clicked => { Sys.android-toggle(); } }
         }
-    }
-
-    Page {
-        x: Settings.page == "time" ? 0px : root.width;
-        visible: self.x < root.width;
-        animate x { duration: 380ms; easing: Theme.ease; }
-        title: "Date and time";
-        InfoRow { label: "Time"; value: Sys.time; }
-        InfoRow { label: "Date"; value: Sys.date; }
-        InfoRow { label: "Time zone"; value: Settings.timezone; }
-        Text { text: "Time and date are set automatically from the network."; color: Theme.faint; font-family: Theme.body; font-size: 12px; wrap: word-wrap; height: 40px; vertical-alignment: bottom; }
     }
 
     Page {
         x: Settings.page == "update" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 380ms; easing: Theme.ease; }
-        title: "Updates";
-        Text { text: Sys.update-available ? "Cheip OS " + Sys.update-version : "Cheip OS " + Sys.version; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 26px; height: 44px; }
-        Text { text: Sys.update-state; color: Theme.muted; font-family: Theme.body; font-size: 13px; wrap: word-wrap; }
-        HorizontalLayout {
-            alignment: start; padding-top: 16px; height: 50px;
+        animate x { duration: 420ms; easing: Theme.ease; }
+        title: "System update";
+        GroupItem {
+            first: true; last: true; height: 190px;
+            Path {
+                x: 20px; y: 20px; width: 64px; height: 64px;
+                commands: Shapes.cookie; viewbox-width: 100; viewbox-height: 100;
+                fill: Sys.update-available ? Theme.primary : Theme.secondary-container;
+            }
+            Icon { x: 36px; y: 36px; d: Icons.update-f; size: 32px; tint: Sys.update-available ? Theme.on-primary : Theme.on-secondary-container; }
+            Text { x: 100px; y: 26px; text: "Cheip OS " + (Sys.update-available ? Sys.update-version : Sys.version); color: Theme.on-surface; font-family: Theme.display; font-size: 24px; font-weight: 500; }
+            Text { x: 100px; y: 58px; width: parent.width - 120px; text: Sys.update-state; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; wrap: word-wrap; }
             PillButton {
-                label: Sys.update-available ? "Install" : "Check";
+                x: parent.width - self.width - 20px; y: 126px;
+                label: Sys.update-available ? "Download and install" : "Check for update";
                 solid: true;
                 clicked => { if (Sys.update-available) { Sys.install-update(); } else { Sys.check-update(); } }
             }
@@ -299,34 +369,116 @@ export component SettingsApp inherits Rectangle {
     Page {
         x: Settings.page == "appinfo" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 380ms; easing: Theme.ease; }
+        animate x { duration: 420ms; easing: Theme.ease; }
         title: "App info";
         Rectangle {
-            height: 150px;
-            Rectangle {
-                x: (parent.width - 80px) / 2; y: 8px; width: 80px; height: 80px; border-radius: 40px; background: Theme.raised;
-                if Settings.info-glyph != "": Icon { d: Settings.info-glyph; size: 34px; weight: 1.8px; }
+            height: 170px;
+            Path {
+                x: (parent.width - 88px) / 2; y: 8px; width: 88px; height: 88px;
+                commands: Shapes.cookie; viewbox-width: 100; viewbox-height: 100;
+                fill: Theme.primary-container;
             }
-            Text { y: 100px; width: parent.width; text: Settings.info-name; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 22px; horizontal-alignment: center; }
-            Text { y: 128px; width: parent.width; text: Settings.info-kind; color: Theme.muted; font-family: Theme.body; font-size: 13px; horizontal-alignment: center; }
+            if Settings.info-glyph != "": Icon { x: (parent.width - 44px) / 2; y: 30px; d: Settings.info-glyph; size: 44px; tint: Theme.on-primary-container; }
+            Text { y: 108px; width: parent.width; text: Settings.info-name; color: Theme.on-surface; font-family: Theme.display; font-weight: 500; font-size: 26px; horizontal-alignment: center; }
+            Text { y: 142px; width: parent.width; text: Settings.info-kind; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; horizontal-alignment: center; }
         }
         HorizontalLayout {
-            alignment: center; spacing: 10px; height: 52px; padding-top: 8px;
-            PillButton { label: "Open"; solid: true; clicked => { Shell.open-app(Settings.info-id, root.width / 2 - 28px, 300px, 56px); } }
-            if Settings.info-android: PillButton { label: "Uninstall"; clicked => { Shell.uninstall(Settings.info-id); } }
+            alignment: center; spacing: 10px; height: 64px; padding-bottom: 14px;
+            PillButton { label: "Open"; icon: Icons.play-f; solid: true; clicked => { Shell.open-app(Settings.info-id, root.width / 2 - 28px, 300px, 56px); } }
+            if Settings.info-android: PillButton { label: "Uninstall"; icon: Icons.trash; active: true; clicked => { Shell.uninstall(Settings.info-id); } }
         }
-        InfoRow { label: "Storage"; value: Settings.info-android ? "Managed by Android" : "Part of Cheip OS"; }
-        InfoRow { label: "Version"; value: Settings.info-android ? "From Waydroid" : Sys.version; }
+        InfoItem { first: true; label: "Storage"; value: Settings.info-android ? "Managed by Android" : "Part of Cheip OS"; }
+        InfoItem { label: "Notifications"; value: "Allowed"; }
+        InfoItem { last: true; label: "Version"; value: Settings.info-android ? "From Waydroid" : Sys.version; }
     }
 
+    // Sfondo e stile, come sui Pixel
     Page {
-        x: Settings.page == "about" ? 0px : root.width;
+        x: Settings.page == "style" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 380ms; easing: Theme.ease; }
-        title: "About phone";
-        InfoRow { label: "Model"; value: Sys.model; }
-        InfoRow { label: "Cheip OS"; value: Sys.version; }
-        InfoRow { label: "Kernel"; value: Sys.kernel; }
-        InfoRow { label: "Memory"; value: Sys.mem-total + " MB"; }
+        animate x { duration: 420ms; easing: Theme.ease; }
+        title: "Wallpaper & style";
+        // Anteprima: blocco e home affiancati
+        HorizontalLayout {
+            height: 280px; spacing: 12px; alignment: center;
+            for k[i] in 2: Rectangle {
+                width: 138px; border-radius: 22px; clip: true;
+                border-width: 1px; border-color: Theme.outline-variant;
+                Image { width: parent.width; height: parent.height; source: Style.wallpapers[Style.wallpaper]; image-fit: cover; }
+                if i == 0: Text { y: 40px; width: parent.width; text: Sys.hours + "\n" + Sys.minutes; color: Style.wp-accent; font-family: Theme.display; font-size: 50px; font-weight: 500; horizontal-alignment: center; }
+                if i == 1: GridLayout {
+                    x: 12px; y: 90px; width: parent.width - 24px; spacing: 8px;
+                    Row { for a in [Icons.phone-f, Icons.message-f, Icons.camera-f]: Rectangle {
+                        height: 32px;
+                        Path { width: 32px; height: 32px; commands: Style.icon-shape == 0 ? Shapes.circle : Style.icon-shape == 1 ? Shapes.squircle : Style.icon-shape == 2 ? Shapes.cookie : Style.icon-shape == 3 ? Shapes.clover : Shapes.sunny; viewbox-width: 100; viewbox-height: 100; fill: Style.icon-pack == 2 ? Theme.container-highest : Theme.primary-container; }
+                        Icon { d: a; size: 16px; tint: Style.icon-pack == 2 ? Theme.on-surface : Theme.on-primary-container; }
+                    } }
+                    Row { for a in [Icons.clock-f, Icons.gear-f, Icons.folder-f]: Rectangle {
+                        height: 32px;
+                        Path { width: 32px; height: 32px; commands: Style.icon-shape == 0 ? Shapes.circle : Style.icon-shape == 1 ? Shapes.squircle : Style.icon-shape == 2 ? Shapes.cookie : Style.icon-shape == 3 ? Shapes.clover : Shapes.sunny; viewbox-width: 100; viewbox-height: 100; fill: Style.icon-pack == 2 ? Theme.container-highest : Theme.primary-container; }
+                        Icon { d: a; size: 16px; tint: Style.icon-pack == 2 ? Theme.on-surface : Theme.on-primary-container; }
+                    } }
+                }
+            }
+        }
+        Header { text: "   Wallpaper"; }
+        Flickable {
+            height: 132px; content-width: Style.wallpapers.length * 92px + 8px;
+            for w[i] in Style.wallpapers: Rectangle {
+                x: 4px + i * 92px; y: 4px; width: 84px; height: 124px;
+                border-radius: i == Style.wallpaper ? 28px : 16px; clip: true;
+                border-width: i == Style.wallpaper ? 3px : 0px; border-color: Theme.primary;
+                animate border-radius { duration: 380ms; easing: spring(0.3); }
+                Image { width: parent.width; height: parent.height; source: w; image-fit: cover; }
+                TouchArea { clicked => { Style.set-wallpaper(i); } }
+            }
+        }
+        Header { text: "   Color palette"; }
+        Flickable {
+            height: 84px; content-width: Style.swatches.length * 76px + 8px;
+            for s[i] in Style.swatches: Rectangle {
+                x: 4px + i * 76px; y: 4px; width: 68px; height: 68px;
+                border-radius: s.selected ? 22px : 34px;
+                background: Theme.container-high;
+                animate border-radius { duration: 380ms; easing: spring(0.3); }
+                Rectangle {
+                    width: 52px; height: 52px; border-radius: 26px; clip: true;
+                    Rectangle { x: 0; y: 0; width: 52px; height: 26px; background: s.primary; }
+                    Rectangle { x: 0; y: 26px; width: 26px; height: 26px; background: s.secondary; }
+                    Rectangle { x: 26px; y: 26px; width: 26px; height: 26px; background: s.tertiary; }
+                }
+                if s.selected: Rectangle {
+                    x: 44px; y: 44px; width: 22px; height: 22px; border-radius: 11px; background: Theme.primary;
+                    Icon { d: Icons.check; size: 16px; tint: Theme.on-primary; }
+                }
+                TouchArea { clicked => { Style.set-palette(s.id); } }
+            }
+        }
+        Header { text: "   Color style"; }
+        Segmented { items: ["Tonal", "Vibrant", "Expressive", "Neutral", "Mono"]; selected: Style.scheme; height: 48px; picked(i) => { Style.set-scheme(i); } }
+        Header { text: "   Theme"; }
+        Segmented { items: ["Dark", "Light", "Auto"]; selected: Style.theme-mode; height: 48px; picked(i) => { Style.set-theme(i); } }
+        Header { text: "   Icon shape"; }
+        HorizontalLayout {
+            height: 72px; spacing: 8px;
+            for sh[i] in [Shapes.circle, Shapes.squircle, Shapes.cookie, Shapes.clover, Shapes.sunny]: Rectangle {
+                border-radius: 20px;
+                background: Style.icon-shape == i ? Theme.secondary-container : Theme.container-high;
+                animate background { duration: 200ms; }
+                Path {
+                    width: 40px; height: 40px; commands: sh; viewbox-width: 100; viewbox-height: 100;
+                    fill: Style.icon-shape == i ? Theme.primary : Theme.on-surface-variant;
+                    transform-rotation: Style.icon-shape == i ? 0deg : -30deg;
+                    animate transform-rotation { duration: 500ms; easing: spring(0.4); }
+                }
+                TouchArea { clicked => { Style.set-icon-shape(i); } }
+            }
+        }
+        Header { text: "   Icon pack"; }
+        for p[i] in [{ l: "Themed", d: "Icons follow your wallpaper colors" }, { l: "Colorful", d: "Each app with its own color" }, { l: "Monochrome", d: "Neutral icons, no color" }, { l: "Outline", d: "Thin outline, transparent" }]: RadioRow {
+            first: i == 0; last: i == 3;
+            label: p.l; on: Style.icon-pack == i;
+            clicked => { Style.set-icon-pack(i); }
+        }
     }
 }

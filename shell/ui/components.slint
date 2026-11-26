@@ -1,85 +1,25 @@
 import { Theme } from "theme.slint";
-import { Sys, AppEntry } from "data.slint";
+import { Icons } from "icons.slint";
+import { Shapes } from "shapes.slint";
+import { Sys, AppEntry, Style } from "data.slint";
 
-// Icone a tratto in viewbox 24x24, stile minimale
-export global Icons {
-    out property <string> signal: "M4 20v-3M9 20v-7M14 20v-11M19 20V4";
-    out property <string> plus: "M12 5v14M5 12h14";
-    out property <string> back: "M15 6l-6 6 6 6";
-    out property <string> fwd: "M9 6l6 6-6 6";
-    out property <string> up: "M6 15l6-6 6 6";
-    out property <string> close: "M6 6l12 12M18 6L6 18";
-    out property <string> search: "M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-4-4";
-    out property <string> torch: "M8 2h8l-1 6H9zM9 8h6v13H9zM12 12v3";
-    out property <string> camera: "M3 8h4l2-3h6l2 3h4v12H3zM12 9a4 4 0 1 0 0 8a4 4 0 1 0 0-8";
-    out property <string> flash: "M13 2L4 14h7l-1 8 9-12h-7z";
-    out property <string> flip: "M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4";
-    out property <string> pin: "M9 3h6l-1 6 3 3H7l3-3zM12 12v9";
-    out property <string> trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13";
-    out property <string> phone: "M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z";
-    out property <string> hangup: "M3 14c5-4.5 13-4.5 18 0l-2.5 2.5-3-1.5v-2.5a10 10 0 0 0-7 0V15l-3 1.5z";
-    out property <string> message: "M4 5h16v11H9l-5 4z";
-    out property <string> globe: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18";
-    out property <string> folder: "M3 6h6l2 2h10v11H3z";
-    out property <string> file: "M6 3h8l4 4v14H6zM14 3v4h4";
-    out property <string> picture: "M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9a1 1 0 1 0 0 .1";
-    out property <string> calendar: "M4 6h16v14H4zM4 10h16M8 3v5M16 3v5";
-    out property <string> notes: "M6 3h12v18H6zM9 8h6M9 12h6M9 16h4";
-    out property <string> gear: "M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1l2.1-2.1M17 7l2.1-2.1";
-    out property <string> wifi: "M2 9a15 15 0 0 1 20 0M5.5 12.5a10 10 0 0 1 13 0M9 16a5 5 0 0 1 6 0M12 19.5v.5";
-    out property <string> data: "M8 20V4M4 8l4-4 4 4M16 4v16M12 16l4 4 4-4";
-    out property <string> bluetooth: "M7 7l10 10-5 4V3l5 4L7 17";
-    out property <string> rotate: "M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M20 12a8 8 0 0 1-14 5.3M6 21v-4h4";
-    out property <string> bolt: "M13 2 4 14h7l-1 8 9-12h-7z";
-    out property <string> leaf: "M5 19c0-9 6-14 15-14 0 9-5 15-14 15M5 19l7-7";
-    out property <string> sun: "M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.4 1.4M17.6 17.6L19 19M5 19l1.4-1.4M17.6 6.4L19 5";
-    out property <string> speaker: "M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11";
-    out property <string> battery: "M3 8h16v8H3zM21 11v2M6 11h6";
-    out property <string> disk: "M4 6h16v12H4zM8 14h.1M12 14h6";
-    out property <string> chip: "M7 7h10v10H7zM4 10h3M4 14h3M17 10h3M17 14h3M10 4v3M14 4v3M10 17v3M14 17v3";
-    out property <string> info: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M12 11v6M12 7.5v.5";
-    out property <string> clock: "M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18M12 7v5l3 2";
-    out property <string> android: "M5 17a7 7 0 0 1 14 0zM8 10.5L6 7.5M16 10.5l2-3M9.5 14a.9.9 0 1 0 0 .1M14.5 14a.9.9 0 1 0 0 .1";
-    out property <string> update: "M12 4v11M7 10l5 5 5-5M5 20h14";
-    out property <string> lock: "M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3";
-    out property <string> send: "M4 12l16-8-6 16-2-7z";
-    out property <string> star: "M12 3l2.7 5.8 6.3.7-4.7 4.3 1.3 6.2L12 17l-5.6 3 1.3-6.2L3 9.5l6.3-.7z";
-    out property <string> tabs: "M4 7h12v13H4zM8 4h12v12";
-    out property <string> refresh: "M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5";
-    out property <string> user: "M12 4a4 4 0 1 0 0 8a4 4 0 1 0 0-8M4 21a8 8 0 0 1 16 0";
-    out property <string> keypad: "M6 4a.6 .6 0 1 0 0 .1M12 4a.6 .6 0 1 0 0 .1M18 4a.6 .6 0 1 0 0 .1M6 9.5a.6 .6 0 1 0 0 .1M12 9.5a.6 .6 0 1 0 0 .1M18 9.5a.6 .6 0 1 0 0 .1M6 15a.6 .6 0 1 0 0 .1M12 15a.6 .6 0 1 0 0 .1M18 15a.6 .6 0 1 0 0 .1M12 20.5a.6 .6 0 1 0 0 .1";
-    out property <string> history: "M4 12a8 8 0 1 0 2.3-5.6M4 4v5h5M12 8v4l3 2";
-    out property <string> in-arrow: "M18 6L6 18M6 9v9h9";
-    out property <string> out-arrow: "M6 18L18 6M9 6h9v9";
-    out property <string> lockopen: "M6 11h12v9H6zM8.5 11V8a3.5 3.5 0 0 1 6.8-1";
-    out property <string> more: "M12 6h.1M12 12h.1M12 18h.1";
-    out property <string> music: "M9 18V5l11-2v13M9 18a3 3 0 1 1-6 0a3 3 0 1 1 6 0M20 16a3 3 0 1 1-6 0a3 3 0 1 1 6 0";
-    out property <string> video: "M3 6h13v12H3zM16 10l5-3v10l-5-3z";
-    out property <string> play: "M8 5l11 7-11 7z";
-    out property <string> pause: "M8 5v14M16 5v14";
-    out property <string> prev: "M18 6L9 12l9 6zM6 6v12";
-    out property <string> next: "M6 6l9 6-9 6zM18 6v12";
-    out property <string> download: "M12 4v11M7 10l5 5 5-5M5 20h14";
-    out property <string> doc: "M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6";
-    out property <string> down: "M6 9l6 6 6-6";
-    out property <string> bell: "M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0";
-    out property <string> bell-off: "M6 16V11a6 6 0 0 1 9.5-4.9M18 11v5l2 2H8M10 20a2 2 0 0 0 4 0M3 3l18 18";
-    out property <string> vibrate: "M8 4h8v16H8zM4 8v8M20 8v8M2 10v4M22 10v4";
-}
+export { Icons, Shapes }
 
+// Icona Material Symbols piena o a contorno
 export component Icon inherits Path {
     in property <string> d;
-    in property <color> tint: Theme.text;
-    in property <length> size: 20px;
-    in property <length> weight: 2px;
+    in property <color> tint: Theme.on-surface;
+    in property <length> size: 24px;
+    in property <length> weight: 0px;
     width: self.size;
     height: self.size;
     commands: self.d;
-    viewbox-width: 24;
-    viewbox-height: 24;
-    stroke: self.tint;
-    stroke-width: self.weight;
-    fill: transparent;
+    viewbox-x: 0;
+    viewbox-y: -960;
+    viewbox-width: 960;
+    viewbox-height: 960;
+    fill: self.tint;
+    animate fill { duration: Theme.fast; }
 }
 
 // Contenuto della batteria: fulmine opzionale e numero, centrati.
@@ -94,7 +34,7 @@ component BatLabel inherits Rectangle {
         x: (root.width - root.total) / 2;
         y: (root.height - 9px) / 2;
         width: 6.5px; height: 9px;
-        commands: Icons.bolt;
+        commands: "M13 2 4 14h7l-1 8 9-12h-7z";
         viewbox-x: 4; viewbox-y: 2; viewbox-width: 15; viewbox-height: 20;
         fill: root.tint;
     }
@@ -105,7 +45,7 @@ component BatLabel inherits Rectangle {
         color: root.tint;
         font-family: Theme.body;
         font-size: 9.5px;
-        font-weight: 800;
+        font-weight: 700;
     }
 }
 
@@ -116,8 +56,11 @@ export component Battery inherits Rectangle {
     in property <int> level: Sys.battery;
     in property <bool> charging: Sys.charging;
     in property <bool> saver: Sys.eco-on;
+    in property <color> fg: Theme.on-surface;
+    property <bool> fg-light: root.fg.to-hsv().value > 0.5;
     property <bool> low: root.level <= 20 && !root.charging;
-    property <color> fill: root.charging ? #5ee08a : root.saver ? #ffcf3d : root.low ? #ff5449 : #f2f2f2;
+    property <color> fill: root.charging ? (root.fg-light ? #5ee08a : #1e8e4a) : root.saver ? (root.fg-light ? #ffcf3d : #b07d00) : root.low ? (root.fg-light ? #ff5449 : #ba1a1a) : root.fg;
+    property <color> ink: root.fill.to-hsv().value > 0.6 && (root.fill.to-hsv().saturation < 0.5 || root.charging || root.saver) ? #0a0a0a : #ffffff;
     property <length> body-w: 27px;
     property <length> inner: root.body-w - 4px;
     property <length> fill-w: max(3px, root.inner * clamp(root.level, 0, 100) / 100);
@@ -125,27 +68,24 @@ export component Battery inherits Rectangle {
     width: root.body-w + 3px;
     height: 14px;
 
-    // corpo
-    body := Rectangle {
+    Rectangle {
         x: 0; y: 0;
         width: root.body-w;
         height: root.height;
         border-radius: 4.5px;
-        background: #ffffff38;
+        background: root.fg.with-alpha(0.24);
         clip: true;
 
-        // riempimento
-        fillr := Rectangle {
+        Rectangle {
             x: 2px; y: 2px;
             width: root.fill-w;
             height: parent.height - 4px;
             border-radius: 2.5px;
             background: root.fill;
             clip: true;
-            animate width { duration: 700ms; easing: cubic-bezier(0.2,0.9,0.1,1); }
+            animate width { duration: 700ms; easing: Theme.ease; }
             animate background { duration: 400ms; }
 
-            // riflesso che scorre durante la carica
             if root.charging: Rectangle {
                 width: 10px;
                 height: parent.height;
@@ -153,107 +93,123 @@ export component Battery inherits Rectangle {
                 background: @linear-gradient(90deg, #ffffff00 0%, #ffffff90 50%, #ffffff00 100%);
             }
 
-            // testo scuro sopra il riempimento, allineato al testo chiaro
             BatLabel {
-                x: -2px;
-                y: -2px;
-                width: root.body-w;
-                height: root.height;
-                label: root.label;
-                charging: root.charging;
-                tint: #0a0a0a;
+                x: -2px; y: -2px;
+                width: root.body-w; height: root.height;
+                label: root.label; charging: root.charging; tint: root.ink;
             }
         }
 
-        // testo chiaro nella parte vuota (coperto dal riempimento)
         Rectangle {
             x: 2px + root.fill-w;
             width: max(0px, root.body-w - self.x);
             height: parent.height;
             clip: true;
-            animate x { duration: 700ms; easing: cubic-bezier(0.2,0.9,0.1,1); }
+            animate x { duration: 700ms; easing: Theme.ease; }
             BatLabel {
-                x: -parent.x;
-                y: 0px;
-                width: root.body-w;
-                height: root.height;
-                label: root.label;
-                charging: root.charging;
-                tint: #f2f2f2;
+                x: -parent.x; y: 0px;
+                width: root.body-w; height: root.height;
+                label: root.label; charging: root.charging; tint: root.fg;
             }
         }
     }
 
-    // polo
     Rectangle {
         x: root.body-w + 1px;
         y: (root.height - self.height) / 2;
         width: 2px;
         height: 5px;
         border-radius: 1px;
-        background: root.level >= 99 ? root.fill : #ffffff38;
+        background: root.level >= 99 ? root.fill : root.fg.with-alpha(0.24);
     }
 }
 
 export component StatusBar inherits Rectangle {
     in property <bool> show-time: true;
-    height: 24px;
+    in property <color> fg: Theme.on-surface;
+    height: 28px;
     HorizontalLayout {
-        padding-left: 16px;
-        padding-right: 16px;
-        spacing: 8px;
+        padding-left: 20px;
+        padding-right: 18px;
+        spacing: 6px;
         if root.show-time: Text {
             text: Sys.time;
-            color: #d0d0d0;
+            color: root.fg;
             font-family: Theme.body;
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 600;
             vertical-alignment: center;
         }
         Rectangle { }
-        Icon { d: Icons.signal; size: 14px; tint: #d0d0d0; y: 5px; }
-        Battery { y: (24px - self.height) / 2; }
+        if Sys.ringer == 1: Icon { d: Icons.vibrate-f; size: 15px; tint: root.fg; y: 6.5px; }
+        if Sys.ringer == 2: Icon { d: Icons.bell-off-f; size: 15px; tint: root.fg; y: 6.5px; }
+        if Sys.wifi-on: Icon { d: Icons.wifi-f; size: 15px; tint: root.fg; y: 6.5px; }
+        Icon { d: Icons.signal-f; size: 15px; tint: root.fg; y: 6.5px; }
+        Battery { y: (28px - self.height) / 2; fg: root.fg; }
     }
 }
 
 export component Badge inherits Rectangle {
-    background: Theme.accent;
-    border-radius: 3px;
+    background: Theme.tertiary;
+    border-radius: 4px;
     width: 14px;
     height: 14px;
-    Text {
-        text: "A";
-        color: #000;
-        font-family: Theme.body;
-        font-size: 10px;
-        font-weight: 600;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-    }
+    Icon { d: Icons.android-f; size: 11px; tint: Theme.on-tertiary; }
 }
 
-// Icona tonda dell'app, senza testo. Le app Android mostrano la loro immagine.
+// Forma dell'icona scelta in Stile
+export global IconShape {
+    out property <string> path: Style.icon-shape == 0 ? Shapes.circle : Style.icon-shape == 1 ? Shapes.squircle : Style.icon-shape == 2 ? Shapes.cookie : Style.icon-shape == 3 ? Shapes.clover : Shapes.sunny;
+}
+
+// Icona dell'app: forma Material, pacchetto icone dallo Stile, nessun testo.
 export component AppIcon inherits Rectangle {
     in property <AppEntry> app;
     in property <length> size: 56px;
     in property <bool> interactive: true;
     in property <bool> pressed;
     callback activated(length, length, length);
+    property <bool> down: root.pressed || ta.pressed;
+    property <int> pack: Style.icon-pack;
+    property <color> bg: root.pack == 0 ? Theme.primary-container : root.pack == 1 ? root.app.tone : root.pack == 2 ? Theme.container-highest : transparent;
+    property <color> fg: root.pack == 0 ? Theme.on-primary-container : root.pack == 1 ? root.app.tone-on : Theme.on-surface;
     width: self.size;
     height: self.size;
-    border-radius: self.size / 2;
-    background: (root.pressed || ta.pressed) ? #262626 : Theme.raised;
-    clip: true;
-    transform-scale: (root.pressed || ta.pressed) ? 0.88 : 1;
-    animate transform-scale { duration: 260ms; easing: spring(0.35); }
-    animate background { duration: Theme.fast; }
-    if !root.app.has-picture && root.app.glyph != "": Icon { d: root.app.glyph; size: root.size * 0.43; weight: 1.8px; }
+    transform-scale: root.down ? 0.86 : 1;
+    transform-rotation: root.down && Style.icon-shape >= 2 ? 12deg : 0deg;
+    animate transform-scale { duration: 380ms; easing: spring(0.45); }
+    animate transform-rotation { duration: 520ms; easing: spring(0.4); }
+
+    if !root.app.has-picture: Path {
+        width: root.size; height: root.size;
+        commands: IconShape.path;
+        viewbox-width: 100; viewbox-height: 100;
+        fill: root.pack == 1 ? @linear-gradient(170deg, root.bg.brighter(0.18) 0%, root.bg 55%, root.bg.darker(0.12) 100%) : root.bg;
+        stroke: root.pack == 3 ? Theme.outline : transparent;
+        stroke-width: root.pack == 3 ? 1.5px : 0px;
+        animate fill { duration: Theme.slow; }
+    }
+    if !root.app.has-picture && root.app.glyph != "": Icon {
+        d: root.app.glyph; size: root.size * 0.46; tint: root.fg;
+    }
     if !root.app.has-picture && root.app.glyph == "": Text {
         text: root.app.initial;
-        color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: root.size * 0.36;
+        color: root.fg; font-family: Theme.display; font-weight: 700; font-size: root.size * 0.38;
         horizontal-alignment: center; vertical-alignment: center;
     }
-    if root.app.has-picture: Image { source: root.app.picture; width: root.size; height: root.size; image-fit: cover; }
+    if root.app.has-picture: Rectangle {
+        width: root.size; height: root.size;
+        border-radius: Style.icon-shape == 0 ? root.size / 2 : root.size * 0.32;
+        clip: true;
+        Image { source: root.app.picture; width: root.size; height: root.size; image-fit: cover; }
+    }
+    // velo di pressione
+    if root.down: Path {
+        width: root.size; height: root.size;
+        commands: IconShape.path;
+        viewbox-width: 100; viewbox-height: 100;
+        fill: #00000022;
+    }
     ta := TouchArea {
         enabled: root.interactive;
         clicked => { root.activated(root.absolute-position.x, root.absolute-position.y, root.size); }
@@ -264,137 +220,341 @@ export component AppIcon inherits Rectangle {
 export component Dot inherits Rectangle {
     in property <int> count;
     visible: self.count > 0;
-    width: 18px; height: 18px; border-radius: 9px;
-    background: Theme.accent;
-    border-width: 2px; border-color: Theme.bg;
-    Text { text: root.count > 9 ? "9+" : root.count; color: #000; font-family: Theme.body; font-size: 9px; font-weight: 600; }
+    width: max(18px, t.preferred-width + 10px); height: 18px; border-radius: 9px;
+    background: Theme.error;
+    t := Text { text: root.count > 99 ? "99+" : root.count; color: Theme.on-error; font-family: Theme.body; font-size: 10px; font-weight: 700; }
 }
 
+// Pulsante icona M3: standard, tonale o pieno. La forma si stringe alla pressione.
 export component RoundButton inherits Rectangle {
     in property <string> icon;
     in property <color> fill: transparent;
-    in property <color> tint: Theme.text;
-    in property <bool> outlined: true;
+    in property <color> tint: Theme.on-surface-variant;
+    in property <bool> outlined: false;
     in property <length> size: 44px;
-    in property <length> icon-size: 20px;
+    in property <length> icon-size: 24px;
     callback clicked();
     width: self.size;
     height: self.size;
-    border-radius: self.size / 2;
-    background: ta.pressed ? Theme.raised : self.fill;
+    border-radius: ta.pressed ? self.size * 0.3 : self.size / 2;
+    background: ta.pressed ? (root.fill == transparent ? Theme.state-pressed : root.fill.darker(0.08)) : self.fill;
     border-width: self.outlined ? 1px : 0px;
-    border-color: Theme.line;
-    transform-scale: ta.pressed ? 0.88 : 1;
-    animate transform-scale { duration: 260ms; easing: spring(0.35); }
+    border-color: Theme.outline-variant;
+    animate border-radius { duration: 300ms; easing: spring(0.3); }
     animate background { duration: Theme.fast; }
     Icon { d: root.icon; tint: root.tint; size: root.icon-size; }
     ta := TouchArea { clicked => { root.clicked(); } }
 }
 
+// Pulsante M3: pieno (solid), tonale (active) o a contorno
 export component PillButton inherits Rectangle {
     in property <string> label;
+    in property <string> icon;
     in property <bool> active: false;
     in property <bool> solid: false;
-    in property <length> pad: 14px;
+    in property <bool> danger: false;
+    in property <length> pad: 20px;
     callback clicked();
-    height: 34px;
-    width: txt.preferred-width + 2 * self.pad;
-    border-radius: self.height / 2;
-    background: root.solid ? Theme.accent : (root.active ? Theme.text : transparent);
-    border-width: (root.active || root.solid) ? 0px : 1px;
-    border-color: Theme.line;
-    transform-scale: ta.pressed ? 0.92 : 1;
-    animate transform-scale { duration: 260ms; easing: spring(0.35); }
+    height: 40px;
+    width: txt.preferred-width + 2 * self.pad + (root.icon != "" ? 26px : 0px);
+    border-radius: ta.pressed ? 10px : self.height / 2;
+    background: root.danger ? Theme.error : root.solid ? Theme.primary : (root.active ? Theme.secondary-container : transparent);
+    border-width: (root.active || root.solid || root.danger) ? 0px : 1px;
+    border-color: Theme.outline-variant;
+    animate border-radius { duration: 320ms; easing: spring(0.3); }
     animate background { duration: Theme.fast; }
+    property <color> ink: root.danger ? Theme.on-error : root.solid ? Theme.on-primary : (root.active ? Theme.on-secondary-container : Theme.primary);
+    if root.icon != "": Icon { x: root.pad - 4px; d: root.icon; size: 18px; tint: root.ink; }
     txt := Text {
+        x: root.pad + (root.icon != "" ? 22px : 0px);
         text: root.label;
-        color: (root.active || root.solid) ? #000 : Theme.text;
+        color: root.ink;
         font-family: Theme.body;
-        font-size: 13px;
+        font-size: 14px;
         font-weight: 600;
-        horizontal-alignment: center;
         vertical-alignment: center;
+        height: parent.height;
     }
+    if ta.pressed: Rectangle { border-radius: parent.border-radius; background: Theme.state-pressed; }
     ta := TouchArea { clicked => { root.clicked(); } }
 }
 
 export component Card inherits Rectangle {
-    border-radius: 16px;
-    border-width: 1px;
-    border-color: Theme.line;
-    background: Theme.bg;
+    border-radius: Theme.r-xl;
+    background: Theme.container-low;
 }
 
 export component Title inherits Text {
-    color: Theme.text;
+    color: Theme.on-surface;
     font-family: Theme.display;
-    font-weight: 700;
-    font-size: 28px;
-    letter-spacing: -0.5px;
+    font-weight: 500;
+    font-size: 32px;
 }
 
-// Avatar con iniziale, per contatti e conversazioni
+// Avatar con iniziale, colori tonali
 export component Avatar inherits Rectangle {
     in property <string> initial;
     in property <length> size: 44px;
+    in property <int> hue: 0;
     width: self.size; height: self.size; border-radius: self.size / 2;
-    background: Theme.raised;
-    Text { text: root.initial; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: root.size * 0.4; }
+    background: mod(root.hue, 3) == 0 ? Theme.primary-container : mod(root.hue, 3) == 1 ? Theme.tertiary-container : Theme.secondary-container;
+    Text {
+        text: root.initial;
+        color: mod(root.hue, 3) == 0 ? Theme.on-primary-container : mod(root.hue, 3) == 1 ? Theme.on-tertiary-container : Theme.on-secondary-container;
+        font-family: Theme.display; font-weight: 500; font-size: root.size * 0.42;
+    }
 }
 
+// Campo di testo pieno, angoli arrotondati, anello primario a fuoco
 export component Field inherits Rectangle {
     in property <string> placeholder;
     in-out property <string> text <=> input.text;
     in property <bool> multi: false;
     in property <InputType> kind: InputType.text;
     callback accepted(string);
-    height: 44px;
-    border-radius: 12px;
-    border-width: 1px;
-    border-color: input.has-focus ? Theme.accent : Theme.line;
-    animate border-color { duration: Theme.fast; }
+    height: 52px;
+    border-radius: Theme.r-lg;
+    background: Theme.container-highest;
+    border-width: input.has-focus ? 2px : 0px;
+    border-color: Theme.primary;
     Text {
-        x: 12px; y: root.multi ? 12px : 0px;
+        x: 16px; y: root.multi ? 14px : 0px;
         height: root.multi ? self.preferred-height : parent.height;
         text: root.placeholder;
         visible: input.text == "";
-        color: Theme.faint; font-family: Theme.body; font-size: 14px;
+        color: Theme.on-surface-variant; font-family: Theme.body; font-size: 16px;
         vertical-alignment: center;
     }
     input := TextInput {
-        x: 12px; y: root.multi ? 12px : 0px;
-        width: parent.width - 24px;
-        height: root.multi ? parent.height - 24px : parent.height;
-        color: Theme.text; font-family: Theme.body; font-size: 14px;
+        x: 16px; y: root.multi ? 14px : 0px;
+        width: parent.width - 32px;
+        height: root.multi ? parent.height - 28px : parent.height;
+        color: Theme.on-surface; font-family: Theme.body; font-size: 16px;
         vertical-alignment: root.multi ? top : center;
         single-line: !root.multi;
         wrap: word-wrap;
         input-type: root.kind;
+        selection-background-color: Theme.primary.with-alpha(0.35);
         accepted => { root.accepted(self.text); }
     }
     public function clear() { input.text = ""; }
+    public function focus-it() { input.focus(); }
 }
 
-// Riga di elenco con icona a sinistra
+// Riga di elenco M3 con icona tonale a sinistra
 export component ListRow inherits Rectangle {
     in property <string> icon;
     in property <string> label;
     in property <string> detail;
-    in property <bool> chevron: true;
+    in property <bool> chevron: false;
+    in property <bool> danger: false;
     callback clicked();
-    height: 56px;
-    background: ta.pressed ? Theme.raised : transparent;
+    height: root.detail != "" ? 72px : 56px;
+    border-radius: Theme.r-lg;
+    background: ta.pressed ? Theme.state-pressed : transparent;
     animate background { duration: Theme.fast; }
-    Rectangle {
-        x: 0; width: 36px; height: 36px; border-radius: 18px; background: Theme.raised;
-        Icon { d: root.icon; size: 18px; }
+    if root.icon != "": Rectangle {
+        x: 4px; width: 40px; height: 40px; border-radius: 20px;
+        background: root.danger ? Theme.error-container : Theme.secondary-container;
+        Icon { d: root.icon; size: 22px; tint: root.danger ? Theme.on-error-container : Theme.on-secondary-container; }
     }
     VerticalLayout {
-        x: 50px; width: parent.width - 80px;
+        x: root.icon != "" ? 60px : 4px; width: parent.width - self.x - (root.chevron ? 36px : 8px);
         alignment: center; spacing: 2px;
-        Text { text: root.label; color: Theme.text; font-family: Theme.body; font-size: 15px; overflow: elide; }
-        if root.detail != "": Text { text: root.detail; color: Theme.muted; font-family: Theme.body; font-size: 12px; overflow: elide; }
+        Text { text: root.label; color: root.danger ? Theme.error : Theme.on-surface; font-family: Theme.body; font-size: 16px; overflow: elide; }
+        if root.detail != "": Text { text: root.detail; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; overflow: elide; }
     }
-    if root.chevron: Icon { x: parent.width - 20px; d: Icons.fwd; size: 16px; tint: Theme.faint; }
+    if root.chevron: Icon { x: parent.width - 30px; d: Icons.chevron; size: 22px; tint: Theme.on-surface-variant; }
     ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+// Interruttore M3 Expressive: pollice che cresce, icona spunta quando acceso
+export component Switch inherits Rectangle {
+    in-out property <bool> on;
+    in property <bool> enabled: true;
+    callback toggled(bool);
+    width: 52px; height: 32px;
+    border-radius: 16px;
+    background: root.on ? Theme.primary : Theme.container-highest;
+    border-width: root.on ? 0px : 2px;
+    border-color: Theme.outline;
+    opacity: root.enabled ? 1 : 0.38;
+    animate background { duration: 220ms; }
+    thumb := Rectangle {
+        property <length> s: ta.pressed ? 28px : (root.on ? 24px : 16px);
+        width: self.s; height: self.s; border-radius: self.s / 2;
+        x: root.on ? root.width - self.s - 4px : (ta.pressed ? 2px : 8px);
+        y: (root.height - self.s) / 2;
+        background: root.on ? Theme.on-primary : Theme.outline;
+        animate x, width, height { duration: 380ms; easing: spring(0.35); }
+        animate background { duration: 220ms; }
+        if root.on: Icon { d: Icons.check; size: 16px; tint: Theme.on-primary-container; }
+    }
+    ta := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.on = !root.on; root.toggled(root.on); }
+    }
+}
+
+// Cursore M3 Expressive: traccia spessa, maniglia a barra con spazio, punto di arresto
+export component Slider inherits Rectangle {
+    in-out property <float> value: 0.5;
+    in property <string> icon;
+    callback changed(float);
+    height: 44px;
+    property <length> handle-x: (root.width - 4px) * root.value;
+    property <length> gap: 6px;
+    // parte attiva
+    Rectangle {
+        x: 0; y: (root.height - 16px) / 2;
+        width: max(0px, root.handle-x - root.gap);
+        height: 16px;
+        border-radius: 8px;
+        background: Theme.primary;
+        if root.icon != "" && self.width > 34px: Icon { x: 8px; d: root.icon; size: 18px; tint: Theme.on-primary; }
+    }
+    // parte inattiva
+    Rectangle {
+        x: root.handle-x + 4px + root.gap; y: (root.height - 16px) / 2;
+        width: max(0px, root.width - self.x);
+        height: 16px;
+        border-radius: 8px;
+        background: Theme.secondary-container;
+        Rectangle { x: parent.width - 10px; width: 4px; height: 4px; border-radius: 2px; background: Theme.on-secondary-container; }
+    }
+    // maniglia
+    Rectangle {
+        x: root.handle-x; y: (root.height - self.height) / 2;
+        width: ta.pressed ? 2px : 4px; height: 44px;
+        border-radius: 2px;
+        background: Theme.primary;
+        animate width { duration: 160ms; }
+    }
+    ta := TouchArea {
+        pointer-event(e) => {
+            if e.kind == PointerEventKind.down { root.value = clamp(self.mouse-x / root.width, 0, 1); root.changed(root.value); }
+        }
+        moved => {
+            if self.pressed { root.value = clamp(self.mouse-x / root.width, 0, 1); root.changed(root.value); }
+        }
+    }
+}
+
+// Pulsanti segmentati / gruppo di pulsanti connessi Expressive
+export component Segmented inherits Rectangle {
+    in property <[string]> items;
+    in-out property <int> selected;
+    callback picked(int);
+    height: 44px;
+    HorizontalLayout {
+        spacing: 2px;
+        for it[i] in root.items: Rectangle {
+            property <bool> sel: i == root.selected;
+            border-radius: self.sel ? 22px : (sa.pressed ? 14px : 8px);
+            background: self.sel ? Theme.secondary : Theme.container-highest;
+            animate border-radius { duration: 360ms; easing: spring(0.3); }
+            animate background { duration: 200ms; }
+            Text {
+                text: it; color: sel ? Theme.on-secondary : Theme.on-surface;
+                font-family: Theme.body; font-size: 14px; font-weight: 600;
+            }
+            sa := TouchArea { clicked => { root.selected = i; root.picked(i); } }
+        }
+    }
+}
+
+// Chip filtro
+export component Chip inherits Rectangle {
+    in property <string> label;
+    in property <bool> selected;
+    callback clicked();
+    height: 32px;
+    width: t.preferred-width + (root.selected ? 52px : 32px);
+    border-radius: 8px;
+    background: root.selected ? Theme.secondary-container : (ta.pressed ? Theme.state-pressed : transparent);
+    border-width: root.selected ? 0px : 1px;
+    border-color: Theme.outline-variant;
+    animate width { duration: 300ms; easing: spring(0.3); }
+    if root.selected: Icon { x: 10px; d: Icons.check; size: 18px; tint: Theme.on-secondary-container; }
+    t := Text {
+        x: root.selected ? 34px : 16px;
+        text: root.label; color: root.selected ? Theme.on-secondary-container : Theme.on-surface-variant;
+        font-family: Theme.body; font-size: 14px; font-weight: 600; height: parent.height; vertical-alignment: center;
+        animate x { duration: 300ms; easing: spring(0.3); }
+    }
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+// Pulsante d'azione flottante, forma che si stringe alla pressione
+export component Fab inherits Rectangle {
+    in property <string> icon: Icons.plus;
+    in property <string> label;
+    in property <bool> large: false;
+    callback clicked();
+    height: root.large ? 96px : 56px;
+    width: root.label != "" ? lt.preferred-width + 72px : self.height;
+    border-radius: ta.pressed ? self.height * 0.22 : (root.large ? 28px : 16px);
+    background: Theme.primary-container;
+    drop-shadow-blur: 10px;
+    drop-shadow-offset-y: 4px;
+    drop-shadow-color: #0000004d;
+    transform-scale: ta.pressed ? 0.94 : 1;
+    animate border-radius, transform-scale { duration: 360ms; easing: spring(0.35); }
+    Icon {
+        x: root.label != "" ? 18px : (root.width - self.width) / 2;
+        d: root.icon; size: root.large ? 36px : 24px; tint: Theme.on-primary-container;
+    }
+    lt := Text {
+        x: 52px; visible: root.label != "";
+        text: root.label; color: Theme.on-primary-container;
+        font-family: Theme.body; font-size: 16px; font-weight: 600; height: parent.height; vertical-alignment: center;
+    }
+    ta := TouchArea { clicked => { root.clicked(); } }
+}
+
+// Barra superiore: indietro, titolo grande, azioni a destra
+export component TopBar inherits Rectangle {
+    in property <string> title;
+    in property <bool> back: true;
+    in property <length> collapse: 0px;
+    callback go-back();
+    height: 112px;
+    if root.back: RoundButton { x: 8px; y: 6px; icon: Icons.back; tint: Theme.on-surface; clicked => { root.go-back(); } }
+    Text {
+        x: 20px; y: 56px;
+        text: root.title;
+        color: Theme.on-surface;
+        font-family: Theme.display;
+        font-size: 30px;
+        font-weight: 500;
+        overflow: elide;
+        width: parent.width - 40px;
+    }
+    @children
+}
+
+// Barra di navigazione M3 con indicatore a pillola
+export component NavBar inherits Rectangle {
+    in property <[{label: string, icon: string, icon-f: string}]> items;
+    in-out property <int> selected;
+    callback picked(int);
+    height: 80px;
+    background: Theme.container;
+    HorizontalLayout {
+        for it[i] in root.items: Rectangle {
+            property <bool> sel: i == root.selected;
+            Rectangle {
+                y: 12px; width: sel ? 64px : 32px; height: 32px; border-radius: 16px;
+                background: sel ? Theme.secondary-container : transparent;
+                animate width { duration: 380ms; easing: spring(0.35); }
+                Icon { d: sel ? it.icon-f : it.icon; size: 24px; tint: sel ? Theme.on-secondary-container : Theme.on-surface-variant; }
+            }
+            Text {
+                y: 50px; text: it.label;
+                color: sel ? Theme.on-surface : Theme.on-surface-variant;
+                font-family: Theme.body; font-size: 12px; font-weight: sel ? 700 : 500;
+            }
+            TouchArea { clicked => { root.selected = i; root.picked(i); } }
+        }
+    }
 }

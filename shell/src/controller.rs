@@ -126,7 +126,7 @@ pub fn when(ts: i64, now: NaiveDateTime) -> String {
 }
 
 /// App di sistema: (id, nome, nel dock)
-pub const SYSTEM_APPS: [(&str, &str, bool); 8] = [
+pub const SYSTEM_APPS: [(&str, &str, bool); 9] = [
     ("phone", "Phone", true),
     ("messages", "Messages", true),
     ("browser", "Browser", true),
@@ -134,27 +134,34 @@ pub const SYSTEM_APPS: [(&str, &str, bool); 8] = [
     ("files", "Files", false),
     ("calendar", "Calendar", false),
     ("notes", "Notes", false),
+    ("clock", "Clock", false),
     ("settings", "Settings", false),
 ];
 
 pub fn glyph(ui: &AppWindow, id: &str) -> SharedString {
     let i = ui.global::<Icons>();
     match id {
-        "phone" => i.get_phone(),
-        "messages" => i.get_message(),
-        "browser" => i.get_globe(),
-        "camera" => i.get_camera(),
-        "files" => i.get_folder(),
-        "calendar" => i.get_calendar(),
-        "notes" => i.get_notes(),
-        "settings" | "system" => i.get_gear(),
-        "wifi" => i.get_wifi(),
-        "dati" => i.get_data(),
-        "bt" => i.get_bluetooth(),
-        "torcia" => i.get_torch(),
-        "rot" => i.get_rotate(),
-        "eco" => i.get_leaf(),
-        _ => i.get_android(),
+        "phone" => i.get_phone_f(),
+        "messages" => i.get_message_f(),
+        "browser" => i.get_globe_f(),
+        "camera" => i.get_camera_f(),
+        "files" => i.get_folder_f(),
+        "calendar" => i.get_calendar_f(),
+        "notes" => i.get_notes_f(),
+        "clock" => i.get_alarm_f(),
+        "settings" | "system" => i.get_gear_f(),
+        "wifi" => i.get_wifi_f(),
+        "dati" => i.get_data_f(),
+        "bt" => i.get_bluetooth_f(),
+        "torcia" => i.get_torch_f(),
+        "rot" => i.get_rotate_f(),
+        "eco" => i.get_leaf_f(),
+        "dark" => i.get_moon_f(),
+        "dnd" => i.get_dnd_f(),
+        "airplane" => i.get_airplane_f(),
+        "hotspot" => i.get_hotspot_f(),
+        "alarm" => i.get_alarm_f(),
+        _ => i.get_android_f(),
     }
 }
 
@@ -170,12 +177,17 @@ impl State {
             cal_month: today.month(),
             cal_sel: today.day(),
             toggles: vec![
-                Toggle { id: "wifi", label: "Wi-Fi", on: wifi },
-                Toggle { id: "dati", label: "Mobile data", on: false },
+                Toggle { id: "wifi", label: "Internet", on: wifi },
                 Toggle { id: "bt", label: "Bluetooth", on: false },
+                Toggle { id: "dnd", label: "Do Not Disturb", on: false },
+                Toggle { id: "dark", label: "Dark theme", on: true },
                 Toggle { id: "torcia", label: "Flashlight", on: false },
+                Toggle { id: "dati", label: "Mobile data", on: false },
                 Toggle { id: "rot", label: "Auto-rotate", on: false },
-                Toggle { id: "eco", label: "Battery saver", on: false },
+                Toggle { id: "eco", label: "Battery Saver", on: false },
+                Toggle { id: "airplane", label: "Airplane mode", on: false },
+                Toggle { id: "hotspot", label: "Hotspot", on: false },
+                Toggle { id: "alarm", label: "Alarm", on: false },
             ],
             recents: Vec::new(),
             search: String::new(),
@@ -272,6 +284,24 @@ pub fn alert(ui: &AppWindow, sound: crate::feedback::Sound, vibrate_ms: u16) {
     }
 }
 
+thread_local! {
+    static TOAST: RefCell<Option<slint::Timer>> = const { RefCell::new(None) };
+}
+
+/// Messaggio breve in basso (snackbar)
+pub fn toast(ui: &AppWindow, text: &str) {
+    let sh = ui.global::<Shell>();
+    sh.set_toast(text.into());
+    sh.set_toast_shown(true);
+    let t = slint::Timer::default();
+    t.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis(2800), || {
+        if let Some(ui) = ui_handle() {
+            ui.global::<Shell>().set_toast_shown(false);
+        }
+    });
+    TOAST.with(|x| *x.borrow_mut() = Some(t));
+}
+
 /// Squillo continuo per la chiamata in arrivo
 pub fn start_ring(st: &mut State) {
     if st.ring_timer.is_some() {
@@ -353,10 +383,22 @@ pub fn on_key(k: crate::keys::Key) {
 
 // ---------- refresh verso la UI ----------
 
+thread_local! {
+    static H24: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
+}
+
+pub fn set_h24(on: bool) {
+    H24.with(|h| h.set(on));
+    if let Some(ui) = ui_handle() {
+        push_clock(&ui, Local::now().naive_local());
+    }
+}
+
 pub fn push_clock(ui: &AppWindow, now: NaiveDateTime) {
     let s = ui.global::<Sys>();
-    s.set_time(format!("{:02}:{:02}", now.hour(), now.minute()).into());
-    s.set_hours(format!("{:02}", now.hour()).into());
+    let hour = if H24.with(|h| h.get()) { now.hour() } else { (now.hour() + 11) % 12 + 1 };
+    s.set_time(format!("{:02}:{:02}", hour, now.minute()).into());
+    s.set_hours(format!("{:02}", hour).into());
     s.set_minutes(format!("{:02}", now.minute()).into());
     s.set_date(cal::long_label(now.date()).into());
 }
@@ -415,6 +457,8 @@ fn entry(ui: &AppWindow, st: &State, id: &str, name: &str, android: bool, icon: 
         has_picture: picture.is_some(),
         picture: picture.unwrap_or_default(),
         badge: badge_for(st, id),
+        tone: crate::style::app_tone(id).0,
+        tone_on: crate::style::app_tone(id).1,
     }
 }
 
@@ -665,9 +709,24 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
                     "eco" => {
                         sys::helper(&["governor", if t.on { "powersave" } else { "schedutil" }]);
                     }
+                    "airplane" => {
+                        sys::radio("all", !t.on);
+                    }
                     _ => {}
                 }
             }
+        }
+        if id.as_str() == "dark" {
+            let on = s.toggle_on("dark");
+            s.store.data.style.theme_mode = if on { 0 } else { 1 };
+            s.store.save();
+            crate::ctl_style::apply_from(&ui, &s);
+        }
+        if id.as_str() == "alarm" {
+            drop(s);
+            ui.global::<Shell>().set_controls_open(false);
+            ui.global::<Shell>().invoke_open_app("clock".into(), 180.0, 60.0, 56.0);
+            return;
         }
         push_toggles(&ui, &s);
     }));
@@ -817,7 +876,7 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
         drop(s);
         let w = ui.window().size().to_logical(ui.window().scale_factor());
         ui.global::<Shell>().invoke_open_app("settings".into(), w.width / 2.0 - 28.0, w.height / 2.0 - 28.0, 56.0);
-        ui.global::<Settings>().set_page("appinfo".into());
+        ui.global::<Settings>().invoke_open_page("appinfo".into());
     }));
     shell.on_uninstall(with!(ui, st, |ui, s, id| {
         if s.live {
@@ -916,6 +975,12 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
     crate::ctl_web::wire(ui, &st);
     crate::ctl_files::wire(ui, &st);
     crate::ctl_settings::wire(ui, &st);
+    crate::ctl_style::wire(ui, &st);
+    crate::ctl_clock::wire(ui, &st);
+    {
+        let s = st.borrow();
+        set_h24(s.store.data.prefs.get("h24").map(|v| v == "1").unwrap_or(true));
+    }
     st
 }
 

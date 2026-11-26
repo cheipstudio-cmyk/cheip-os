@@ -73,6 +73,53 @@ pub struct Data {
     /// App fisse nel dock, al massimo 4
     #[serde(default = "default_dock")]
     pub dock: Vec<String>,
+    /// Aspetto: tema, sfondo, colori, icone
+    #[serde(default)]
+    pub style: StyleCfg,
+    /// Impostazioni semplici chiave valore
+    #[serde(default)]
+    pub prefs: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    pub alarms: Vec<Alarm>,
+    #[serde(default = "default_cities")]
+    pub cities: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(default)]
+pub struct StyleCfg {
+    /// 0 scuro, 1 chiaro, 2 automatico
+    pub theme_mode: i32,
+    pub wallpaper: i32,
+    /// 0..2 colori dallo sfondo, poi colori base
+    pub palette: i32,
+    /// 0 tonal spot, 1 vibrante, 2 espressivo, 3 neutro, 4 monocromo
+    pub scheme: i32,
+    pub icon_shape: i32,
+    pub icon_pack: i32,
+}
+
+impl Default for StyleCfg {
+    fn default() -> Self {
+        StyleCfg { theme_mode: 0, wallpaper: 1, palette: 0, scheme: 0, icon_shape: 2, icon_pack: 0 }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Alarm {
+    pub id: i32,
+    pub h: u32,
+    pub m: u32,
+    #[serde(default)]
+    pub label: String,
+    /// Bit 0 lunedi ... bit 6 domenica. 0 = una volta sola
+    #[serde(default)]
+    pub days: u8,
+    pub on: bool,
+}
+
+pub fn default_cities() -> Vec<String> {
+    ["New York", "London", "Tokyo"].iter().map(|s| s.to_string()).collect()
 }
 
 pub fn default_dock() -> Vec<String> {

@@ -125,7 +125,7 @@ export component BrowserApp inherits Rectangle {
         StatusBar { y: 0; width: parent.width; }
         Title { x: 16px; y: 34px; text: Web.tabs.length + (Web.tabs.length == 1 ? " tab" : " tabs"); }
         RoundButton {
-            x: parent.width - 60px; y: 32px; icon: Icons.plus; fill: Theme.accent; tint: #000; outlined: false;
+            x: parent.width - 60px; y: 32px; icon: Icons.plus; fill: Theme.accent; tint: Theme.on-primary; outlined: false;
             clicked => { Web.new-tab(); root.show-tabs = false; }
         }
         Flickable {

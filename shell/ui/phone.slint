@@ -7,7 +7,7 @@ component Key inherits Rectangle {
     in property <string> letters;
     callback pressed-key(string);
     width: 64px; height: 64px; border-radius: 32px;
-    background: ta.pressed ? #2a2a2a : Theme.raised;
+    background: ta.pressed ? Theme.container-highest : Theme.raised;
     animate background { duration: 90ms; }
     Text {
         y: root.letters == "" ? 0px : 8px;
@@ -82,7 +82,7 @@ export component PhoneApp inherits Rectangle {
             background: Phone.dial == "" ? Theme.raised : Theme.accent;
             animate background { duration: Theme.fast; }
             accessible-role: button; accessible-label: "Call";
-            Icon { d: Icons.phone; tint: Phone.dial == "" ? Theme.muted : #000; size: 24px; }
+            Icon { d: Icons.phone; tint: Phone.dial == "" ? Theme.muted : Theme.on-primary; size: 24px; }
             TouchArea { clicked => { if (Phone.dial != "") { Phone.call(Phone.dial); } } }
         }
     }
@@ -104,12 +104,12 @@ export component PhoneApp inherits Rectangle {
                     x: 0; width: 40px; height: 40px; border-radius: 20px; background: Theme.raised;
                     Icon {
                         d: c.dir == "out" ? Icons.out-arrow : Icons.in-arrow;
-                        tint: c.dir == "missed" ? #ff6b6b : Theme.muted; size: 16px;
+                        tint: c.dir == "missed" ? Theme.error : Theme.muted; size: 16px;
                     }
                 }
                 VerticalLayout {
                     x: 52px; width: parent.width - 120px; alignment: center; spacing: 2px;
-                    Text { text: c.name; color: c.dir == "missed" ? #ff6b6b : Theme.text; font-family: Theme.body; font-size: 15px; overflow: elide; }
+                    Text { text: c.name; color: c.dir == "missed" ? Theme.error : Theme.text; font-family: Theme.body; font-size: 15px; overflow: elide; }
                     Text { text: c.number; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
                 }
                 Text { x: parent.width - self.width; height: parent.height; text: c.when; color: Theme.faint; font-family: Theme.body; font-size: 12px; vertical-alignment: center; }
@@ -136,7 +136,7 @@ export component PhoneApp inherits Rectangle {
             num := Field { placeholder: "Number"; kind: InputType.number; }
             Rectangle {
                 height: 44px; border-radius: 22px; background: Theme.accent;
-                Text { text: "Save"; color: #000; font-family: Theme.body; font-size: 14px; font-weight: 600; }
+                Text { text: "Save"; color: Theme.on-primary; font-family: Theme.body; font-size: 14px; font-weight: 600; }
                 TouchArea {
                     clicked => {
                         if (name.text != "" && num.text != "") {
@@ -203,9 +203,9 @@ export component CallOverlay inherits Rectangle {
     }
     if Phone.incoming: Rectangle {
         x: 64px; y: parent.height - 160px; width: 72px; height: 72px; border-radius: 36px;
-        background: #ff4d4d;
+        background: Theme.error;
         accessible-role: button; accessible-label: "Decline";
-        Icon { d: Icons.hangup; tint: #fff; size: 28px; }
+        Icon { d: Icons.hangup; tint: Theme.on-error; size: 28px; }
         TouchArea { clicked => { Phone.hangup(); } }
     }
     // Rispondi: pulsa mentre squilla
@@ -220,14 +220,14 @@ export component CallOverlay inherits Rectangle {
         background: Theme.accent;
         transform-rotation: sin(animation-tick() / 1ms * 0.02rad) * 8deg;
         accessible-role: button; accessible-label: "Answer";
-        Icon { d: Icons.phone; tint: #000; size: 28px; }
+        Icon { d: Icons.phone; tint: Theme.on-primary; size: 28px; }
         TouchArea { clicked => { Phone.answer(); } }
     }
     if !Phone.incoming: Rectangle {
         x: (parent.width - 72px) / 2; y: parent.height - 160px; width: 72px; height: 72px; border-radius: 36px;
-        background: #ff4d4d;
+        background: Theme.error;
         accessible-role: button; accessible-label: "End call";
-        Icon { d: Icons.hangup; tint: #fff; size: 28px; }
+        Icon { d: Icons.hangup; tint: Theme.on-error; size: 28px; }
         TouchArea { clicked => { Phone.hangup(); } }
     }
 }

@@ -18,7 +18,7 @@ export component CalendarApp inherits Rectangle {
     }
     RoundButton { x: root.width - 156px; y: 30px; icon: Icons.back; clicked => { Cal.prev-month(); } }
     RoundButton { x: root.width - 108px; y: 30px; icon: Icons.fwd; clicked => { Cal.next-month(); } }
-    RoundButton { x: root.width - 60px; y: 30px; icon: Icons.plus; fill: Theme.accent; tint: #000; outlined: false; clicked => { root.adding = !root.adding; } }
+    RoundButton { x: root.width - 60px; y: 30px; icon: Icons.plus; fill: Theme.accent; tint: Theme.on-primary; outlined: false; clicked => { root.adding = !root.adding; } }
 
     for d[i] in ["M", "T", "W", "T", "F", "S", "S"]: Text {
         x: 16px + i * root.cell-w; y: 88px; width: root.cell-w;
@@ -37,19 +37,19 @@ export component CalendarApp inherits Rectangle {
         Text {
             y: 9px;
             text: c.n;
-            color: c.selected ? #000 : (c.today ? Theme.accent : Theme.text);
+            color: c.selected ? Theme.on-primary : (c.today ? Theme.accent : Theme.text);
             font-family: Theme.body; font-size: 14px;
             font-weight: (c.selected || c.today) ? 600 : 400;
             horizontal-alignment: center; width: parent.width;
         }
         Rectangle {
             y: 29px; width: 4px; height: 4px; border-radius: 2px;
-            background: c.has-events ? (c.selected ? #000 : Theme.muted) : transparent;
+            background: c.has-events ? (c.selected ? Theme.on-primary : Theme.muted) : transparent;
         }
         TouchArea { clicked => { Cal.select(c.n); root.adding = false; } }
     }
 
-    Rectangle { x: 16px; y: 366px; width: parent.width - 32px; height: 1px; background: #1f1f1f; }
+    Rectangle { x: 16px; y: 366px; width: parent.width - 32px; height: 1px; background: Theme.outline-variant; }
 
     if !root.adding: VerticalLayout {
         x: 16px; y: 378px; width: parent.width - 32px;
@@ -130,7 +130,7 @@ export component NotesApp inherits Rectangle {
 
     RoundButton {
         x: root.width - 72px; y: root.height - 80px; size: 56px;
-        icon: Icons.plus; fill: Theme.accent; tint: #000; outlined: false;
+        icon: Icons.plus; fill: Theme.accent; tint: Theme.on-primary; outlined: false;
         clicked => { root.draft-title = ""; root.draft-body = ""; root.editing = -1; }
     }
 
@@ -188,7 +188,7 @@ export component CameraApp inherits Rectangle {
             horizontal-alignment: center;
         }
         if root.rec: Rectangle {
-            y: 12px; width: 70px; height: 24px; border-radius: 12px; background: #000;
+            y: 12px; width: 70px; height: 24px; border-radius: 12px; background: Theme.on-primary;
             Text { text: "● REC"; color: #ff3b30; font-family: Theme.body; font-size: 12px; font-weight: 600; }
         }
     }

@@ -1,21 +1,79 @@
-import "../fonts/Inter-Regular.ttf";
-import "../fonts/Inter-SemiBold.ttf";
-import "../fonts/SpaceGrotesk-Medium.ttf";
-import "../fonts/SpaceGrotesk-Bold.ttf";
+import "../fonts/GoogleSansFlex-Regular.ttf";
+import "../fonts/GoogleSansFlex-Medium.ttf";
+import "../fonts/GoogleSansFlex-SemiBold.ttf";
+import "../fonts/GoogleSansFlex-Bold.ttf";
+import "../fonts/GoogleSansRounded-Regular.ttf";
+import "../fonts/GoogleSansRounded-Medium.ttf";
+import "../fonts/GoogleSansRounded-Bold.ttf";
 
+// Material 3 Expressive. I ruoli colore arrivano da Rust (algoritmo ufficiale
+// material-color-utilities, spec 2025) e cambiano con sfondo, accento e tema.
 export global Theme {
-    in-out property <color> accent: #c6ff3d;
-    out property <color> bg: #000000;
-    out property <color> surface: #0d0d0d;
-    out property <color> raised: #1a1a1a;
-    out property <color> line: #2a2a2a;
-    out property <color> text: #ffffff;
-    out property <color> muted: #9a9a9a;
-    out property <color> faint: #5f5f5f;
-    out property <string> body: "Inter";
-    out property <string> display: "Space Grotesk";
-    // Una sola curva per tutto il sistema
-    out property <easing> ease: cubic-bezier(0.2, 0.9, 0.1, 1);
-    out property <duration> slow: 420ms;
-    out property <duration> fast: 180ms;
+    in-out property <bool> dark: true;
+
+    in-out property <color> primary: #a8c7fa;
+    in-out property <color> on-primary: #062e6f;
+    in-out property <color> primary-container: #0842a0;
+    in-out property <color> on-primary-container: #d3e3fd;
+    in-out property <color> secondary: #bfc6dc;
+    in-out property <color> on-secondary: #293041;
+    in-out property <color> secondary-container: #3f4759;
+    in-out property <color> on-secondary-container: #dbe2f9;
+    in-out property <color> tertiary: #ddbce0;
+    in-out property <color> on-tertiary: #3f2844;
+    in-out property <color> tertiary-container: #573e5c;
+    in-out property <color> on-tertiary-container: #fad8fd;
+    in-out property <color> error: #ffb4ab;
+    in-out property <color> on-error: #690005;
+    in-out property <color> error-container: #93000a;
+    in-out property <color> on-error-container: #ffdad6;
+    in-out property <color> surface: #111318;
+    in-out property <color> surface-dim: #111318;
+    in-out property <color> surface-bright: #37393e;
+    in-out property <color> container-lowest: #0c0e13;
+    in-out property <color> container-low: #191c20;
+    in-out property <color> container: #1d2024;
+    in-out property <color> container-high: #282a2f;
+    in-out property <color> container-highest: #33353a;
+    in-out property <color> on-surface: #e2e2e9;
+    in-out property <color> on-surface-variant: #c4c6d0;
+    in-out property <color> outline: #8e9099;
+    in-out property <color> outline-variant: #44474f;
+    in-out property <color> inverse-surface: #e2e2e9;
+    in-out property <color> inverse-on-surface: #2e3036;
+    in-out property <color> inverse-primary: #415f91;
+    in-out property <color> scrim: #000000;
+
+    // Alias usati dal resto del codice
+    out property <color> accent: self.primary;
+    out property <color> bg: self.surface;
+    out property <color> raised: self.container-high;
+    out property <color> line: self.outline-variant;
+    out property <color> text: self.on-surface;
+    out property <color> muted: self.on-surface-variant;
+    out property <color> faint: self.outline;
+    out property <color> danger: self.error;
+    out property <color> state-pressed: self.dark ? #ffffff1f : #0000001a;
+    out property <color> state-hover: self.dark ? #ffffff14 : #00000012;
+
+    out property <string> body: "Google Sans Flex";
+    out property <string> display: "Google Sans Rounded";
+
+    // Forme
+    out property <length> r-xs: 4px;
+    out property <length> r-sm: 8px;
+    out property <length> r-md: 12px;
+    out property <length> r-lg: 16px;
+    out property <length> r-lgi: 20px;
+    out property <length> r-xl: 28px;
+    out property <length> r-xli: 32px;
+    out property <length> r-xxl: 48px;
+
+    // Movimento: curva enfatizzata e molle veloci
+    out property <easing> ease: cubic-bezier(0.2, 0, 0, 1);
+    out property <easing> decel: cubic-bezier(0.05, 0.7, 0.1, 1);
+    out property <easing> accel: cubic-bezier(0.3, 0, 0.8, 0.15);
+    out property <duration> slow: 380ms;
+    out property <duration> fast: 160ms;
+    out property <duration> spatial: 420ms;
 }

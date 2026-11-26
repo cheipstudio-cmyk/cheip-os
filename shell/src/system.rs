@@ -145,6 +145,9 @@ pub fn radio(kind: &str, on: bool) {
         "bluetooth" => {
             run("rfkill", &[if on { "unblock" } else { "block" }, "bluetooth"]);
         }
+        "all" => {
+            run("rfkill", &[if on { "unblock" } else { "block" }, "all"]);
+        }
         _ => {}
     }
 }

@@ -1,0 +1,423 @@
+import { Theme } from "theme.slint";
+import { Clock, Sys, AlarmRow, CityRow, LapRow } from "data.slint";
+import { Icon, Icons, Shapes, StatusBar, RoundButton, PillButton, Switch, Fab, NavBar, Chip } from "components.slint";
+
+// Arco di avanzamento, parte da ore 12 in senso orario. Viewbox 0..100.
+component Arc inherits Path {
+    in property <float> progress;
+    in property <float> r: 44;
+    property <float> p: clamp(root.progress, 0.0001, 0.9999);
+    property <angle> a: root.p * 360deg;
+    viewbox-width: 100; viewbox-height: 100;
+    fill: transparent;
+    stroke-line-cap: round;
+    commands: "M 50 " + (50 - root.r) + " A " + root.r + " " + root.r + " 0 " + (root.p > 0.5 ? "1" : "0") + " 1 " + (50 + root.r * sin(root.a)) + " " + (50 - root.r * cos(root.a));
+}
+
+// ---------- Sveglie ----------
+component AlarmCard inherits Rectangle {
+    in property <AlarmRow> alarm;
+    property <bool> open: false;
+    height: root.open ? 196px : 132px;
+    border-radius: 28px;
+    background: root.alarm.on ? Theme.primary-container.mix(Theme.container-high, 0.35) : Theme.container-high;
+    animate height { duration: 420ms; easing: spring(0.3); }
+    animate background { duration: 260ms; }
+    clip: true;
+    TouchArea { clicked => { root.open = !root.open; } }
+    Text {
+        x: 22px; y: 12px;
+        text: root.alarm.label != "" ? root.alarm.label : "Alarm";
+        color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px;
+    }
+    Text {
+        x: 20px; y: 30px;
+        text: root.alarm.time;
+        color: root.alarm.on ? Theme.on-primary-container : Theme.on-surface-variant;
+        font-family: Theme.display; font-weight: 500; font-size: 58px;
+        animate color { duration: 260ms; }
+    }
+    Text {
+        x: 22px; y: 100px;
+        text: root.alarm.on ? root.alarm.next : root.alarm.days;
+        color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px;
+    }
+    Switch {
+        x: parent.width - 72px; y: 50px; on: root.alarm.on;
+        toggled(v) => { Clock.alarm-toggle(root.alarm.id, v); }
+    }
+    // Giorni e cancella
+    HorizontalLayout {
+        x: 14px; y: 136px; width: parent.width - 28px; height: 40px; spacing: 4px;
+        for d[i] in ["M", "T", "W", "T", "F", "S", "S"]: Rectangle {
+            property <bool> sel: mod(floor(root.alarm.mask / pow(2, i)), 2) == 1;
+            width: 34px; height: 34px; border-radius: 17px;
+            background: sel ? Theme.primary : Theme.container-highest;
+            animate background { duration: 200ms; }
+            Text { text: d; color: sel ? Theme.on-primary : Theme.on-surface; font-family: Theme.body; font-size: 14px; font-weight: 600; }
+            TouchArea { clicked => { Clock.alarm-day(root.alarm.id, i); } }
+        }
+        Rectangle { }
+        RoundButton { size: 40px; icon: Icons.trash; tint: Theme.on-surface-variant; clicked => { Clock.alarm-delete(root.alarm.id); } }
+    }
+}
+
+// Selettore orario M3: quadrante con due anelli (24 ore) poi minuti
+component TimePicker inherits Rectangle {
+    in-out property <int> hour: 7;
+    in-out property <int> minute: 0;
+    in-out property <bool> picking-min: false;
+    callback done();
+    callback cancel();
+    border-radius: 28px;
+    background: Theme.container-high;
+    property <length> dial: min(root.width - 48px, 260px);
+    Text {
+        x: 24px; y: 20px; text: "Select time"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 13px; font-weight: 600;
+    }
+    HorizontalLayout {
+        y: 48px; height: 80px; alignment: center; spacing: 8px;
+        for f[i] in [root.hour, root.minute]: Rectangle {
+            property <bool> sel: (i == 1) == root.picking-min;
+            width: 104px; border-radius: 12px;
+            background: sel ? Theme.primary-container : Theme.container-highest;
+            animate background { duration: 200ms; }
+            Text {
+                text: (f < 10 ? "0" : "") + f;
+                color: sel ? Theme.on-primary-container : Theme.on-surface;
+                font-family: Theme.display; font-size: 54px; font-weight: 500;
+            }
+            TouchArea { clicked => { root.picking-min = i == 1; } }
+        }
+    }
+    dial := Rectangle {
+        x: (root.width - root.dial) / 2; y: 148px; width: root.dial; height: root.dial;
+        border-radius: root.dial / 2; background: Theme.container-highest;
+        property <length> c: root.dial / 2;
+        property <int> sel-pos: root.picking-min ? floor(root.minute / 5) : mod(root.hour, 12);
+        property <bool> inner: !root.picking-min && (root.hour == 0 || root.hour > 12);
+        property <length> rr: self.inner ? root.dial * 0.25 : root.dial * 0.38;
+        // lancetta
+        Path {
+            width: root.dial; height: root.dial;
+            viewbox-width: root.dial / 1px; viewbox-height: root.dial / 1px;
+            stroke: Theme.primary; stroke-width: 2px;
+            commands: "M " + dial.c / 1px + " " + dial.c / 1px + " L " + (dial.c + dial.rr * sin(dial.sel-pos * 30deg)) / 1px + " " + (dial.c - dial.rr * cos(dial.sel-pos * 30deg)) / 1px;
+        }
+        Rectangle { x: dial.c - 4px; y: dial.c - 4px; width: 8px; height: 8px; border-radius: 4px; background: Theme.primary; }
+        Rectangle {
+            x: dial.c + dial.rr * sin(dial.sel-pos * 30deg) - 22px; y: dial.c - dial.rr * cos(dial.sel-pos * 30deg) - 22px;
+            width: 44px; height: 44px; border-radius: 22px; background: Theme.primary;
+            animate x, y { duration: 300ms; easing: spring(0.3); }
+        }
+        // anello esterno
+        for k[i] in 12: Rectangle {
+            property <int> v: root.picking-min ? i * 5 : (i == 0 ? 12 : i);
+            property <bool> on: root.picking-min ? floor(root.minute / 5) == i : (!dial.inner && mod(root.hour, 12) == i);
+            x: dial.c + root.dial * 0.38 * sin(i * 30deg) - 22px; y: dial.c - root.dial * 0.38 * cos(i * 30deg) - 22px;
+            width: 44px; height: 44px;
+            Text { text: root.picking-min ? ((v < 10 ? "0" : "") + v) : v; color: on ? Theme.on-primary : Theme.on-surface; font-family: Theme.body; font-size: 16px; font-weight: 500; }
+            TouchArea {
+                clicked => {
+                    if (root.picking-min) { root.minute = i * 5; } else { root.hour = i == 0 ? 12 : i; root.picking-min = true; }
+                }
+            }
+        }
+        // anello interno: 00 e 13..23
+        if !root.picking-min: Rectangle {
+            for k[i] in 12: Rectangle {
+                property <int> v: i == 0 ? 0 : i + 12;
+                property <bool> on: dial.inner && mod(root.hour, 12) == i;
+                x: dial.c + root.dial * 0.25 * sin(i * 30deg) - 18px; y: dial.c - root.dial * 0.25 * cos(i * 30deg) - 18px;
+                width: 36px; height: 36px;
+                Text { text: v == 0 ? "00" : v; color: on ? Theme.on-primary : Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; }
+                TouchArea { clicked => { root.hour = v; root.picking-min = true; } }
+            }
+        }
+    }
+    HorizontalLayout {
+        y: root.height - 60px; height: 40px; padding-right: 16px; spacing: 8px; alignment: end;
+        PillButton { label: "Cancel"; clicked => { root.cancel(); } }
+        PillButton { label: "OK"; solid: true; clicked => { root.done(); } }
+    }
+}
+
+component AlarmsTab inherits Rectangle {
+    property <bool> picking: false;
+    Flickable {
+        y: 0; height: parent.height;
+        content-height: lst.preferred-height + 120px;
+        lst := VerticalLayout {
+            padding-left: 12px; padding-right: 12px; spacing: 8px; alignment: start;
+            if Clock.alarms.length == 0: Text {
+                height: 200px; text: "No alarms"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 16px;
+                horizontal-alignment: center; vertical-alignment: center;
+            }
+            for a in Clock.alarms: AlarmCard { alarm: a; }
+        }
+    }
+    Fab {
+        x: (parent.width - self.width) / 2; y: parent.height - 112px; large: true; icon: Icons.plus;
+        clicked => { root.picking = true; tp.picking-min = false; }
+    }
+    if root.picking: Rectangle {
+        background: #00000080;
+        TouchArea { clicked => { root.picking = false; } }
+    }
+    tp := TimePicker {
+        x: 16px; width: parent.width - 32px; height: 480px;
+        y: root.picking ? (parent.height - self.height) / 2 : parent.height + 20px;
+        animate y { duration: 480ms; easing: spring(0.3); }
+        cancel => { root.picking = false; }
+        done => { root.picking = false; Clock.alarm-add(self.hour, self.minute, ""); }
+    }
+}
+
+// ---------- Orologio mondiale ----------
+component ClockTab inherits Rectangle {
+    // quadrante analogico espressivo
+    property <length> d: min(root.width - 140px, 190px);
+    face := Rectangle {
+        x: (parent.width - root.d) / 2; y: 8px; width: root.d; height: root.d;
+        Path {
+            width: root.d; height: root.d;
+            commands: Shapes.cookie;
+            viewbox-width: 100; viewbox-height: 100;
+            fill: Theme.primary-container;
+        }
+        property <angle> mins: Sys.minutes.to-float() * 6deg;
+        property <angle> hrs: mod(Sys.hours.to-float(), 12) * 30deg + Sys.minutes.to-float() * 0.5deg;
+        property <angle> secs: mod(animation-tick() / 1s, 60) * 6deg;
+        property <length> c: root.d / 2;
+        // lancette disegnate come linee arrotondate
+        Path {
+            width: root.d; height: root.d;
+            viewbox-width: root.d / 1px; viewbox-height: root.d / 1px;
+            stroke: Theme.on-primary-container; stroke-width: 14px; stroke-line-cap: round;
+            commands: "M " + face.c / 1px + " " + face.c / 1px + " L " + (face.c + root.d * 0.2 * sin(face.hrs)) / 1px + " " + (face.c - root.d * 0.2 * cos(face.hrs)) / 1px;
+        }
+        Path {
+            width: root.d; height: root.d;
+            viewbox-width: root.d / 1px; viewbox-height: root.d / 1px;
+            stroke: Theme.primary; stroke-width: 10px; stroke-line-cap: round;
+            commands: "M " + face.c / 1px + " " + face.c / 1px + " L " + (face.c + root.d * 0.3 * sin(face.mins)) / 1px + " " + (face.c - root.d * 0.3 * cos(face.mins)) / 1px;
+        }
+        // secondi: pallino che gira sul bordo
+        Rectangle {
+            x: face.c + root.d * 0.36 * sin(face.secs) - 7px; y: face.c - root.d * 0.36 * cos(face.secs) - 7px;
+            width: 14px; height: 14px; border-radius: 7px; background: Theme.tertiary;
+        }
+        Rectangle { x: face.c - 6px; y: face.c - 6px; width: 12px; height: 12px; border-radius: 6px; background: Theme.on-primary-container; }
+    }
+    Text {
+        y: root.d + 14px; width: parent.width;
+        text: Sys.time; color: Theme.on-surface; font-family: Theme.display; font-size: 40px; font-weight: 500; horizontal-alignment: center;
+    }
+    Text {
+        y: root.d + 62px; width: parent.width;
+        text: Sys.date + " · " + Clock.local-city; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 15px; horizontal-alignment: center;
+    }
+    Flickable {
+        y: root.d + 96px; height: parent.height - self.y;
+        content-height: cl.preferred-height + 120px;
+        cl := VerticalLayout {
+            padding-left: 12px; padding-right: 12px; spacing: 2px; alignment: start;
+            for c[i] in Clock.cities: Rectangle {
+                height: 84px;
+                border-top-left-radius: i == 0 ? 28px : 6px; border-top-right-radius: i == 0 ? 28px : 6px;
+                border-bottom-left-radius: i == Clock.cities.length - 1 ? 28px : 6px; border-bottom-right-radius: i == Clock.cities.length - 1 ? 28px : 6px;
+                background: Theme.container-high;
+                VerticalLayout {
+                    x: 22px; alignment: center; spacing: 2px;
+                    Text { text: c.city; color: Theme.on-surface; font-family: Theme.body; font-size: 18px; font-weight: 500; }
+                    Text { text: c.diff; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; }
+                }
+                Icon { x: parent.width - 140px; d: c.night ? Icons.moon-f : Icons.sun-f; size: 20px; tint: c.night ? Theme.tertiary : Theme.primary; }
+                Text { x: parent.width - self.width - 22px; height: parent.height; vertical-alignment: center; text: c.time; color: Theme.on-surface; font-family: Theme.display; font-size: 34px; font-weight: 500; }
+                TouchArea { double-clicked => { Clock.city-remove(i); } }
+            }
+        }
+    }
+    Fab { x: parent.width - self.width - 16px; y: parent.height - 72px; icon: Icons.plus; clicked => { Clock.city-add(); } }
+}
+
+// ---------- Timer ----------
+component Key inherits Rectangle {
+    in property <string> label;
+    in property <string> glyph;
+    in property <bool> tonal;
+    callback hit();
+    border-radius: ta.pressed ? 18px : self.height / 2;
+    background: root.tonal ? Theme.secondary-container : Theme.container-high;
+    animate border-radius { duration: 320ms; easing: spring(0.3); }
+    if root.glyph == "": Text { text: root.label; color: Theme.on-surface; font-family: Theme.display; font-size: 30px; font-weight: 500; }
+    if root.glyph != "": Icon { d: root.glyph; size: 26px; tint: Theme.on-secondary-container; }
+    ta := TouchArea { clicked => { root.hit(); } }
+}
+
+component TimerTab inherits Rectangle {
+    property <length> ring: min(root.width - 64px, 290px);
+    // Inserimento
+    if Clock.timer-state == 0: Rectangle {
+        HorizontalLayout {
+            y: 24px; height: 80px; alignment: center; spacing: 6px;
+            for part[i] in ["h", "m", "s"]: HorizontalLayout {
+                spacing: 2px;
+                Text {
+                    property <int> v: i == 0 ? floor(Clock.timer-input.to-float() / 10000) : (i == 1 ? mod(floor(Clock.timer-input.to-float() / 100), 100) : mod(Clock.timer-input.to-float(), 100));
+                    text: (v < 10 ? "0" : "") + v;
+                    color: Clock.timer-input == "" ? Theme.on-surface-variant : Theme.primary;
+                    font-family: Theme.display; font-size: 60px; font-weight: 500; vertical-alignment: bottom;
+                }
+                Text { text: part; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 20px; vertical-alignment: bottom; height: 70px; }
+            }
+        }
+        GridLayout {
+            x: 32px; y: 124px; width: parent.width - 64px; height: min(parent.height - 260px, 340px);
+            spacing: 10px;
+            Row { Key { label: "1"; hit => { if (Clock.timer-input.character-count < 6) { Clock.timer-input += "1"; } } } Key { label: "2"; hit => { if (Clock.timer-input.character-count < 6) { Clock.timer-input += "2"; } } } Key { label: "3"; hit => { if (Clock.timer-input.character-count < 6) { Clock.timer-input += "3"; } } } }
+            Row { Key { label: "4"; hit => { if (Clock.timer-input.character-count < 6) { Clock.timer-input += "4"; } } } Key { label: "5"; hit => { if (Clock.timer-input.character-count < 6) { Clock.timer-input += "5"; } } } Key { label: "6"; hit => { if (Clock.timer-input.character-count < 6) { Clock.timer-input += "6"; } } } }
+            Row { Key { label: "7"; hit => { if (Clock.timer-input.character-count < 6) { Clock.timer-input += "7"; } } } Key { label: "8"; hit => { if (Clock.timer-input.character-count < 6) { Clock.timer-input += "8"; } } } Key { label: "9"; hit => { if (Clock.timer-input.character-count < 6) { Clock.timer-input += "9"; } } } }
+            Row { Key { label: "00"; hit => { if (Clock.timer-input != "" && Clock.timer-input.character-count < 5) { Clock.timer-input += "00"; } } } Key { label: "0"; hit => { if (Clock.timer-input != "" && Clock.timer-input.character-count < 6) { Clock.timer-input += "0"; } } } Key { glyph: Icons.back; tonal: true; hit => { Clock.timer-input = ""; } } }
+        }
+        if Clock.timer-input != "": Fab {
+            x: (parent.width - self.width) / 2; y: parent.height - 112px; large: true; icon: Icons.play-f;
+            clicked => { Clock.timer-start(); }
+        }
+    }
+    // In corso
+    if Clock.timer-state > 0: Rectangle {
+        Rectangle {
+            x: (parent.width - root.ring) / 2; y: 20px; width: root.ring; height: root.ring;
+            Rectangle { border-radius: root.ring / 2; border-width: 14px; border-color: Theme.secondary-container; }
+            Arc {
+                width: root.ring; height: root.ring; r: 45;
+                progress: Clock.timer-progress;
+                stroke: Clock.timer-state == 3 ? Theme.error : Theme.primary; stroke-width: 14px;
+            }
+            Text {
+                text: Clock.timer-label; color: Clock.timer-state == 3 ? Theme.error : Theme.on-surface;
+                font-family: Theme.display; font-size: 58px; font-weight: 500;
+                opacity: Clock.timer-state == 2 ? (mod(animation-tick() / 1ms, 1000) < 500 ? 1 : 0.4) : 1;
+            }
+            PillButton { x: (parent.width - self.width) / 2; y: parent.height * 0.68; label: "+1:00"; active: true; clicked => { Clock.timer-plus(); } }
+        }
+        HorizontalLayout {
+            y: parent.height - 120px; height: 96px; alignment: center; spacing: 16px;
+            Rectangle {
+                width: 96px; border-radius: rta.pressed ? 20px : 48px; background: Theme.secondary-container;
+                animate border-radius { duration: 320ms; easing: spring(0.3); }
+                Icon { d: Icons.replay; size: 32px; tint: Theme.on-secondary-container; }
+                rta := TouchArea { clicked => { Clock.timer-reset(); } }
+            }
+            Rectangle {
+                width: 136px; border-radius: pta.pressed ? 20px : 40px; background: Theme.primary;
+                animate border-radius { duration: 320ms; easing: spring(0.3); }
+                Icon { d: Clock.timer-state == 1 ? Icons.pause-f : Icons.play-f; size: 36px; tint: Theme.on-primary; }
+                pta := TouchArea { clicked => { if (Clock.timer-state == 1) { Clock.timer-pause(); } else if (Clock.timer-state == 2) { Clock.timer-resume(); } else { Clock.timer-reset(); } } }
+            }
+        }
+    }
+}
+
+// ---------- Cronometro ----------
+component StopwatchTab inherits Rectangle {
+    property <length> ring: min(root.width - 64px, 290px);
+    Rectangle {
+        x: (parent.width - root.ring) / 2; y: 20px; width: root.ring; height: root.ring;
+        Rectangle { border-radius: root.ring / 2; background: Theme.container-high; }
+        // pallino che segna i secondi
+        Rectangle {
+            property <angle> a: Clock.sw-sweep * 360deg;
+            x: root.ring / 2 + root.ring * 0.44 * sin(self.a) - 9px; y: root.ring / 2 - root.ring * 0.44 * cos(self.a) - 9px;
+            width: 18px; height: 18px; border-radius: 9px; background: Theme.primary;
+        }
+        Text { text: Clock.sw-label; color: Theme.on-surface; font-family: Theme.display; font-size: 50px; font-weight: 500; }
+    }
+    Flickable {
+        y: root.ring + 36px; height: parent.height - self.y - 130px;
+        content-height: laps.preferred-height;
+        laps := VerticalLayout {
+            padding-left: 28px; padding-right: 28px; alignment: start;
+            for l in Clock.laps: HorizontalLayout {
+                height: 40px;
+                Text { text: "#" + l.n; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 16px; vertical-alignment: center; width: 60px; }
+                Text { text: l.lap; color: Theme.on-surface; font-family: Theme.body; font-size: 16px; vertical-alignment: center; }
+                Rectangle { }
+                Text { text: l.total; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 16px; vertical-alignment: center; }
+            }
+        }
+    }
+    HorizontalLayout {
+        y: parent.height - 120px; height: 96px; alignment: center; spacing: 16px;
+        Rectangle {
+            width: 96px; border-radius: a.pressed ? 20px : 48px; background: Theme.secondary-container;
+            animate border-radius { duration: 320ms; easing: spring(0.3); }
+            Icon { d: Clock.sw-running ? Icons.flag-f : Icons.replay; size: 30px; tint: Theme.on-secondary-container; }
+            a := TouchArea { clicked => { if (Clock.sw-running) { Clock.sw-lap(); } else { Clock.sw-reset(); } } }
+        }
+        Rectangle {
+            width: Clock.sw-running ? 120px : 156px; border-radius: b.pressed ? 20px : (Clock.sw-running ? 28px : 48px); background: Theme.primary;
+            animate width, border-radius { duration: 420ms; easing: spring(0.3); }
+            Icon { d: Clock.sw-running ? Icons.pause-f : Icons.play-f; size: 36px; tint: Theme.on-primary; }
+            b := TouchArea { clicked => { Clock.sw-toggle(); } }
+        }
+    }
+}
+
+export component ClockApp inherits Rectangle {
+    background: Theme.surface;
+    StatusBar { y: 0; width: parent.width; }
+    Text {
+        x: 24px; y: 40px;
+        text: Clock.tab == 0 ? "Alarm" : Clock.tab == 1 ? "Clock" : Clock.tab == 2 ? "Timer" : "Stopwatch";
+        color: Theme.on-surface; font-family: Theme.display; font-size: 30px; font-weight: 500;
+    }
+    Rectangle {
+        y: 96px; height: parent.height - 96px - 80px;
+        clip: true;
+        if Clock.tab == 0: AlarmsTab { }
+        if Clock.tab == 1: ClockTab { }
+        if Clock.tab == 2: TimerTab { }
+        if Clock.tab == 3: StopwatchTab { }
+    }
+    NavBar {
+        y: parent.height - 80px; width: parent.width;
+        selected <=> Clock.tab;
+        items: [
+            { label: "Alarm", icon: Icons.alarm, icon-f: Icons.alarm-f },
+            { label: "Clock", icon: Icons.clock, icon-f: Icons.clock-f },
+            { label: "Timer", icon: Icons.hourglass, icon-f: Icons.hourglass-f },
+            { label: "Stopwatch", icon: Icons.timer, icon-f: Icons.timer-f },
+        ];
+    }
+}
+
+// ---------- Sveglia o timer che suona ----------
+export component AlarmOverlay inherits Rectangle {
+    background: Theme.surface;
+    property <float> pulse: mod(animation-tick() / 1ms, 1600) / 1600;
+    StatusBar { y: 0; width: parent.width; }
+    Icon { x: (parent.width - 36px) / 2; y: 70px; d: Clock.ring-kind == "timer" ? Icons.hourglass-f : Icons.alarm-f; size: 36px; tint: Theme.primary; }
+    Text { y: 116px; width: parent.width; text: Clock.ring-label; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 18px; horizontal-alignment: center; }
+    Text { y: 146px; width: parent.width; text: Clock.ring-time; color: Theme.on-surface; font-family: Theme.display; font-size: 96px; font-weight: 500; horizontal-alignment: center; }
+    // anelli che pulsano dietro al pulsante Stop
+    for k[i] in 3: Rectangle {
+        property <float> t: mod(root.pulse + i / 3, 1);
+        x: (root.width - self.width) / 2; y: root.height * 0.62 - self.height / 2;
+        width: 160px + 200px * self.t; height: self.width; border-radius: self.width / 2;
+        background: Theme.primary.with-alpha(0.25 * (1 - self.t));
+    }
+    Rectangle {
+        x: (root.width - 160px) / 2; y: root.height * 0.62 - 80px; width: 160px; height: 160px;
+        border-radius: st.pressed ? 44px : 80px; background: Theme.primary;
+        animate border-radius { duration: 320ms; easing: spring(0.3); }
+        Text { text: "Stop"; color: Theme.on-primary; font-family: Theme.display; font-size: 30px; font-weight: 500; }
+        st := TouchArea { clicked => { Clock.ring-stop(); } }
+    }
+    PillButton {
+        x: (root.width - self.width) / 2; y: root.height - 110px; height: 56px; pad: 32px;
+        label: Clock.ring-kind == "timer" ? "+1:00" : "Snooze"; icon: Clock.ring-kind == "timer" ? Icons.plus : Icons.snooze; active: true;
+        clicked => { Clock.ring-snooze(); }
+    }
+}
