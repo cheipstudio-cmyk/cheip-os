@@ -1,5 +1,5 @@
 import { Theme } from "theme.slint";
-import { Sys, Settings, Phone } from "data.slint";
+import { Sys, Settings, Phone, Shell } from "data.slint";
 import { Icon, Icons, StatusBar, RoundButton, PillButton, Card, Title, ListRow, Field } from "components.slint";
 
 component Switch inherits Rectangle {
@@ -75,7 +75,12 @@ export component SettingsApp inherits Rectangle {
     property <string> pw-ssid;
     property <string> pw;
 
-    if Settings.page == "": Rectangle {
+    Rectangle {
+        // Elenco principale: arretra e si scurisce quando entra una sottopagina
+        x: Settings.page == "" ? 0px : -root.width * 0.25;
+        opacity: Settings.page == "" ? 1 : 0.0;
+        animate x { duration: 380ms; easing: Theme.ease; }
+        animate opacity { duration: 260ms; }
         StatusBar { y: 0; width: parent.width; }
         Title { x: 16px; y: 34px; text: "Settings"; }
         Flickable {
@@ -98,7 +103,10 @@ export component SettingsApp inherits Rectangle {
         }
     }
 
-    if Settings.page == "wifi": Page {
+    Page {
+        x: Settings.page == "wifi" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: 380ms; easing: Theme.ease; }
         title: "Wi-Fi";
         SwitchRow { label: "Wi-Fi"; on: Sys.wifi-on; toggled => { Sys.toggle("wifi"); } }
         HorizontalLayout {
@@ -135,7 +143,10 @@ export component SettingsApp inherits Rectangle {
         }
     }
 
-    if Settings.page == "bt": Page {
+    Page {
+        x: Settings.page == "bt" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: 380ms; easing: Theme.ease; }
         title: "Bluetooth";
         SwitchRow { label: "Bluetooth"; on: Sys.bt-on; toggled => { Sys.toggle("bt"); } }
         Text { text: "Paired devices"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 32px; vertical-alignment: bottom; }
@@ -143,7 +154,10 @@ export component SettingsApp inherits Rectangle {
         if Settings.bt-devices.length == 0: Text { text: "None"; color: Theme.faint; font-family: Theme.body; font-size: 14px; height: 40px; vertical-alignment: center; }
     }
 
-    if Settings.page == "mobile": Page {
+    Page {
+        x: Settings.page == "mobile" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: 380ms; easing: Theme.ease; }
         title: "Mobile network";
         SwitchRow { label: "Dati mobili"; on: Sys.data-on; toggled => { Sys.toggle("dati"); } }
         InfoRow { label: "Carrier"; value: Phone.modem-ok ? Settings.modem-operator : "None"; }
@@ -151,7 +165,10 @@ export component SettingsApp inherits Rectangle {
         InfoRow { label: "Status"; value: Phone.modem-ok ? Settings.modem-state : Phone.modem-label; }
     }
 
-    if Settings.page == "display": Page {
+    Page {
+        x: Settings.page == "display" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: 380ms; easing: Theme.ease; }
         title: "Display";
         Text { text: "Brightness"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 28px; vertical-alignment: bottom; }
         Slider { glyph: Icons.sun; value: Sys.brightness; changed(v) => { Sys.brightness = v; Sys.brightness-changed(v); } }
@@ -169,13 +186,19 @@ export component SettingsApp inherits Rectangle {
         InfoRow { label: "Theme"; value: "AMOLED black"; }
     }
 
-    if Settings.page == "sound": Page {
+    Page {
+        x: Settings.page == "sound" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: 380ms; easing: Theme.ease; }
         title: "Sound";
         Text { text: "Volume"; color: Theme.muted; font-family: Theme.body; font-size: 12px; height: 28px; vertical-alignment: bottom; }
         Slider { glyph: Icons.speaker; value: Sys.volume; changed(v) => { Sys.volume = v; Sys.volume-changed(v); } }
     }
 
-    if Settings.page == "battery": Page {
+    Page {
+        x: Settings.page == "battery" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: 380ms; easing: Theme.ease; }
         title: "Battery";
         Text { text: Sys.battery + "%"; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 56px; height: 72px; }
         Rectangle {
@@ -186,7 +209,10 @@ export component SettingsApp inherits Rectangle {
         SwitchRow { label: "Battery saver"; on: Sys.eco-on; toggled => { Sys.toggle("eco"); } }
     }
 
-    if Settings.page == "storage": Page {
+    Page {
+        x: Settings.page == "storage" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: 380ms; easing: Theme.ease; }
         title: "Storage";
         Text { text: Settings.storage-used + " of " + Settings.storage-total; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 26px; height: 44px; }
         Rectangle {
@@ -198,7 +224,10 @@ export component SettingsApp inherits Rectangle {
         InfoRow { label: "Used by Android apps"; value: Sys.mem-android + " MB"; }
     }
 
-    if Settings.page == "android": Page {
+    Page {
+        x: Settings.page == "android" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: 380ms; easing: Theme.ease; }
         title: "Android apps";
         InfoRow { label: "Android layer"; value: Sys.android-running ? "Running" : "Suspended"; }
         Text { text: Sys.android-state; color: Theme.muted; font-family: Theme.body; font-size: 13px; wrap: word-wrap; }
@@ -208,7 +237,10 @@ export component SettingsApp inherits Rectangle {
         }
     }
 
-    if Settings.page == "time": Page {
+    Page {
+        x: Settings.page == "time" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: 380ms; easing: Theme.ease; }
         title: "Date and time";
         InfoRow { label: "Time"; value: Sys.time; }
         InfoRow { label: "Date"; value: Sys.date; }
@@ -216,7 +248,10 @@ export component SettingsApp inherits Rectangle {
         Text { text: "Time and date are set automatically from the network."; color: Theme.faint; font-family: Theme.body; font-size: 12px; wrap: word-wrap; height: 40px; vertical-alignment: bottom; }
     }
 
-    if Settings.page == "update": Page {
+    Page {
+        x: Settings.page == "update" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: 380ms; easing: Theme.ease; }
         title: "Updates";
         Text { text: Sys.update-available ? "Cheip OS " + Sys.update-version : "Cheip OS " + Sys.version; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 26px; height: 44px; }
         Text { text: Sys.update-state; color: Theme.muted; font-family: Theme.body; font-size: 13px; wrap: word-wrap; }
@@ -230,7 +265,33 @@ export component SettingsApp inherits Rectangle {
         }
     }
 
-    if Settings.page == "about": Page {
+    Page {
+        x: Settings.page == "appinfo" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: 380ms; easing: Theme.ease; }
+        title: "App info";
+        Rectangle {
+            height: 150px;
+            Rectangle {
+                x: (parent.width - 80px) / 2; y: 8px; width: 80px; height: 80px; border-radius: 40px; background: Theme.raised;
+                if Settings.info-glyph != "": Icon { d: Settings.info-glyph; size: 34px; weight: 1.8px; }
+            }
+            Text { y: 100px; width: parent.width; text: Settings.info-name; color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 22px; horizontal-alignment: center; }
+            Text { y: 128px; width: parent.width; text: Settings.info-kind; color: Theme.muted; font-family: Theme.body; font-size: 13px; horizontal-alignment: center; }
+        }
+        HorizontalLayout {
+            alignment: center; spacing: 10px; height: 52px; padding-top: 8px;
+            PillButton { label: "Open"; solid: true; clicked => { Shell.open-app(Settings.info-id, root.width / 2 - 28px, 300px, 56px); } }
+            if Settings.info-android: PillButton { label: "Uninstall"; clicked => { Shell.uninstall(Settings.info-id); } }
+        }
+        InfoRow { label: "Storage"; value: Settings.info-android ? "Managed by Android" : "Part of Cheip OS"; }
+        InfoRow { label: "Version"; value: Settings.info-android ? "From Waydroid" : Sys.version; }
+    }
+
+    Page {
+        x: Settings.page == "about" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: 380ms; easing: Theme.ease; }
         title: "About phone";
         InfoRow { label: "Model"; value: Sys.model; }
         InfoRow { label: "Cheip OS"; value: Sys.version; }

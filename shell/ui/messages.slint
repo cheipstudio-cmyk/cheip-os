@@ -11,7 +11,11 @@ export component MessagesApp inherits Rectangle {
     StatusBar { y: 0; width: parent.width; }
 
     // Elenco conversazioni
-    if !root.in-thread: Rectangle {
+    Rectangle {
+        x: root.in-thread ? -root.width * 0.25 : 0px;
+        opacity: root.in-thread ? 0 : 1;
+        animate x { duration: 380ms; easing: Theme.ease; }
+        animate opacity { duration: 240ms; }
         Title { x: 16px; y: 34px; text: "Messages"; }
         RoundButton {
             x: parent.width - 60px; y: 32px; icon: Icons.plus; fill: Theme.accent; tint: #000; outlined: false;
@@ -44,8 +48,12 @@ export component MessagesApp inherits Rectangle {
         }
     }
 
-    // Conversazione
-    if root.in-thread: Rectangle {
+    // Conversazione: entra da destra
+    Rectangle {
+        x: root.in-thread ? 0px : root.width;
+        visible: self.x < root.width;
+        background: Theme.bg;
+        animate x { duration: 380ms; easing: Theme.ease; }
         RoundButton {
             x: 12px; y: 30px; icon: Icons.back; outlined: false;
             clicked => { root.composing = false; Msg.close-thread(); }

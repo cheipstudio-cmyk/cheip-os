@@ -51,7 +51,11 @@ export component PhoneApp inherits Rectangle {
     }
 
     // Tastiera
-    if Phone.tab == 0: Rectangle {
+    Rectangle {
+        opacity: Phone.tab == 0 ? 1 : 0;
+        visible: self.opacity > 0.01;
+        y: Phone.tab == 0 ? 0px : 12px;
+        animate opacity, y { duration: 220ms; easing: ease-out; }
         Text {
             x: 24px; y: 62px; width: parent.width - 96px; height: 56px;
             text: Phone.dial;
@@ -84,7 +88,11 @@ export component PhoneApp inherits Rectangle {
     }
 
     // Recenti
-    if Phone.tab == 1: Rectangle {
+    Rectangle {
+        opacity: Phone.tab == 1 ? 1 : 0;
+        visible: self.opacity > 0.01;
+        y: Phone.tab == 1 ? 0px : 12px;
+        animate opacity, y { duration: 220ms; easing: ease-out; }
         Title { x: 16px; y: 56px; text: "Recents"; }
         Flickable {
             x: 16px; y: 104px; width: parent.width - 32px; height: 430px;
@@ -112,7 +120,11 @@ export component PhoneApp inherits Rectangle {
     }
 
     // Contatti
-    if Phone.tab == 2: Rectangle {
+    Rectangle {
+        opacity: Phone.tab == 2 ? 1 : 0;
+        visible: self.opacity > 0.01;
+        y: Phone.tab == 2 ? 0px : 12px;
+        animate opacity, y { duration: 220ms; easing: ease-out; }
         Title { x: 16px; y: 56px; text: "Contacts"; }
         RoundButton {
             x: parent.width - 60px; y: 54px; icon: root.adding ? Icons.close : Icons.plus;

@@ -290,24 +290,38 @@ pub fn catalog() -> Vec<(String, String, bool, Option<PathBuf>)> {
     v
 }
 
+/// App della griglia nell'ordine scelto dall'utente (le nuove in coda), senza quelle del dock
+pub fn grid_apps(st: &State) -> Vec<(String, String, bool, Option<PathBuf>)> {
+    let mut all: Vec<_> = catalog().into_iter().filter(|(id, _, _, _)| !st.store.data.dock.contains(id)).collect();
+    let order = &st.store.data.app_order;
+    all.sort_by_key(|(id, _, _, _)| order.iter().position(|o| o == id).unwrap_or(usize::MAX));
+    all
+}
+
 pub fn push_apps(ui: &AppWindow, st: &State) {
     let q = st.search.to_lowercase();
-    let searching = !q.is_empty();
-    let grid = catalog()
-        .into_iter()
-        .filter(|(id, n, _, _)| {
-            if searching {
-                n.to_lowercase().contains(&q)
-            } else {
-                !SYSTEM_APPS.iter().any(|(s, _, dock)| s == id && *dock)
-            }
-        })
-        .map(|(id, n, a, icon)| entry(ui, st, &id, &n, a, icon))
-        .collect();
-    let dock = SYSTEM_APPS.iter().filter(|(_, _, d)| *d).map(|(id, n, _)| entry(ui, st, id, n, false, None)).collect();
+    let grid: Vec<AppEntry> = if q.is_empty() {
+        grid_apps(st).into_iter().map(|(id, n, a, icon)| entry(ui, st, &id, &n, a, icon)).collect()
+    } else {
+        catalog().into_iter().filter(|(_, n, _, _)| n.to_lowercase().contains(&q)).map(|(id, n, a, icon)| entry(ui, st, &id, &n, a, icon)).collect()
+    };
+    let cat = catalog();
+    let dock = st
+        .store
+        .data
+        .dock
+        .iter()
+        .filter_map(|id| cat.iter().find(|(c, _, _, _)| c == id))
+        .map(|(id, n, a, icon)| entry(ui, st, id, n, *a, icon.clone()))
+        .collect::<Vec<_>>();
     let g = ui.global::<Shell>();
+    g.set_dock_full(dock.len() >= crate::store::DOCK_MAX);
     g.set_apps(model(grid));
     g.set_dock(model(dock));
+}
+
+fn remove_demo_android(id: &str) {
+    DEMO_ANDROID.with(|d| d.borrow_mut().retain(|(x, _)| x != id));
 }
 
 pub fn push_recents(ui: &AppWindow, st: &State) {
@@ -539,7 +553,11 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
             s.missed = 0;
             push_apps(&ui, &s);
         }
+        if id.as_str() == "settings" {
+            ui.global::<Settings>().set_page("".into());
+        }
         let g = ui.global::<Shell>();
+        g.set_edit_mode(false);
         g.set_from_x(x);
         g.set_from_y(y);
         g.set_from_size(size);
@@ -551,6 +569,61 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
         push_recents(&ui, &s);
     }));
     shell.on_close_app(with!(ui, st, |ui, _s| { ui.global::<Shell>().set_app_open(false); }));
+    shell.on_move_app(with!(ui, st, |ui, s, from, to| {
+        if !s.search.is_empty() {
+            return;
+        }
+        let mut ids: Vec<String> = grid_apps(&s).into_iter().map(|(id, _, _, _)| id).collect();
+        crate::store::move_item(&mut ids, from as usize, to as usize);
+        s.store.data.app_order = ids;
+        s.store.save();
+        push_apps(&ui, &s);
+    }));
+    shell.on_pin(with!(ui, st, |ui, s, id| {
+        if s.store.data.dock.len() < crate::store::DOCK_MAX && !s.store.data.dock.iter().any(|d| d == id.as_str()) {
+            s.store.data.dock.push(id.to_string());
+            s.store.save();
+        }
+        push_apps(&ui, &s);
+    }));
+    shell.on_unpin(with!(ui, st, |ui, s, id| {
+        s.store.data.dock.retain(|d| d != id.as_str());
+        if !s.store.data.app_order.iter().any(|o| o == id.as_str()) {
+            s.store.data.app_order.push(id.to_string());
+        }
+        s.store.save();
+        push_apps(&ui, &s);
+    }));
+    shell.on_app_info(with!(ui, st, |ui, s, id| {
+        let Some((_, name, android, _)) = catalog().into_iter().find(|(a, _, _, _)| a == id.as_str()) else { return };
+        let set = ui.global::<Settings>();
+        set.set_info_id(id.clone());
+        set.set_info_name(name.into());
+        set.set_info_android(android);
+        set.set_info_kind((if android { "Android app" } else { "System app" }).into());
+        set.set_info_glyph(glyph(&ui, &id));
+        drop(s);
+        let w = ui.window().size().to_logical(ui.window().scale_factor());
+        ui.global::<Shell>().invoke_open_app("settings".into(), w.width / 2.0 - 28.0, w.height / 2.0 - 28.0, 56.0);
+        ui.global::<Settings>().set_page("appinfo".into());
+    }));
+    shell.on_uninstall(with!(ui, st, |ui, s, id| {
+        if s.live {
+            sys::run("waydroid", &["app", "remove", id.as_str()]);
+        }
+        remove_demo_android(&id);
+        s.store.data.app_order.retain(|o| o != id.as_str());
+        s.store.data.dock.retain(|d| d != id.as_str());
+        s.recents.retain(|r| r.id != id.as_str());
+        s.store.save();
+        push_apps(&ui, &s);
+        push_recents(&ui, &s);
+        let set = ui.global::<Settings>();
+        if set.get_info_id() == id {
+            set.set_page("".into());
+            ui.global::<Shell>().set_app_open(false);
+        }
+    }));
     shell.on_unlock(with!(ui, st, |ui, _s| { ui.global::<Shell>().set_screen(ScreenId::Home); }));
     shell.on_search(with!(ui, st, |ui, s, q| {
         s.search = q.to_string();

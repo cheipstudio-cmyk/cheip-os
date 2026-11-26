@@ -81,17 +81,74 @@ export component LockScreen inherits Rectangle {
 }
 
 // ---------- Home: griglia di icone e dock, niente testo ----------
+// Un solo livello di tocco sopra la griglia gestisce tocco, pressione lunga,
+// menu contestuale e trascinamento per riordinare (in modalità modifica).
+
+component MenuRow inherits Rectangle {
+    in property <string> icon;
+    in property <string> label;
+    in property <bool> danger;
+    in property <bool> enabled: true;
+    callback clicked();
+    height: 48px;
+    background: ta.pressed ? #2a2a2a : transparent;
+    opacity: root.enabled ? 1 : 0.35;
+    Icon { x: 16px; d: root.icon; size: 18px; tint: root.danger ? #ff6b6b : Theme.text; }
+    Text { x: 48px; height: parent.height; text: root.label; color: root.danger ? #ff6b6b : Theme.text; font-family: Theme.body; font-size: 15px; vertical-alignment: center; }
+    ta := TouchArea { enabled: root.enabled; clicked => { root.clicked(); } }
+}
+
 export component HomeScreen inherits Rectangle {
     background: Theme.bg;
+    in property <bool> shown: true;
     property <length> col-w: (root.width - 32px) / 4;
+    property <length> row-h: 84px;
     property <length> dock-y: root.height - 24px - 84px;
+    property <length> grid-y: 196px;
+    property <int> n: Shell.apps.length;
+    // Stato del gesto sulla griglia
+    property <int> press-index: -1;
+    property <int> drag-index: -1;
+    property <int> target-index: -1;
+    property <bool> long-fired: false;
+    property <bool> moved-far: false;
+    property <length> px; property <length> py;
+    // Menu contestuale
+    property <int> menu-index: -1;
+    property <bool> menu-dock: false;
+    property <AppEntry> menu-app;
+    property <length> menu-x; property <length> menu-y;
+    property <length> menu-anchor-y;
+    property <length> menu-h: 42px + (root.menu-dock ? 2 : (root.menu-app.android ? 4 : 3)) * 48px;
+
+    pure function index-at(x: length, y: length) -> int {
+        if (x < 0 || y < 0) { return -1; }
+        let col = min(3, floor(x / root.col-w));
+        let i = floor(y / root.row-h) * 4 + col;
+        return i < root.n ? i : -1;
+    }
+    pure function slot-of(i: int) -> int {
+        if (root.drag-index < 0 || root.target-index < 0) { return i; }
+        if (root.drag-index < root.target-index && i > root.drag-index && i <= root.target-index) { return i - 1; }
+        if (root.drag-index > root.target-index && i >= root.target-index && i < root.drag-index) { return i + 1; }
+        return i;
+    }
+    function open-menu(i: int, dock: bool, a: AppEntry, ax: length, ay: length) {
+        root.menu-index = i;
+        root.menu-dock = dock;
+        root.menu-app = a;
+        root.menu-anchor-y = ay;
+        root.menu-x = max(12px, min(root.width - 232px, ax + 28px - 110px));
+        root.menu-y = ay > root.height * 0.55 ? ay - 12px - root.menu-h : ay + 68px;
+    }
+    function close-menu() { root.menu-index = -1; }
 
     StatusBar { y: 0; width: parent.width; }
 
     // Orologio, sostituito dal campo di ricerca quando si cerca
     Rectangle {
         y: 40px; height: 140px;
-        opacity: Shell.searching ? 0 : 1;
+        opacity: (Shell.searching || Shell.edit-mode) ? 0 : 1;
         animate opacity { duration: Theme.fast; }
         Text {
             x: 24px; y: 8px;
@@ -99,6 +156,24 @@ export component HomeScreen inherits Rectangle {
             color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 68px; letter-spacing: -2px;
         }
         Text { x: 24px; y: 88px; text: Sys.date; color: Theme.muted; font-family: Theme.body; font-size: 15px; }
+    }
+
+    // Modalità modifica: pulsante Fine
+    Rectangle {
+        x: (root.width - 96px) / 2; y: Shell.edit-mode ? 52px : 20px; width: 96px; height: 40px;
+        border-radius: 20px; background: Theme.accent;
+        opacity: Shell.edit-mode ? 1 : 0;
+        visible: self.opacity > 0.01;
+        animate opacity, y { duration: 320ms; easing: spring(0.3); }
+        Text { text: "Done"; color: #000; font-family: Theme.body; font-size: 14px; font-weight: 600; }
+        TouchArea { clicked => { Shell.edit-mode = false; } }
+    }
+    Text {
+        y: 112px; width: root.width;
+        text: "Hold and drag to rearrange";
+        color: Theme.muted; font-family: Theme.body; font-size: 13px; horizontal-alignment: center;
+        opacity: Shell.edit-mode ? 1 : 0;
+        animate opacity { duration: Theme.fast; }
     }
 
     if Shell.searching: Rectangle {
@@ -127,19 +202,109 @@ export component HomeScreen inherits Rectangle {
     }
 
     grid := Flickable {
-        x: 16px; y: 196px;
+        x: 16px; y: root.grid-y;
         width: parent.width - 32px;
-        height: root.dock-y - 196px - 12px;
-        content-height: ceil(Shell.apps.length / 4) * 80px;
+        height: root.dock-y - root.grid-y - 12px;
+        content-height: max(self.height, ceil(root.n / 4) * root.row-h);
+        interactive: root.drag-index < 0 && !root.long-fired;
+
         for a[i] in Shell.apps: Rectangle {
-            x: mod(i, 4) * root.col-w + (root.col-w - 56px) / 2;
-            y: floor(i / 4) * 80px;
+            property <int> slot: root.slot-of(i);
+            x: mod(slot, 4) * root.col-w + (root.col-w - 56px) / 2;
+            y: floor(slot / 4) * root.row-h + 8px;
             width: 56px; height: 56px;
+            animate x, y { duration: 280ms; easing: spring(0.25); }
+            // Entrata a cascata quando la home diventa visibile
+            opacity: i == root.drag-index ? 0 : (root.shown ? 1 : 0);
+            animate opacity { duration: 260ms; delay: root.shown ? min(i, 12) * 22ms : 0ms; easing: ease-out; }
+            transform-scale: root.shown ? 1 : 0.82;
+            animate transform-scale { duration: 420ms; delay: root.shown ? min(i, 12) * 22ms : 0ms; easing: spring(0.3); }
+            transform-rotation: Shell.edit-mode ? sin((animation-tick() / 1ms + i * 97) * 0.012rad) * 2.4deg : 0deg;
             AppIcon {
-                app: a;
-                activated(ax, ay, s) => { Shell.open-app(a.id, ax, ay, s); }
+                app: a; interactive: false;
+                pressed: root.press-index == i && root.drag-index < 0 && !grid-touch.moved-far-local;
             }
             Dot { x: 40px; y: -2px; count: a.badge; }
+            if Shell.edit-mode && a.android: Rectangle {
+                x: -6px; y: -6px; width: 24px; height: 24px; border-radius: 12px; background: #4a4a4a;
+                border-width: 2px; border-color: Theme.bg;
+                Icon { d: Icons.close; size: 12px; weight: 2.6px; }
+                TouchArea { clicked => { Shell.uninstall(a.id); } }
+            }
+        }
+
+        grid-touch := TouchArea {
+            property <bool> moved-far-local: root.moved-far;
+            width: parent.width;
+            height: grid.content-height;
+            pointer-event(ev) => {
+                if (ev.kind == PointerEventKind.down) {
+                    root.press-index = root.index-at(self.mouse-x, self.mouse-y);
+                    root.long-fired = false;
+                    root.moved-far = false;
+                    root.px = self.mouse-x; root.py = self.mouse-y;
+                    if (root.menu-index >= 0) { root.close-menu(); }
+                } else if (ev.kind == PointerEventKind.up || ev.kind == PointerEventKind.cancel) {
+                    if (root.drag-index >= 0) {
+                        if (root.target-index >= 0 && root.target-index != root.drag-index) {
+                            Shell.move-app(root.drag-index, root.target-index);
+                        }
+                        root.drag-index = -1;
+                        root.target-index = -1;
+                    } else if (!root.long-fired && !root.moved-far && ev.kind == PointerEventKind.up) {
+                        if (root.press-index >= 0 && !Shell.edit-mode) {
+                            Shell.open-app(Shell.apps[root.press-index].id,
+                                grid.absolute-position.x + mod(root.press-index, 4) * root.col-w + (root.col-w - 56px) / 2,
+                                grid.absolute-position.y + floor(root.press-index / 4) * root.row-h + 8px + grid.viewport-y, 56px);
+                        } else if (root.press-index < 0 && Shell.edit-mode) {
+                            Shell.edit-mode = false;
+                        }
+                    }
+                    root.press-index = -1;
+                    root.long-fired = false;
+                }
+            }
+            moved => {
+                root.px = self.mouse-x; root.py = self.mouse-y;
+                if (abs(self.mouse-x - self.pressed-x) > 10px || abs(self.mouse-y - self.pressed-y) > 10px) {
+                    root.moved-far = true;
+                }
+                if (root.drag-index >= 0) {
+                    let t = root.index-at(max(0, min(self.width - 1px, self.mouse-x)), max(0, self.mouse-y));
+                    if (t >= 0) { root.target-index = t; }
+                } else if (root.long-fired && root.moved-far && root.press-index >= 0) {
+                    // Pressione lunga e poi trascino: si entra in modifica e l'icona segue il dito
+                    root.close-menu();
+                    Shell.edit-mode = true;
+                    root.drag-index = root.press-index;
+                    root.target-index = root.press-index;
+                }
+            }
+        }
+
+        // Pressione lunga
+        Timer {
+            interval: 420ms;
+            running: grid-touch.pressed && root.press-index >= 0 && !root.long-fired && !root.moved-far;
+            triggered => {
+                root.long-fired = true;
+                if (Shell.edit-mode) {
+                    root.drag-index = root.press-index;
+                    root.target-index = root.press-index;
+                } else {
+                    root.open-menu(root.press-index, false, Shell.apps[root.press-index],
+                        grid.absolute-position.x + mod(root.press-index, 4) * root.col-w + (root.col-w - 56px) / 2,
+                        grid.absolute-position.y + floor(root.press-index / 4) * root.row-h + 8px + grid.viewport-y);
+                }
+            }
+        }
+
+        // Icona trascinata, sopra a tutte le altre
+        if root.drag-index >= 0: Rectangle {
+            x: root.px - 28px; y: root.py - 40px;
+            width: 56px; height: 56px;
+            transform-scale: 1.18;
+            AppIcon { app: Shell.apps[root.drag-index]; interactive: false; }
         }
     }
 
@@ -154,20 +319,81 @@ export component HomeScreen inherits Rectangle {
         border-radius: 36px;
         background: #111111;
         border-width: 1px; border-color: Theme.line;
+        animate width, x { duration: 320ms; easing: spring(0.25); }
         RoundButton {
             x: 12px; y: 12px; size: dock.item; outlined: false; fill: Theme.raised;
             icon: Icons.search; icon-size: 20px;
-            clicked => { Shell.searching = !Shell.searching; }
+            clicked => { Shell.edit-mode = false; Shell.searching = !Shell.searching; }
         }
         for a[i] in Shell.dock: Rectangle {
             x: 12px + (i + 1) * (dock.item + dock.gap);
             y: 12px;
             width: dock.item; height: dock.item;
-            AppIcon {
-                app: a; size: dock.item;
-                activated(ax, ay, s) => { Shell.open-app(a.id, ax, ay, s); }
-            }
+            AppIcon { app: a; size: dock.item; interactive: false; pressed: dt.pressed && !dt.long; }
             Dot { x: 32px; y: -4px; count: a.badge; }
+            dt := TouchArea {
+                property <bool> long: false;
+                pointer-event(ev) => {
+                    if (ev.kind == PointerEventKind.down) { self.long = false; if (root.menu-index >= 0) { root.close-menu(); } }
+                }
+                clicked => {
+                    if (!self.long) { Shell.open-app(a.id, self.absolute-position.x, self.absolute-position.y, dock.item); }
+                }
+            }
+            Timer {
+                interval: 420ms;
+                running: dt.pressed && !dt.long;
+                triggered => {
+                    dt.long = true;
+                    root.open-menu(i, true, a, dt.absolute-position.x - 4px, dt.absolute-position.y);
+                }
+            }
+        }
+    }
+
+    // Menu contestuale
+    if root.menu-index >= 0: Rectangle {
+        TouchArea { clicked => { root.close-menu(); } }
+    }
+    menu := Rectangle {
+        x: root.menu-x; y: root.menu-y;
+        width: 220px; height: root.menu-h;
+        border-radius: 20px; background: #1c1c1c;
+        border-width: 1px; border-color: #2c2c2c;
+        clip: true;
+        opacity: root.menu-index >= 0 ? 1 : 0;
+        visible: self.opacity > 0.01;
+        transform-scale: root.menu-index >= 0 ? 1 : 0.86;
+        transform-origin: { x: self.width / 2, y: root.menu-anchor-y > root.menu-y ? self.height : 0px };
+        animate opacity { duration: 140ms; }
+        animate transform-scale { duration: 360ms; easing: spring(0.3); }
+        VerticalLayout {
+            padding-top: 6px; padding-bottom: 6px;
+            Text {
+                height: 30px; x: 16px;
+                text: root.menu-app.name; color: Theme.muted; font-family: Theme.body; font-size: 12px; font-weight: 600;
+                vertical-alignment: center; horizontal-alignment: left;
+            }
+            if !root.menu-dock: MenuRow {
+                icon: Icons.pin; label: Shell.dock-full ? "Dock is full" : "Add to dock"; enabled: !Shell.dock-full;
+                clicked => { Shell.pin(root.menu-app.id); root.close-menu(); }
+            }
+            if root.menu-dock: MenuRow {
+                icon: Icons.pin; label: "Remove from dock";
+                clicked => { Shell.unpin(root.menu-app.id); root.close-menu(); }
+            }
+            if !root.menu-dock: MenuRow {
+                icon: Icons.keypad; label: "Edit home screen";
+                clicked => { root.close-menu(); Shell.edit-mode = true; }
+            }
+            MenuRow {
+                icon: Icons.info; label: "App info";
+                clicked => { root.close-menu(); Shell.app-info(root.menu-app.id); }
+            }
+            if !root.menu-dock && root.menu-app.android: MenuRow {
+                icon: Icons.trash; label: "Uninstall"; danger: true;
+                clicked => { root.close-menu(); Shell.uninstall(root.menu-app.id); }
+            }
         }
     }
 }
@@ -220,6 +446,17 @@ component PillSlider inherits Rectangle {
 export component ControlsPanel inherits Rectangle {
     background: Theme.bg;
     property <length> col-w: (root.width - 32px) / 4;
+    out property <length> lift: 0px;
+    // Trascinare in alto in un punto vuoto chiude il pannello seguendo il dito
+    TouchArea {
+        moved => { root.lift = max(0px, self.pressed-y - self.mouse-y); }
+        pointer-event(ev) => {
+            if (ev.kind == PointerEventKind.up || ev.kind == PointerEventKind.cancel) {
+                if (root.lift > 90px) { Shell.controls-open = false; }
+                root.lift = 0px;
+            }
+        }
+    }
 
     StatusBar { y: 0; width: parent.width; }
 
@@ -318,30 +555,48 @@ export component ControlsPanel inherits Rectangle {
 }
 
 // ---------- App aperte ----------
-component RecentCard inherits Card {
+component RecentCard inherits Rectangle {
     in property <RecentItem> item;
     callback open();
     callback close();
+    property <length> dx: 0px;
+    property <bool> gone: false;
     height: 76px;
-    TouchArea { clicked => { root.open(); } }
     Rectangle {
-        x: 14px; width: 48px; height: 48px; border-radius: 24px; background: Theme.raised;
-        Icon { d: root.item.glyph; size: 20px; }
-    }
-    VerticalLayout {
-        x: 76px; width: parent.width - 130px;
-        alignment: center; spacing: 4px;
-        HorizontalLayout {
-            spacing: 6px; alignment: start;
-            Text { text: root.item.name; color: Theme.text; font-family: Theme.display; font-weight: 500; font-size: 18px; }
-            if root.item.android: Badge { y: 5px; }
+        x: root.gone ? (root.dx > 0 ? root.width * 1.2 : -root.width * 1.2) : root.dx;
+        width: root.width; height: root.height;
+        opacity: 1 - min(1, abs(self.x) / (root.width * 0.9));
+        animate x { duration: touch.pressed ? 0ms : 300ms; easing: spring(0.2); }
+        border-radius: 18px; border-width: 1px; border-color: Theme.line; background: touch.pressed && abs(root.dx) < 6px ? Theme.raised : Theme.bg;
+        Rectangle {
+            x: 14px; width: 48px; height: 48px; border-radius: 24px; background: Theme.raised;
+            Icon { d: root.item.glyph; size: 20px; }
         }
-        Text { text: root.item.mem > 0 ? root.item.mem + " MB · " + root.item.state : root.item.state; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
-    }
-    RoundButton {
-        x: parent.width - 52px; y: 16px;
-        icon: Icons.close; outlined: false; tint: Theme.muted;
-        clicked => { root.close(); }
+        VerticalLayout {
+            x: 76px; width: parent.width - 130px;
+            alignment: center; spacing: 4px;
+            HorizontalLayout {
+                spacing: 6px; alignment: start;
+                Text { text: root.item.name; color: Theme.text; font-family: Theme.display; font-weight: 500; font-size: 18px; }
+                if root.item.android: Badge { y: 5px; }
+            }
+            Text { text: root.item.mem > 0 ? root.item.mem + " MB · " + root.item.state : root.item.state; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
+        }
+        touch := TouchArea {
+            moved => { root.dx = self.mouse-x - self.pressed-x; }
+            pointer-event(ev) => {
+                if (ev.kind == PointerEventKind.up) {
+                    if (abs(root.dx) > 110px) { root.gone = true; root.close(); }
+                    else if (abs(root.dx) < 6px) { root.open(); }
+                    root.dx = root.gone ? root.dx : 0px;
+                }
+            }
+        }
+        RoundButton {
+            x: parent.width - 52px; y: 16px;
+            icon: Icons.close; outlined: false; tint: Theme.muted;
+            clicked => { root.gone = true; root.dx = 1px; root.close(); }
+        }
     }
 }
 
@@ -356,7 +611,7 @@ export component SwitcherScreen inherits Rectangle {
             y: i * 84px;
             width: parent.width;
             item: r;
-            animate y { duration: Theme.slow; easing: Theme.ease; }
+            animate y { duration: 360ms; easing: spring(0.25); }
             open => { Shell.screen = ScreenId.home; Shell.open-app(r.id, (root.width - 56px) / 2, 84px + i * 84px + 10px, 56px); }
             close => { Shell.close-recent(r.id); }
         }

@@ -21,30 +21,41 @@ export component AppWindow inherits Window {
     property <bool> unlocked: Shell.screen != ScreenId.lock;
     property <bool> system-app: Shell.app-id == "calendar" || Shell.app-id == "notes" || Shell.app-id == "camera" || Shell.app-id == "settings" || Shell.app-id == "phone" || Shell.app-id == "messages" || Shell.app-id == "browser" || Shell.app-id == "files";
 
+    // Avanzamento del gesto di chiusura (0 = app intera, 1 = scheda piccola)
+    property <float> drag-p: min(1, max(0, Shell.close-drag / 420px));
+    property <bool> dragging: Shell.close-drag > 0px;
+
     home := HomeScreen {
         width: root.width; height: root.height;
-        opacity: (Shell.app-open || Shell.screen == ScreenId.switcher) ? 0.2 : 1;
-        animate opacity { duration: Theme.slow; easing: Theme.ease; }
+        shown: Shell.screen == ScreenId.home && !Shell.app-open;
+        opacity: (Shell.app-open || Shell.screen == ScreenId.switcher) ? 0.15 + 0.85 * root.drag-p : 1;
+        transform-scale: (Shell.app-open || Shell.screen == ScreenId.switcher) ? 0.92 + 0.08 * root.drag-p : 1;
+        animate opacity, transform-scale { duration: root.dragging ? 0ms : Theme.slow; easing: Theme.ease; }
     }
 
-    // Finestra app: nasce dall'icona toccata e si espande a tutto schermo
+    // Finestra app: nasce dall'icona toccata e si espande a tutto schermo.
+    // Col gesto dal basso si rimpicciolisce seguendo il dito.
     host := Rectangle {
         property <bool> live: Shell.app-open || self.width > Shell.from-size + 4px;
-        x: Shell.app-open ? 0px : Shell.from-x;
-        y: Shell.app-open ? 0px : Shell.from-y;
-        width: Shell.app-open ? root.width : Shell.from-size;
-        height: Shell.app-open ? root.height : Shell.from-size;
-        border-radius: Shell.app-open ? 0px : Shell.from-size / 2;
+        property <length> card-w: root.width * (1 - 0.42 * root.drag-p);
+        property <length> card-h: root.height * (1 - 0.42 * root.drag-p);
+        x: Shell.app-open ? (root.width - self.card-w) / 2 : Shell.from-x;
+        y: Shell.app-open ? (root.height - self.card-h) / 2 - Shell.close-drag * 0.35 : Shell.from-y;
+        width: Shell.app-open ? self.card-w : Shell.from-size;
+        height: Shell.app-open ? self.card-h : Shell.from-size;
+        border-radius: Shell.app-open ? 36px * root.drag-p : Shell.from-size / 2;
         visible: self.live;
         clip: true;
         background: Theme.surface;
-        animate x, y, width, height, border-radius { duration: Theme.slow; easing: Theme.ease; }
+        animate x, y, width, height, border-radius { duration: root.dragging ? 0ms : Theme.slow; easing: Theme.ease; }
 
         Rectangle {
-            x: -host.x; y: -host.y;
+            x: 0; y: 0;
             width: root.width; height: root.height;
+            transform-origin: { x: 0px, y: 0px };
+            transform-scale: host.width / root.width;
             opacity: Shell.app-open ? 1 : 0;
-            animate opacity { duration: 240ms; delay: Shell.app-open ? 110ms : 0ms; easing: ease-out; }
+            animate opacity { duration: 240ms; delay: Shell.app-open ? 90ms : 0ms; easing: ease-out; }
             if Shell.app-id == "phone": PhoneApp { }
             if Shell.app-id == "messages": MessagesApp { }
             if Shell.app-id == "browser": BrowserApp { }
@@ -72,31 +83,39 @@ export component AppWindow inherits Window {
         animate y { duration: Theme.slow; easing: Theme.ease; }
     }
 
-    // Bordo alto: tira giù i Controlli
-    if root.unlocked: TouchArea {
+    // Bordo alto: i Controlli scendono seguendo il dito
+    if root.unlocked && !Shell.controls-open: TouchArea {
         y: 0; height: 28px;
+        moved => { Shell.controls-drag = max(0px, self.mouse-y - self.pressed-y); }
         pointer-event(ev) => {
-            if (ev.kind == PointerEventKind.up && self.mouse-y - self.pressed-y > 60px) {
-                Shell.controls-open = true;
+            if (ev.kind == PointerEventKind.up || ev.kind == PointerEventKind.cancel) {
+                if (Shell.controls-drag > 110px) { Shell.controls-open = true; }
+                Shell.controls-drag = 0px;
             }
         }
     }
 
-    // Barra gesti: su corto = home, su lungo = app aperte
+    // Barra gesti: l'app segue il dito; corto = home, lungo = app aperte
     if root.unlocked: Rectangle {
-        y: root.height - 24px; height: 24px;
-        Rectangle { width: 96px; height: 4px; border-radius: 2px; background: #5a5a5a; }
+        y: root.height - 28px; height: 28px;
+        Rectangle {
+            y: 18px; width: 96px + 24px * root.drag-p; height: 4px; border-radius: 2px; background: #6a6a6a;
+        }
         TouchArea {
+            moved => { Shell.close-drag = max(0px, self.pressed-y - self.mouse-y); }
             pointer-event(ev) => {
-                if (ev.kind == PointerEventKind.up) {
-                    if (self.pressed-y - self.mouse-y > 220px) {
+                if (ev.kind == PointerEventKind.up || ev.kind == PointerEventKind.cancel) {
+                    let d = Shell.close-drag;
+                    if (d > 300px) {
                         Shell.close-app();
                         Shell.screen = ScreenId.switcher;
-                    } else if (self.pressed-y - self.mouse-y > 30px) {
+                    } else if (d > 40px) {
                         Shell.close-app();
                         Shell.searching = false;
+                        Shell.edit-mode = false;
                         Shell.screen = ScreenId.home;
                     }
+                    Shell.close-drag = 0px;
                 }
             }
         }
@@ -104,8 +123,8 @@ export component AppWindow inherits Window {
 
     controls := ControlsPanel {
         width: root.width; height: root.height;
-        y: Shell.controls-open ? 0px : -root.height;
-        animate y { duration: Theme.slow; easing: Theme.ease; }
+        y: Shell.controls-open ? -self.lift : -root.height + min(root.height, Shell.controls-drag * 1.15);
+        animate y { duration: (Shell.controls-drag > 0px || self.lift > 0px) ? 0ms : 380ms; easing: spring(0.15); }
     }
 
     lock := LockScreen {

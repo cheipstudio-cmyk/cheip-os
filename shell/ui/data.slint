@@ -71,6 +71,16 @@ export global Shell {
     callback search(string);
     callback close-recent(string);
     callback close-all();
+    // Modifica della home: riordino, dock, info app
+    in-out property <bool> edit-mode: false;
+    in-out property <length> close-drag: 0px;
+    in-out property <length> controls-drag: 0px;
+    in property <bool> dock-full: false;
+    callback move-app(int, int);
+    callback pin(string);
+    callback unpin(string);
+    callback app-info(string);
+    callback uninstall(string);
 }
 
 export global Cal {
@@ -213,6 +223,11 @@ export global Settings {
     in property <string> modem-signal: "";
     in property <string> modem-state: "";
     in property <string> timezone: "Europe/Rome";
+    in property <string> info-name: "";
+    in property <string> info-kind: "";
+    in property <string> info-id: "";
+    in property <string> info-glyph: "";
+    in property <bool> info-android: false;
     callback open-page(string);
     callback wifi-scan();
     callback wifi-connect(string, string);

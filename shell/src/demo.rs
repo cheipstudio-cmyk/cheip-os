@@ -19,6 +19,8 @@ pub fn store() -> Store {
     let call = |num: &str, t, dir: &str, secs| CallLog { number: num.into(), ts: t, dir: dir.into(), secs };
     let m = |num: &str, t: &str, at, out, read| Message { number: num.into(), text: t.into(), ts: at, outgoing: out, read };
     Store::memory(Data {
+        app_order: vec![],
+        dock: crate::store::default_dock(),
         notes: vec![
             n(1, "Groceries", "Milk, bread, cat food", true, 10),
             n(2, "OS ideas", "Edge gestures, weather widget on home", true, 9),

@@ -67,6 +67,27 @@ pub struct Data {
     pub messages: Vec<Message>,
     #[serde(default)]
     pub bookmarks: Vec<Bookmark>,
+    /// Ordine delle icone nella griglia della home
+    #[serde(default)]
+    pub app_order: Vec<String>,
+    /// App fisse nel dock, al massimo 4
+    #[serde(default = "default_dock")]
+    pub dock: Vec<String>,
+}
+
+pub fn default_dock() -> Vec<String> {
+    ["phone", "messages", "browser", "camera"].iter().map(|s| s.to_string()).collect()
+}
+
+pub const DOCK_MAX: usize = 4;
+
+/// Sposta un elemento da `from` a `to` (indici nella lista visibile)
+pub fn move_item(list: &mut Vec<String>, from: usize, to: usize) {
+    if from >= list.len() || to >= list.len() || from == to {
+        return;
+    }
+    let x = list.remove(from);
+    list.insert(to, x);
 }
 
 /// Confronto numeri ignorando spazi e prefisso internazionale italiano
@@ -286,6 +307,18 @@ mod tests {
     fn old_data_file_still_loads() {
         let d: Data = serde_json::from_str(r#"{"notes":[],"events":[]}"#).unwrap();
         assert!(d.contacts.is_empty());
+        assert_eq!(d.dock.len(), 4, "dock predefinito");
+    }
+
+    #[test]
+    fn reorder() {
+        let mut v: Vec<String> = ["a", "b", "c", "d"].iter().map(|s| s.to_string()).collect();
+        move_item(&mut v, 0, 2);
+        assert_eq!(v, ["b", "c", "a", "d"]);
+        move_item(&mut v, 3, 0);
+        assert_eq!(v, ["d", "b", "c", "a"]);
+        move_item(&mut v, 9, 0);
+        assert_eq!(v.len(), 4);
     }
 
     #[test]

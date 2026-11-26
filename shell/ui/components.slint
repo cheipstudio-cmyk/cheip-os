@@ -126,15 +126,16 @@ export component Badge inherits Rectangle {
 export component AppIcon inherits Rectangle {
     in property <AppEntry> app;
     in property <length> size: 56px;
+    in property <bool> interactive: true;
+    in property <bool> pressed;
     callback activated(length, length, length);
     width: self.size;
     height: self.size;
     border-radius: self.size / 2;
-    background: Theme.raised;
+    background: (root.pressed || ta.pressed) ? #262626 : Theme.raised;
     clip: true;
-    states [
-        pressed when ta.pressed: { background: #262626; }
-    ]
+    transform-scale: (root.pressed || ta.pressed) ? 0.88 : 1;
+    animate transform-scale { duration: 260ms; easing: spring(0.35); }
     animate background { duration: Theme.fast; }
     if !root.app.has-picture && root.app.glyph != "": Icon { d: root.app.glyph; size: root.size * 0.43; weight: 1.8px; }
     if !root.app.has-picture && root.app.glyph == "": Text {
@@ -144,6 +145,7 @@ export component AppIcon inherits Rectangle {
     }
     if root.app.has-picture: Image { source: root.app.picture; width: root.size; height: root.size; image-fit: cover; }
     ta := TouchArea {
+        enabled: root.interactive;
         clicked => { root.activated(root.absolute-position.x, root.absolute-position.y, root.size); }
     }
 }
@@ -172,6 +174,8 @@ export component RoundButton inherits Rectangle {
     background: ta.pressed ? Theme.raised : self.fill;
     border-width: self.outlined ? 1px : 0px;
     border-color: Theme.line;
+    transform-scale: ta.pressed ? 0.88 : 1;
+    animate transform-scale { duration: 260ms; easing: spring(0.35); }
     animate background { duration: Theme.fast; }
     Icon { d: root.icon; tint: root.tint; size: root.icon-size; }
     ta := TouchArea { clicked => { root.clicked(); } }
@@ -189,7 +193,8 @@ export component PillButton inherits Rectangle {
     background: root.solid ? Theme.accent : (root.active ? Theme.text : transparent);
     border-width: (root.active || root.solid) ? 0px : 1px;
     border-color: Theme.line;
-    opacity: ta.pressed ? 0.7 : 1;
+    transform-scale: ta.pressed ? 0.92 : 1;
+    animate transform-scale { duration: 260ms; easing: spring(0.35); }
     animate background { duration: Theme.fast; }
     txt := Text {
         text: root.label;
