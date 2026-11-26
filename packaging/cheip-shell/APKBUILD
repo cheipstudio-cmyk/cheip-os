@@ -8,7 +8,7 @@ arch="armv7 aarch64 x86_64"
 license="GPL-3.0-or-later"
 depends="doas mesa-dri-gallium networkmanager-cli util-linux-misc modemmanager bluez alsa-utils
 	gst-plugins-base gst-plugins-good gst-libav mupdf-tools"
-makedepends="cargo eudev-dev libinput-dev libdrm-dev mesa-dev libxkbcommon-dev fontconfig-dev
+makedepends="cargo eudev-dev libinput-dev libdrm-dev mesa-dev libxkbcommon-dev fontconfig-dev seatd-dev
 	gstreamer-dev gst-plugins-base-dev"
 install="$pkgname.post-install"
 options="net"
