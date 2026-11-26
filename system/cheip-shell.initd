@@ -9,7 +9,9 @@ description="Interfaccia di sistema di Cheip OS"
 supervisor=supervise-daemon
 command="/usr/libexec/cheip/cheip-session"
 command_user="${cheip_user}"
-respawn_delay=1
+output_log="/var/log/cheip-shell.log"
+error_log="/var/log/cheip-shell.log"
+respawn_delay=2
 respawn_max=0
 
 depend() {
@@ -22,4 +24,17 @@ start_pre() {
 		eerror "Nessun utente nel gruppo wheel: imposta cheip_user in /etc/conf.d/cheip-shell"
 		return 1
 	fi
+	# Schermo, tocco e tasti: la shell disegna direttamente su DRM e legge evdev
+	for g in video input audio; do addgroup "$cheip_user" "$g" >/dev/null 2>&1; done
+	chmod 666 /dev/dri/card* /dev/input/event* 2>/dev/null
+	# Il login testuale su tty1 non deve contendere lo schermo alla shell
+	if grep -q '^tty1::' /etc/inittab 2>/dev/null; then
+		sed -i 's/^tty1::/#tty1::/' /etc/inittab
+		kill -HUP 1 2>/dev/null
+	fi
+	pkill -f 'getty.*tty1' 2>/dev/null
+	printf '\033[2J\033[H\033[?25l' > /dev/tty1 2>/dev/null
+	touch /var/log/cheip-shell.log
+	chown "$cheip_user" /var/log/cheip-shell.log
+	return 0
 }

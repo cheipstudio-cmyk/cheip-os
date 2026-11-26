@@ -6,4 +6,7 @@ rc-update add networkmanager default >/dev/null 2>&1 || true
 rc-update add modemmanager default >/dev/null 2>&1 || true
 rc-update add bluetooth default >/dev/null 2>&1 || true
 rc-update add cheip-shell default >/dev/null 2>&1 || true
+rc-update add cheip-bootcheck default >/dev/null 2>&1 || true
+# Niente login testuale sullo schermo del telefono: lo usa la shell
+sed -i "s/^tty1::/#tty1::/" /etc/inittab 2>/dev/null || true
 exit 0
