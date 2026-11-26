@@ -137,23 +137,10 @@ mod imp {
     /// Motore di vibrazione del telefono: il primo dispositivo con FF_RUMBLE
     pub fn vibrate(ms: u16) {
         std::thread::spawn(move || {
-            use evdev::{FFEffectCode, FFEffectData, FFEffectKind, FFReplay, FFTrigger};
-            for (_, mut dev) in evdev::enumerate() {
-                let ok = dev.supported_ff().map(|f| f.contains(FFEffectCode::FF_RUMBLE)).unwrap_or(false);
-                if !ok {
-                    continue;
+            for mut dev in crate::evdev_lite::enumerate() {
+                if dev.has_rumble() && dev.rumble(ms) {
+                    return;
                 }
-                let data = FFEffectData {
-                    direction: 0,
-                    trigger: FFTrigger::default(),
-                    replay: FFReplay { length: ms, delay: 0 },
-                    kind: FFEffectKind::Rumble { strong_magnitude: 0xffff, weak_magnitude: 0xffff },
-                };
-                if let Ok(mut eff) = dev.upload_ff_effect(data) {
-                    let _ = eff.play(1);
-                    std::thread::sleep(std::time::Duration::from_millis(ms as u64 + 50));
-                }
-                return;
             }
         });
     }

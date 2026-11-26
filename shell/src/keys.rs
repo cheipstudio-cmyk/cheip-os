@@ -10,31 +10,24 @@ pub enum Key {
 
 #[cfg(feature = "native")]
 pub fn listen<F: Fn(Key) + Send + Sync + Clone + 'static>(on_key: F) {
-    use evdev::{EventSummary, KeyCode};
-    for (_, dev) in evdev::enumerate() {
-        let wanted = dev
-            .supported_keys()
-            .map(|k| k.contains(KeyCode::KEY_VOLUMEUP) || k.contains(KeyCode::KEY_VOLUMEDOWN) || k.contains(KeyCode::KEY_POWER))
-            .unwrap_or(false);
-        if !wanted {
+    use crate::evdev_lite::{enumerate, EV_KEY, KEY_POWER, KEY_VOLUMEDOWN, KEY_VOLUMEUP};
+    for mut dev in enumerate() {
+        if !(dev.has_key(KEY_VOLUMEUP) || dev.has_key(KEY_VOLUMEDOWN) || dev.has_key(KEY_POWER)) {
             continue;
         }
         let on_key = on_key.clone();
-        let mut dev = dev;
         std::thread::spawn(move || loop {
-            let Ok(events) = dev.fetch_events() else { return };
+            let Ok(events) = dev.read_events() else { return };
             for ev in events {
                 // Solo la pressione (1) e la ripetizione (2), non il rilascio
-                if let EventSummary::Key(_, code, v) = ev.destructure() {
-                    if v == 0 {
-                        continue;
-                    }
-                    match code {
-                        KeyCode::KEY_VOLUMEUP => on_key(Key::VolumeUp),
-                        KeyCode::KEY_VOLUMEDOWN => on_key(Key::VolumeDown),
-                        KeyCode::KEY_POWER if v == 1 => on_key(Key::Power),
-                        _ => {}
-                    }
+                if ev.kind != EV_KEY || ev.value == 0 {
+                    continue;
+                }
+                match ev.code {
+                    KEY_VOLUMEUP => on_key(Key::VolumeUp),
+                    KEY_VOLUMEDOWN => on_key(Key::VolumeDown),
+                    KEY_POWER if ev.value == 1 => on_key(Key::Power),
+                    _ => {}
                 }
             }
         });

@@ -7,6 +7,8 @@ pub mod ctl_comm;
 pub mod ctl_files;
 pub mod ctl_settings;
 pub mod ctl_web;
+#[cfg(feature = "native")]
+pub mod evdev_lite;
 pub mod feedback;
 pub mod files;
 pub mod keys;
