@@ -15,6 +15,10 @@ options="!check"
 
 package() {
 	install -Dm644 "$srcdir"/cheip-os.rsa.pub "$pkgdir"/etc/apk/keys/cheip-os.rsa.pub
+	# Lumia: the screen is the UEFI framebuffer (simple-framebuffer), simpledrm
+	# must be in the initramfs so the boot splash and the console show up
+	mkdir -p "$pkgdir"/usr/share/mkinitfs/modules
+	echo simpledrm > "$pkgdir"/usr/share/mkinitfs/modules/10-cheip-display.modules
 	# App Android preinstallate, aggiunte dalla CI se disponibili
 	for apk in "$srcdir"/*.apk; do
 		[ -f "$apk" ] && install -Dm644 "$apk" "$pkgdir"/usr/share/cheip/preinstall/"$(basename "$apk")"

@@ -31,7 +31,7 @@ jobs:
           cd lk2nd
           # SD write commands for the web installer + WinUSB descriptors for WebUSB
           git apply ../lk/cheip-sd.patch
-          make TOOLCHAIN_PREFIX=arm-none-eabi- lk1st-msm8226 LK2ND_COMPATIBLE="microsoft,superman-lte" DEBUG_FBCON=1 MEMBASE=0x0FF00000 -j"$(nproc)"
+          make TOOLCHAIN_PREFIX=arm-none-eabi- lk1st-msm8226 LK2ND_COMPATIBLE="microsoft,superman-lte" LK2ND_DTB_HINT="msm8926-microsoft-superman-lte" DEBUG_FBCON=1 MEMBASE=0x0FF00000 -j"$(nproc)"
           mkdir -p ../boot && cp build-lk1st-msm8226/lk_s.elf ../boot/emmc_appsboot.mbn
           curl -fsSL -o ../boot/BootShim.efi https://github.com/imbushuo/boot-shim/releases/download/elf-loader-pre3/BootShim.efi
       - uses: actions/upload-artifact@v4
@@ -122,6 +122,10 @@ jobs:
           pmbootstrap -y install --zap --password 147147
           mkdir -p out
           pmbootstrap export out
+          # lk1st has no bundled device DTB: explicit fdt line, boot log on screen
+          sudo apt-get install -y -qq e2fsprogs fdisk
+          for f in out/*.img; do case "$f" in *boot.img*) continue;; esac
+            sudo sh scripts/fix-extlinux.sh "$(readlink -f "$f")" qcom-msm8926-microsoft-superman-lte.dtb; done
           for f in out/*.img; do xz -T0 -6 -c "$(readlink -f "$f")" > "dist-$(basename "$f").xz"; done
           # boot.img per l'avvio da RAM con "fastboot boot" da lk1st
           for f in out/boot.img*; do [ -e "$f" ] && cp "$(readlink -f "$f")" "dist-$(basename "$f")"; done

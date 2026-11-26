@@ -11,6 +11,35 @@ index c6b8e90..13d8a68 100644
  	.manufacturer = "Google",
  	.product      = "Android",
  };
+diff --git a/lk2nd/boot/extlinux.c b/lk2nd/boot/extlinux.c
+index 5bcf607..e0c9747 100644
+--- a/lk2nd/boot/extlinux.c
++++ b/lk2nd/boot/extlinux.c
+@@ -371,6 +371,12 @@ static bool expand_conf(struct label *label, const char *root)
+ {
+ 	const char *const *dtbfiles = lk2nd_device_get_dtb_hints();
+ 	int i = 0;
++#ifdef LK2ND_DTB_HINT
++	/* Cheip OS: lk1st on Lumia has no bundled device DTB to take hints from */
++	static const char *const cheip_hints[] = { LK2ND_DTB_HINT, NULL };
++	if (!dtbfiles)
++		dtbfiles = cheip_hints;
++#endif
+ 
+ 	/* Cant boot without any kernel. */
+ 	if (!label->kernel) {
+diff --git a/lk2nd/boot/rules.mk b/lk2nd/boot/rules.mk
+index 14d2676..5866c9c 100644
+--- a/lk2nd/boot/rules.mk
++++ b/lk2nd/boot/rules.mk
+@@ -15,3 +15,7 @@ OBJS += \
+ LK2ND_BOOT_MEM_SIZE ?= 0x03200000
+ 
+ DEFINES += LK2ND_BOOT_MEM_SIZE=$(LK2ND_BOOT_MEM_SIZE)
++
++ifneq ($(LK2ND_DTB_HINT),)
++DEFINES += LK2ND_DTB_HINT="$(LK2ND_DTB_HINT)"
++endif
 diff --git a/lk2nd/fastboot/cheip.c b/lk2nd/fastboot/cheip.c
 new file mode 100644
 index 0000000..6d38d67
