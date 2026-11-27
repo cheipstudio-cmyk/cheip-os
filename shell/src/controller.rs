@@ -595,11 +595,13 @@ thread_local! {
 fn push_hw(ui: &AppWindow) {
     let Some(hw) = hw_snapshot() else { return };
     let s = ui.global::<Sys>();
-    if let Some((level, ch)) = hw.battery {
-        // Charger plugged in: short rising sound and the screen wakes up like Android
+    if let Some((_, ch)) = hw.battery {
+        // Charger plugged in: short rising sound
         if PREV_CHARGING.with(|p| p.replace(Some(ch))) == Some(false) && ch && s.get_snd_charge() && s.get_ringer() == 0 {
             crate::feedback::play(crate::feedback::Sound::Charge, s.get_volume().max(0.3));
         }
+    }
+    if let Some((level, ch)) = hw.battery.filter(|b| b.0 >= 0) {
         if ch || level > 20 {
             LOW_WARNED.with(|w| w.set(false));
         } else if level <= 15 && !LOW_WARNED.with(|w| w.replace(true)) {
@@ -612,9 +614,14 @@ fn push_hw(ui: &AppWindow) {
         }
     }
     match hw.battery {
-        Some((b, ch)) => {
+        Some((b, ch)) if b >= 0 => {
             s.set_has_battery(true);
             s.set_battery(b);
+            s.set_charging(ch);
+        }
+        // Charger known, level unknown (no voltage reading yet)
+        Some((_, ch)) => {
+            s.set_has_battery(false);
             s.set_charging(ch);
         }
         None => s.set_has_battery(false),
@@ -1363,9 +1370,7 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
                 set_pref_ui(ui, name, v);
             }
         }
-        if size != 1 {
-            apply_display_size(ui, size);
-        }
+        let _ = size; // display size option removed: the default scale stays
     }
     st
 }

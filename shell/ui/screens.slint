@@ -256,7 +256,7 @@ export component HomeScreen inherits Rectangle {
             x: 24px; y: 42px; height: 22px; spacing: 6px;
             Icon { d: Clock.next-alarm != "" ? Icons.alarm-f : Icons.bolt-f; size: 18px; tint: Style.wp-ink; y: 2px; }
             Text {
-                text: Clock.next-alarm != "" ? "Alarm " + Clock.next-alarm : (!Sys.has-battery ? "Battery level not available" : (Sys.charging ? "Charging · " + Sys.battery + "%" : Sys.battery + "% battery"));
+                text: Clock.next-alarm != "" ? "Alarm " + Clock.next-alarm : (!Sys.has-battery ? (Sys.charging ? "Charging" : "Battery level not available") : (Sys.charging ? "Charging · " + Sys.battery + "%" : Sys.battery + "% battery"));
                 color: Style.wp-ink; font-family: Theme.body; font-size: 15px; vertical-alignment: center;
             }
         }

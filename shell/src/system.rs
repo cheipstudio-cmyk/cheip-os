@@ -30,11 +30,15 @@ pub fn battery() -> Option<(i32, bool)> {
     }
     // No fuel gauge (Lumia: pm8226 has no BMS driver): estimate from the
     // battery voltage read by the PMIC ADC, charging state from the charger
-    let mv = vbat_mv()?;
     let charging = class_dirs("power_supply").iter().any(|d| {
         read_trim(d.join("status")).as_deref() == Some("Charging")
             || (read_trim(d.join("online")).as_deref() == Some("1") && read_trim(d.join("type")).as_deref() != Some("Battery"))
     });
+    // No voltage reading: the charging state is still real (level -1 = unknown)
+    let Some(mv) = vbat_mv() else {
+        let has_charger = class_dirs("power_supply").iter().any(|d| d.join("status").exists() || d.join("online").exists());
+        return has_charger.then_some((-1, charging));
+    };
     // Li-ion curve, resting voltage; while charging the voltage reads higher
     let v = if charging { mv - 120 } else { mv };
     let pts = [(3300, 0), (3600, 5), (3700, 15), (3750, 30), (3800, 45), (3850, 55), (3900, 65), (4000, 80), (4100, 92), (4200, 100)];
@@ -51,7 +55,20 @@ pub fn battery() -> Option<(i32, bool)> {
 /// (channel 7 on pm8226, the system rail fed straight by the battery)
 pub fn vbat_mv() -> Option<i32> {
     for d in fs::read_dir("/sys/bus/iio/devices").ok()?.flatten() {
-        let vadc = read_trim(d.path().join("name")).map(|n| n.contains("vadc")).unwrap_or(false);
+        let vadc = read_trim(d.path().join("name")).map(|n| n.contains("vadc") || n.contains("adc@3100")).unwrap_or(false);
+        // Channels with a label file (spmi-vadc): in_voltage7_label = "vph_pwr"
+        for f in fs::read_dir(d.path()).ok()?.flatten() {
+            let n = f.file_name().to_string_lossy().to_string();
+            if let Some(ch) = n.strip_suffix("_label") {
+                let label = read_trim(f.path()).unwrap_or_default();
+                if label.contains("vph") || label.contains("vbat") {
+                    if let Some(raw) = read_trim(d.path().join(format!("{ch}_input"))).and_then(|v| v.parse::<i64>().ok()) {
+                        let mv = if raw > 100_000 { raw / 1000 } else { raw };
+                        if (2500..5000).contains(&mv) { return Some(mv as i32); }
+                    }
+                }
+            }
+        }
         for f in fs::read_dir(d.path()).ok()?.flatten() {
             let n = f.file_name().to_string_lossy().to_string();
             let hit = (n.contains("vbat") || n.contains("vph") || (vadc && n == "in_voltage7_input")) && n.ends_with("_input");

@@ -176,7 +176,7 @@ export component SettingsApp inherits Rectangle {
                 MainRow { last: true; icon: Icons.storage; hue: 1; label: "Storage"; detail: Settings.storage-used + " used of " + Settings.storage-total; clicked => { Settings.open-page("storage"); } }
                 Rectangle { height: 14px; }
                 MainRow { first: true; icon: Sys.ringer == 0 ? Icons.speaker-f : (Sys.ringer == 1 ? Icons.vibrate-f : Icons.bell-off-f); hue: 2; label: "Sound & vibration"; detail: (Sys.ringer == 0 ? "Ring" : (Sys.ringer == 1 ? "Vibrate" : "Silent")) + " · Volume " + round(Sys.volume * 100) + "%"; clicked => { Settings.open-page("sound"); } }
-                MainRow { icon: Icons.brightness; hue: 2; label: "Display & touch"; detail: "Brightness, display size, screen timeout"; clicked => { Settings.open-page("display"); } }
+                MainRow { icon: Icons.brightness; hue: 2; label: "Display & touch"; detail: "Brightness, navigation, screen timeout"; clicked => { Settings.open-page("display"); } }
                 MainRow { icon: Icons.palette-f; hue: 2; label: "Wallpaper & style"; detail: "Colors, themed icons, app grid"; clicked => { Settings.open-page("style"); } }
                 MainRow { last: true; icon: Icons.a11y; hue: 2; label: "Accessibility"; detail: "Remove animations"; clicked => { Settings.open-page("a11y"); } }
                 Rectangle { height: 14px; }
@@ -303,8 +303,6 @@ export component SettingsApp inherits Rectangle {
             first: true; last: true; height: 84px;
             Slider { x: 16px; width: parent.width - 32px; track: 52px; icon: Icons.brightness; value: Sys.brightness; changed(v) => { Sys.brightness = v; Sys.brightness-changed(v); } }
         }
-        Header { text: "   Display size"; }
-        Segmented { items: ["Small", "Default", "Large"]; selected: Sys.display-size; height: 52px; picked(i) => { Sys.set-display-size(i); } }
         Header { text: "   System navigation"; }
         RadioRow { first: true; label: "3-button navigation"; on: Sys.nav-buttons; clicked => { Sys.pref("nav_buttons", 1); } }
         RadioRow { last: true; label: "Gesture navigation"; on: !Sys.nav-buttons; clicked => { Sys.pref("nav_buttons", 0); } }
