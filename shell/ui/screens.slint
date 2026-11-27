@@ -216,11 +216,23 @@ export component HomeScreen inherits Rectangle {
     property <length> menu-anchor-y;
     property <length> menu-h: 44px + (root.menu-dock ? 2 : (root.menu-app.android ? 4 : 3)) * 48px;
 
+    // Pages of apps, swiped sideways like Android
+    property <int> rows: max(1, floor((root.dock-y - root.grid-y - 8px) / root.row-h));
+    property <int> per-page: root.rows * 4;
+    property <int> pages: max(1, ceil(root.n / root.per-page));
+    property <int> page: 0;
     pure function index-at(x: length, y: length) -> int {
         if (x < 0 || y < 0) { return -1; }
         let col = min(3, floor(x / root.col-w));
-        let i = floor(y / root.row-h) * 4 + col;
+        let row = min(root.rows - 1, floor(y / root.row-h));
+        let i = root.page * root.per-page + row * 4 + col;
         return i < root.n ? i : -1;
+    }
+    pure function slot-x(s: int) -> length {
+        return (floor(s / root.per-page) - root.page) * (root.width - 24px) + mod(mod(s, root.per-page), 4) * root.col-w + (root.col-w - root.icon) / 2;
+    }
+    pure function slot-y(s: int) -> length {
+        return floor(mod(s, root.per-page) / 4) * root.row-h + 12px;
     }
     pure function slot-of(i: int) -> int {
         if (root.drag-index < 0 || root.target-index < 0) { return i; }
@@ -303,17 +315,18 @@ export component HomeScreen inherits Rectangle {
         animate opacity { duration: Theme.fast; }
     }
 
-    grid := Flickable {
+    grid := Rectangle {
         x: 12px; y: root.grid-y;
         width: parent.width - 24px;
         height: root.dock-y - root.grid-y - 8px;
-        content-height: max(self.height, ceil(root.n / 4) * root.row-h);
-        interactive: root.drag-index < 0 && !root.long-fired;
+        clip: true;
+        property <length> content-height: self.height;
+        property <length> content-y: 0px;
 
         for a[i] in Shell.apps: Rectangle {
             property <int> slot: root.slot-of(i);
-            x: mod(slot, 4) * root.col-w + (root.col-w - root.icon) / 2;
-            y: floor(slot / 4) * root.row-h + 12px;
+            x: root.slot-x(slot);
+            y: root.slot-y(slot);
             width: root.icon; height: root.icon;
             animate x, y { duration: 380ms; easing: spring(0.3); }
             opacity: i == root.drag-index ? 0 : (root.shown ? 1 : 0);
@@ -350,11 +363,17 @@ export component HomeScreen inherits Rectangle {
                         }
                         root.drag-index = -1;
                         root.target-index = -1;
+                    } else if (!root.long-fired && root.moved-far && ev.kind == PointerEventKind.up
+                               && abs(self.mouse-x - self.pressed-x) > abs(self.mouse-y - self.pressed-y)
+                               && abs(self.mouse-x - self.pressed-x) > 50px) {
+                        // Horizontal swipe: next or previous page
+                        if (self.mouse-x < self.pressed-x) { root.page = min(root.pages - 1, root.page + 1); }
+                        else { root.page = max(0, root.page - 1); }
                     } else if (!root.long-fired && !root.moved-far && ev.kind == PointerEventKind.up) {
                         if (root.press-index >= 0 && !Shell.edit-mode) {
                             Shell.open-app(Shell.apps[root.press-index].id,
-                                grid.absolute-position.x + mod(root.press-index, 4) * root.col-w + (root.col-w - root.icon) / 2,
-                                grid.absolute-position.y + floor(root.press-index / 4) * root.row-h + 12px + grid.content-y, root.icon);
+                                grid.absolute-position.x + root.slot-x(root.press-index),
+                                grid.absolute-position.y + root.slot-y(root.press-index), root.icon);
                         } else if (root.press-index < 0 && Shell.edit-mode) {
                             Shell.edit-mode = false;
                         }
@@ -390,8 +409,8 @@ export component HomeScreen inherits Rectangle {
                     root.target-index = root.press-index;
                 } else {
                     root.open-menu(root.press-index, false, Shell.apps[root.press-index],
-                        grid.absolute-position.x + mod(root.press-index, 4) * root.col-w + (root.col-w - root.icon) / 2,
-                        grid.absolute-position.y + floor(root.press-index / 4) * root.row-h + 12px + grid.content-y);
+                        grid.absolute-position.x + root.slot-x(root.press-index),
+                        grid.absolute-position.y + root.slot-y(root.press-index));
                 }
             }
         }
@@ -401,6 +420,17 @@ export component HomeScreen inherits Rectangle {
             width: root.icon; height: root.icon;
             transform-scale: 1.2;
             AppIcon { app: Shell.apps[root.drag-index]; interactive: false; size: root.icon; }
+        }
+    }
+
+    // Page dots
+    if root.pages > 1: HorizontalLayout {
+        y: root.dock-y - 14px; height: 8px;
+        alignment: center; spacing: 8px;
+        for p in root.pages: Rectangle {
+            width: p == root.page ? 22px : 8px; height: 8px; border-radius: 4px;
+            background: p == root.page ? Style.wp-ink : Style.wp-ink.with-alpha(0.4);
+            animate width { duration: Theme.fast; }
         }
     }
 

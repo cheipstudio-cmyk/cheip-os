@@ -27,6 +27,12 @@ case "${1:-}" in
 			*) echo "uso: android start|stop" >&2; exit 2 ;;
 		esac
 		;;
+	time)
+		# "YYYY-MM-DD HH:MM:SS" only, then keep it in the hardware clock
+		echo "${2:-}" | grep -Eqx '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' || { echo "data non valida" >&2; exit 2; }
+		date -s "$2" >/dev/null
+		hwclock -w 2>/dev/null || true
+		;;
 	power)
 		case "${2:-}" in
 			off) setsid sh -c 'sleep 1; poweroff' >/dev/null 2>&1 & ;;

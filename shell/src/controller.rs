@@ -416,6 +416,11 @@ thread_local! {
     static H24: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
 }
 
+pub fn push_clock_force(ui: &AppWindow) {
+    LAST_MIN.with(|m| m.set(-1));
+    push_clock(ui, Local::now().naive_local());
+}
+
 pub fn set_h24(on: bool) {
     H24.with(|h| h.set(on));
     LAST_MIN.with(|m| m.set(-1));
@@ -1048,6 +1053,32 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
                 s.store.save();
             }
         });
+        // Date & time: fill the editor with the current time, apply through the root helper
+        {
+            let now = Local::now();
+            ui.global::<Sys>().set_dt(model(vec![now.year(), now.month() as i32, now.day() as i32, now.hour() as i32, now.minute() as i32]));
+        }
+        let w = ui.as_weak();
+        ui.global::<Sys>().on_set_datetime(move |y, mo, d, h, mi| {
+            let stamp = format!("{y:04}-{mo:02}-{d:02} {h:02}:{mi:02}:00");
+            let ok = sys::helper(&["time", &stamp]);
+            if let Some(ui) = w.upgrade() {
+                push_clock_force(&ui);
+                toast(&ui, if ok { "Date and time set" } else { "Could not set the time" });
+            }
+        });
+        let w = ui.as_weak();
+        ui.global::<Sys>().on_set_h24(move |on| {
+            set_h24(on);
+            if let Some(ui) = w.upgrade() {
+                ui.global::<Sys>().set_h24_on(on);
+            }
+            if let Some(st) = shared() {
+                let mut s = st.borrow_mut();
+                s.store.data.prefs.insert("h24".into(), if on { "1" } else { "0" }.into());
+                s.store.save();
+            }
+        });
         ui.global::<Sys>().on_preview_tone(|i| crate::feedback::play(crate::feedback::Sound::Tone(i), 0.7));
         let w = ui.as_weak();
         ui.global::<Kbd>().on_click(move || {
@@ -1404,7 +1435,9 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
     crate::ctl_clock::wire(ui, &st);
     {
         let s = st.borrow();
-        set_h24(s.store.data.prefs.get("h24").map(|v| v == "1").unwrap_or(true));
+        let h24 = s.store.data.prefs.get("h24").map(|v| v == "1").unwrap_or(true);
+        set_h24(h24);
+        ui.global::<Sys>().set_h24_on(h24);
         let size = s.store.data.prefs.get("display_size").and_then(|v| v.parse().ok()).unwrap_or(1);
         let timeout = s.store.data.prefs.get("screen_timeout").and_then(|v| v.parse().ok()).unwrap_or(1);
         ui.global::<Sys>().set_screen_timeout(timeout);

@@ -64,6 +64,12 @@ export global Sys {
     in property <string> disk-used: "";
     in property <float> disk-frac: 0;
     callback set-weather-city(string);
+    // Date & time page: values being edited, then applied with set-datetime
+    in-out property <[int]> dt: [2026, 1, 1, 12, 0];
+    callback load-datetime();
+    callback set-datetime(int, int, int, int, int);
+    in-out property <bool> h24-on: true;
+    callback set-h24(bool);
     callback pref(string, int);
     callback preview-tone(int);
     // Diagnostic line on the lock screen (empty = hidden)

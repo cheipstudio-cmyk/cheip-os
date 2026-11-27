@@ -319,6 +319,45 @@ export component SettingsApp inherits Rectangle {
     }
 
     Page {
+        x: Settings.page == "datetime" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: Theme.spatial; easing: Theme.ease; }
+        title: "Date & time";
+        Header { text: "   Set date and time"; }
+        for f[k] in ["Day", "Month", "Year", "Hour", "Minute"]: GroupItem {
+            property <int> idx: k == 0 ? 2 : (k == 1 ? 1 : (k == 2 ? 0 : k));
+            first: k == 0; last: k == 4; height: 68px;
+            Text { x: 24px; text: f; color: Theme.on-surface; font-family: Theme.body; font-size: 17px; vertical-alignment: center; }
+            RoundButton {
+                x: parent.width - 172px; y: 12px; icon: "M200-440v-80h560v80H200Z"; fill: Theme.container-highest;
+                clicked => {
+                    let v = Sys.dt[idx] - 1;
+                    Sys.dt[idx] = idx == 0 ? max(2024, v) : (idx == 1 ? (v < 1 ? 12 : v) : (idx == 2 ? (v < 1 ? 31 : v) : (idx == 3 ? (v < 0 ? 23 : v) : (v < 0 ? 59 : v))));
+                }
+            }
+            Text {
+                x: parent.width - 120px; width: 56px; horizontal-alignment: center; vertical-alignment: center;
+                text: (Sys.dt[idx] < 10 ? "0" : "") + Sys.dt[idx];
+                color: Theme.on-surface; font-family: Theme.display; font-size: 22px; font-weight: 500;
+            }
+            RoundButton {
+                x: parent.width - 60px; y: 12px; icon: Icons.plus; fill: Theme.container-highest;
+                clicked => {
+                    let v = Sys.dt[idx] + 1;
+                    Sys.dt[idx] = idx == 0 ? min(2099, v) : (idx == 1 ? (v > 12 ? 1 : v) : (idx == 2 ? (v > 31 ? 1 : v) : (idx == 3 ? (v > 23 ? 0 : v) : (v > 59 ? 0 : v))));
+                }
+            }
+        }
+        Rectangle { height: 14px; }
+        PillButton {
+            height: 52px; pad: 28px; label: "Set date and time"; solid: true;
+            clicked => { Sys.set-datetime(Sys.dt[0], Sys.dt[1], Sys.dt[2], Sys.dt[3], Sys.dt[4]); }
+        }
+        Rectangle { height: 14px; }
+        SwitchItem { first: true; last: true; label: "Use 24-hour format"; detail: "13:00"; on: Sys.h24-on; toggled(v) => { Sys.set-h24(v); } }
+    }
+
+    Page {
         x: Settings.page == "battery" ? 0px : root.width;
         visible: self.x < root.width;
         animate x { duration: Theme.spatial; easing: Theme.ease; }

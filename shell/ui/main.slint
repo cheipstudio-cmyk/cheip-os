@@ -24,7 +24,9 @@ component LogApp inherits Rectangle {
         x: 12px; y: 120px; width: parent.width - 24px; height: parent.height - 132px;
         viewport-height: col.preferred-height;
         col := VerticalLayout {
+            width: parent.width;
             spacing: 4px;
+            if Sys.log-lines.length == 0: Text { text: "Waiting for the first reading…"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; }
             for l[i] in Sys.log-lines: Rectangle {
                 border-radius: i == 0 ? 20px : (i == Sys.log-lines.length - 1 ? 20px : 6px);
                 background: Theme.container;

@@ -43,7 +43,7 @@ thread_local! {
 }
 
 /// Pagine disegnate a mano nello .slint
-const CUSTOM: [&str; 9] = ["wifi", "sound", "battery", "storage", "android", "update", "appinfo", "style", "display"];
+const CUSTOM: [&str; 10] = ["wifi", "sound", "battery", "storage", "android", "update", "appinfo", "style", "display", "datetime"];
 
 fn row(kind: i32, key: &str, title: &str, sub: &str, glyph: SharedString, on: bool, value: f32) -> SRow {
     SRow { kind, key: key.into(), title: title.into(), subtitle: sub.into(), glyph, on, value }
