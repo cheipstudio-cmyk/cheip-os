@@ -8,7 +8,7 @@ SIZE=$(sfdisk -d "$IMG" | awk -F'[=,]' '/^.*1 :/ {gsub(/ /,"",$4); print $4; exi
 TMP=$(mktemp -d)
 dd if="$IMG" of="$TMP/boot" bs=512 skip="$START" count="$SIZE" status=none
 debugfs -R "cat /extlinux/extlinux.conf" "$TMP/boot" 2>/dev/null > "$TMP/ext.conf"
-sed -i -e "s|^\(\s*\)fdtdir .*|\1fdt /$DTB|" -e "s|append quiet |append console=tty0 nosmp clk_ignore_unused pd_ignore_unused |" "$TMP/ext.conf"
+sed -i -e "s|^\(\s*\)fdtdir .*|\1fdt /$DTB|" -e "s|append quiet |append console=tty0 clk_ignore_unused pd_ignore_unused |" "$TMP/ext.conf"
 grep -q "fdt /$DTB" "$TMP/ext.conf"
 debugfs -w -R "rm /extlinux/extlinux.conf" "$TMP/boot" >/dev/null 2>&1
 debugfs -w -R "write $TMP/ext.conf /extlinux/extlinux.conf" "$TMP/boot" >/dev/null 2>&1
