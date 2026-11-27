@@ -30,6 +30,8 @@ if [ ! -s "$FW/wcnss.mbn" ] || [ ! -s "$NV" ]; then
 		echo "$part top: $(ls /mnt/wp | head -n 12 | tr '\n' ' ')"
 		# Folder names differ in case between Windows builds: whole partition, any case
 		find /mnt/wp \( -iname '*wcnss*' -o -iname '*pronto*' -o -iname '*wlan*nv*' -o -iname '*qcwlan*' -o -iname '*riva*' \) 2>/dev/null | tee -a /tmp/cheip-fw.txt | head -n 12
+		# Every firmware image on the partition, to find the Wi-Fi one if the name differs
+		echo "$part firmware images: $(find /mnt/wp \( -iname '*.mbn' -o -iname '*.mdt' -o -iname '*.b00' \) 2>/dev/null | sed 's#.*/##' | sort -u | head -n 40 | tr '\n' ' ')"
 		mbn=$(grep -iE '(wcnss|pronto|riva)[^/]*\.(mbn|mdt)$' /tmp/cheip-fw.txt | head -n 1)
 		nv=$(grep -iE 'wlan[^/]*nv[^/]*\.bin$' /tmp/cheip-fw.txt | head -n 1)
 		[ -n "$mbn" ] && [ ! -s "$FW/wcnss.mbn" ] && cp "$mbn" "$FW/wcnss.mbn" && echo "copied $mbn"
