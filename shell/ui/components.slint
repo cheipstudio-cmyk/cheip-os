@@ -495,7 +495,7 @@ export component Fab inherits Rectangle {
     width: root.label != "" ? lt.preferred-width + 72px : self.height;
     border-radius: ta.pressed ? self.height * 0.22 : (root.large ? 28px : 16px);
     background: Theme.primary-container;
-    drop-shadow-blur: 10px;
+    drop-shadow-blur: Theme.lite ? 0px : 10px;
     drop-shadow-offset-y: 4px;
     drop-shadow-color: #0000004d;
     transform-scale: ta.pressed ? 0.94 : 1;

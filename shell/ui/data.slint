@@ -91,6 +91,9 @@ export global Shell {
     in property <[RecentItem]> recents;
     callback open-app(string, length, length, length);
     callback close-app();
+    // Power menu (long press on the power key or the button in Controls)
+    in-out property <bool> power-menu: false;
+    callback power-action(string);
     callback unlock();
     callback search(string);
     callback close-recent(string);

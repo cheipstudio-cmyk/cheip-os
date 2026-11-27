@@ -7,6 +7,10 @@ fn main() -> Result<(), slint::PlatformError> {
     // Sul telefono il backend arriva da SLINT_BACKEND (linuxkms-femtovg o linuxkms-software),
     // impostato dal servizio di avvio in base alla presenza della GPU.
     let ui = AppWindow::new()?;
+    // Software rendering (no GPU driver): instant transitions, flat shadows
+    if std::env::var("SLINT_BACKEND").map(|b| b.contains("software")).unwrap_or(false) {
+        ui.global::<cheip_shell::Theme>().set_lite(true);
+    }
     let store = Store::open(Store::data_dir());
     let _state = controller::wire(&ui, store, chrono::Local::now().naive_local(), true);
     let _timers = controller::start_timers(&ui, &_state);

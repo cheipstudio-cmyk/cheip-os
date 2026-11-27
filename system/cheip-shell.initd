@@ -34,6 +34,12 @@ start_pre() {
 	fi
 	pkill -f 'getty.*tty1' 2>/dev/null
 	printf '\033[2J\033[H\033[?25l' > /dev/tty1 2>/dev/null
+	# Charger, battery ADC and power key drivers (no-op if built in or missing)
+	for m in qcom_smbb qcom_spmi_vadc pm8941_pwrkey; do modprobe "$m" 2>/dev/null; done
+	# Fastest CPU clock available: the UI renders on the CPU
+	for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+		[ -w "$f" ] && echo performance > "$f"
+	done
 	uid=$(id -u "$cheip_user")
 	mkdir -p "/run/user/$uid"
 	chown "$cheip_user" "/run/user/$uid"

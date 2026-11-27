@@ -430,7 +430,7 @@ export component HomeScreen inherits Rectangle {
         x: root.menu-x; y: root.menu-y;
         width: 224px; height: root.menu-h;
         border-radius: 24px; background: Theme.container;
-        drop-shadow-blur: 16px; drop-shadow-offset-y: 4px; drop-shadow-color: #00000040;
+        drop-shadow-blur: Theme.lite ? 0px : 16px; drop-shadow-offset-y: 4px; drop-shadow-color: #00000040;
         opacity: root.menu-index >= 0 ? 1 : 0;
         visible: self.opacity > 0.01;
         transform-scale: root.menu-index >= 0 ? 1 : 0.8;
@@ -542,7 +542,7 @@ export component ControlsPanel inherits Rectangle {
     }
     RoundButton {
         x: root.width - 102px; y: 28px; icon: Icons.power; fill: Theme.container-high;
-        clicked => { Shell.controls-open = false; Shell.close-app(); Shell.screen = ScreenId.lock; }
+        clicked => { Shell.controls-open = false; Shell.power-menu = true; }
     }
     RoundButton {
         x: root.width - 54px; y: 28px; icon: Icons.gear-f; fill: Theme.container-high;

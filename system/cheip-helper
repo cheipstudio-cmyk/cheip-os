@@ -27,6 +27,13 @@ case "${1:-}" in
 			*) echo "uso: android start|stop" >&2; exit 2 ;;
 		esac
 		;;
+	power)
+		case "${2:-}" in
+			off) setsid sh -c 'sleep 1; poweroff' >/dev/null 2>&1 & ;;
+			reboot) setsid sh -c 'sleep 1; reboot' >/dev/null 2>&1 & ;;
+			*) echo "uso: power off|reboot" >&2; exit 2 ;;
+		esac
+		;;
 	*)
 		echo "uso: cheip-helper update | governor <nome> | android start|stop" >&2
 		exit 2

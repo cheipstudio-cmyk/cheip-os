@@ -362,6 +362,18 @@ pub fn on_key(k: crate::keys::Key) {
     match k {
         crate::keys::Key::VolumeUp => volume_step(&ui, &mut s, 1),
         crate::keys::Key::VolumeDown => volume_step(&ui, &mut s, -1),
+        crate::keys::Key::PowerLong => {
+            if s.ring_timer.is_some() {
+                stop_ring(&mut s);
+                return;
+            }
+            if s.screen_off {
+                s.screen_off = false;
+                ui.global::<Shell>().set_screen_off(false);
+                if s.live { sys::set_screen(true); }
+            }
+            ui.global::<Shell>().set_power_menu(true);
+        }
         crate::keys::Key::Power => {
             // Durante uno squillo il tasto accensione silenzia, come sui telefoni veri
             if s.ring_timer.is_some() {
@@ -375,6 +387,7 @@ pub fn on_key(k: crate::keys::Key) {
                 g.set_screen(ScreenId::Lock);
             }
             g.set_screen_off(s.screen_off);
+            g.set_power_menu(false);
             if s.live {
                 sys::set_screen(!s.screen_off);
             }
@@ -934,6 +947,13 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
             ui.global::<Shell>().set_app_open(false);
         }
     }));
+    shell.on_power_action(|id| {
+        match id.as_str() {
+            "off" => { sys::helper(&["power", "off"]); }
+            "reboot" => { sys::helper(&["power", "reboot"]); }
+            _ => on_key(crate::keys::Key::Power),
+        }
+    });
     shell.on_unlock(with!(ui, st, |ui, _s| { ui.global::<Shell>().set_screen(ScreenId::Home); }));
     shell.on_search(with!(ui, st, |ui, s, q| {
         s.search = q.to_string();

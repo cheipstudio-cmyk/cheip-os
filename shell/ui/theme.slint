@@ -73,7 +73,10 @@ export global Theme {
     out property <easing> ease: cubic-bezier(0.2, 0, 0, 1);
     out property <easing> decel: cubic-bezier(0.05, 0.7, 0.1, 1);
     out property <easing> accel: cubic-bezier(0.3, 0, 0.8, 0.15);
-    out property <duration> slow: 380ms;
-    out property <duration> fast: 160ms;
-    out property <duration> spatial: 420ms;
+    // Lite: software rendering on one core (Lumia). Big transitions become
+    // instant and shadows flat, so every touch answers in one frame
+    in property <bool> lite: false;
+    out property <duration> slow: self.lite ? 0ms : 380ms;
+    out property <duration> fast: self.lite ? 0ms : 160ms;
+    out property <duration> spatial: self.lite ? 0ms : 420ms;
 }
