@@ -62,7 +62,7 @@ export component AppWindow inherits Window {
     property <length> bottom-h: root.kb-open ? root.kb-h : (root.unlocked ? root.nav-h : 0px);
 
     home := HomeScreen {
-        width: root.width; height: root.height - root.bottom-h;
+        width: root.width; height: root.height; inset: root.bottom-h;
         shown: Shell.screen == ScreenId.home && !Shell.app-open;
         // Lite: never paint the home behind a full-screen app (translucent layers cost a full redraw)
         visible: !(Theme.lite && Shell.app-open && !root.dragging);

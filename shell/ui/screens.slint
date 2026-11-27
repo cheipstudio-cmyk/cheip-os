@@ -196,7 +196,10 @@ export component HomeScreen inherits Rectangle {
     property <length> col-w: (root.width - 24px) / 4;
     property <length> row-h: 92px;
     property <length> icon: 60px;
-    property <length> dock-y: root.height - 152px;
+    // Space taken at the bottom by the navigation buttons or the keyboard:
+    // the wallpaper still runs behind them, only the content moves up
+    in property <length> inset: 0px;
+    property <length> dock-y: root.height - root.inset - 152px;
     property <bool> widget: Sys.w-show && (Sys.w-ram || Sys.w-bat || Sys.w-disk || Sys.w-weather) && !Shell.searching && !Shell.edit-mode;
     property <length> grid-y: self.widget ? 226px : 150px;
     property <int> n: Shell.apps.length;
@@ -282,7 +285,7 @@ export component HomeScreen inherits Rectangle {
     }
 
     if Sys.diag != "": Text {
-        x: 24px; y: root.height - 150px; width: root.width - 48px;
+        x: 24px; y: root.height - root.inset - 150px; width: root.width - 48px;
         text: Sys.diag; wrap: word-wrap;
         color: Style.wp-ink; font-family: Theme.body; font-size: 12px;
     }
@@ -439,7 +442,7 @@ export component HomeScreen inherits Rectangle {
     // Barra di ricerca in basso
     search := Rectangle {
         x: 16px; width: root.width - 32px;
-        y: Shell.searching ? 44px : root.height - 70px;
+        y: Shell.searching ? 44px : root.height - root.inset - 70px;
         height: 56px;
         border-radius: 28px;
         background: Theme.container-high;

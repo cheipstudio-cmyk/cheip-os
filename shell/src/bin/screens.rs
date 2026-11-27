@@ -155,6 +155,13 @@ fn main() {
     let st = controller::wire(&ui, cheip_shell::demo::store(), now, false);
 
     cheip_shell::demo::apply(&ui, &st);
+    // CHEIP_REAL: only what works on the Lumia today (no Wi-Fi or modem icons)
+    if std::env::var("CHEIP_REAL").is_ok() {
+        let sys = ui.global::<cheip_shell::Sys>();
+        sys.set_has_wifi(false);
+        sys.set_has_cell(false);
+        sys.set_wifi_on(false);
+    }
     let shell = ui.global::<Shell>();
     let set = ui.global::<Settings>();
     let open = |id: &str| shell.invoke_open_app(id.into(), 152.0, 300.0, 56.0);
