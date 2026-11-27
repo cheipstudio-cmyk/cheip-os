@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -35,10 +36,26 @@ jobs:
           cargo build --lib --release --target wasm32-unknown-unknown --no-default-features --features web
           wasm-bindgen --target web --no-typescript --out-dir ../site/demo/pkg target/wasm32-unknown-unknown/release/cheip_shell.wasm
           cp ../web-demo/index.html ../site/demo/index.html
+      # The release run keeps a copy of its files as an artifact: use it even when
+      # publishing the GitHub release failed, so a finished image always reaches the site
+      - name: Files of the release run that just finished
+        if: github.event_name == 'workflow_run'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: /tmp/dist
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
       - name: Cheip OS image for the web installer (latest release)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          if [ -f /tmp/dist/dist-cheip-os-web.tar ]; then
+            tar -C site -xf /tmp/dist/dist-cheip-os-web.tar --exclude=os/boot
+            echo "Image from the release run artifact"; du -sh site/os
+            exit 0
+          fi
           # Newest release that actually has the web image (a failed build has none)
           TAG=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=20" -q '[.[] | select(.assets | map(.name) | index("dist-cheip-os-web.tar"))][0].tag_name')
           if [ -n "$TAG" ] && gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "dist-cheip-os-web.tar" --dir /tmp/web; then
