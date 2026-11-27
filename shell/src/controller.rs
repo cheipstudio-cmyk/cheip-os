@@ -433,7 +433,7 @@ fn log_lines() -> Vec<SharedString> {
         Some((b, ch)) => lines.push(format!("battery: {} {}", if b >= 0 { format!("{b}%") } else { "level unknown".into() }, if ch { "charging" } else { "not charging" }).into()),
         None => lines.push("battery: no reading".into()),
     }
-    for (name, path, n) in [("kernel", "/var/log/cheip-smp.txt", 3), ("wifi", "/var/log/cheip-firmware.txt", 30), ("storage grow", "/var/log/cheip-grow.txt", 3), ("shell", "/var/log/cheip-shell.log", 8)] {
+    for (name, path, n) in [("kernel", "/var/log/cheip-smp.txt", 3), ("wifi", "/var/log/cheip-firmware.txt", 30), ("storage grow", "/var/log/cheip-grow.txt", 3), ("charger", "/var/log/cheip-charger.txt", 4), ("shell", "/var/log/cheip-shell.log", 8)] {
         if let Ok(f) = std::fs::read_to_string(path) {
             let v: Vec<&str> = f.lines().filter(|l| !l.trim().is_empty()).collect();
             for l in v.iter().skip(v.len().saturating_sub(n)) {
