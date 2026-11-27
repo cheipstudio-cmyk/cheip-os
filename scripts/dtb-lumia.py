@@ -72,6 +72,17 @@ def main():
     if "mppark@300000" not in dts:
         dts, _ = edit_node(dts, r"^\treserved-memory \{", lambda b: b[:-3] + "\n\t\tmppark@300000 {\n\t\t\treg = <0x300000 0x40000>;\n\t\t\tno-map;\n\t\t};\n\t};\n")
 
+    # --- 1b. Faster CPU clocks ------------------------------------------------
+    # Upstream stops the CPU table at 787.2 MHz (higher speeds need speed-bin
+    # data); the A7 PLL already lists them. Added here, capped at boot and
+    # unlocked only by "Performance boost" in Settings
+    def opps(body):
+        for hz in (998400000, 1094400000, 1190400000):
+            if f"opp-{hz} " not in body:
+                body = body[:-3] + f"\n\t\topp-{hz} {{\n\t\t\topp-hz = /bits/ 64 <{hz:#x}>;\n\t\t}};\n\t}};\n"
+        return body
+    dts, _ = edit_node(dts, r"^\topp-table-cpu \{", opps)
+
     # --- 2. Wi-Fi (Pronto + WCN3660) ----------------------------------------
     # Phandles of the PM8226 LDOs in the RPM regulators node
     reg_start = dts.index("qcom,rpm-pm8226-regulators")

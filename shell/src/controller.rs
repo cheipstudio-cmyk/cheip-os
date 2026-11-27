@@ -1012,6 +1012,7 @@ fn set_pref_ui(ui: &AppWindow, k: &str, v: i32) {
         "snd_lowbat" => s.set_snd_lowbat(v != 0),
         "snd_lock" => s.set_snd_lock(v != 0),
         "kbd_vibrate" => s.set_kbd_vibrate(v != 0),
+        "boost" => s.set_boost(v != 0),
         "nav_buttons" => s.set_nav_buttons(v != 0),
         "w_show" => s.set_w_show(v != 0),
         "w_ram" => s.set_w_ram(v != 0),
@@ -1078,6 +1079,9 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
         ui.global::<Sys>().on_pref(move |k, v| {
             let Some(ui) = w.upgrade() else { return };
             set_pref_ui(&ui, k.as_str(), v);
+            if k.as_str() == "boost" {
+                sys::helper(&["boost", if v != 0 { "on" } else { "off" }]);
+            }
             if let Some(st) = shared() {
                 let mut s = st.borrow_mut();
                 s.store.data.prefs.insert(format!("p_{k}"), v.to_string());

@@ -42,6 +42,11 @@ start_pre() {
 		for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
 			[ -w "$f" ] && echo performance > "$f"
 		done
+		# 787 MHz is the safe upstream top speed; up to 1190 MHz with Performance boost
+		max=787200; [ -e /etc/cheip/boost ] && max=1190400
+		for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq; do
+			[ -w "$f" ] && echo "$max" > "$f"
+		done
 		sleep 10
 	done ) >/dev/null 2>&1 &
 	# Why only one core: kernel lines about the secondary CPUs, shown in the diagnostics

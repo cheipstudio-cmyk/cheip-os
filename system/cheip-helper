@@ -27,6 +27,17 @@ case "${1:-}" in
 			*) echo "uso: android start|stop" >&2; exit 2 ;;
 		esac
 		;;
+	boost)
+		mkdir -p /etc/cheip
+		case "${2:-}" in
+			on) touch /etc/cheip/boost; max=1190400 ;;
+			off) rm -f /etc/cheip/boost; max=787200 ;;
+			*) echo "uso: boost on|off" >&2; exit 2 ;;
+		esac
+		for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_max_freq; do
+			[ -w "$f" ] && echo "$max" > "$f"
+		done
+		;;
 	time)
 		# "YYYY-MM-DD HH:MM:SS" only, then keep it in the hardware clock
 		echo "${2:-}" | grep -Eqx '[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' || { echo "data non valida" >&2; exit 2; }
