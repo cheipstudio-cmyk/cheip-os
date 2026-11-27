@@ -307,8 +307,6 @@ export component SettingsApp inherits Rectangle {
             first: true; last: true; height: 84px;
             Slider { x: 16px; width: parent.width - 32px; track: 52px; icon: Icons.brightness; value: Sys.brightness; changed(v) => { Sys.brightness = v; Sys.brightness-changed(v); } }
         }
-        Header { text: "   Speed"; }
-        SwitchItem { first: true; last: true; label: "Performance boost"; detail: "CPU up to 1.19 GHz instead of 787 MHz. Experimental: turn it off if the phone restarts by itself"; on: Sys.boost; toggled(v) => { Sys.pref("boost", v ? 1 : 0); } }
         Header { text: "   System navigation"; }
         RadioRow { first: true; label: "3-button navigation"; on: Sys.nav-buttons; clicked => { Sys.pref("nav_buttons", 1); } }
         RadioRow { last: true; label: "Gesture navigation"; on: !Sys.nav-buttons; clicked => { Sys.pref("nav_buttons", 0); } }
