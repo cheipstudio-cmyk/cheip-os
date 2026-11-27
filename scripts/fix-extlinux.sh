@@ -17,7 +17,7 @@ debugfs -R "cat /extlinux/extlinux.conf" "$TMP/boot" 2>/dev/null
 # 0x301000 + n * 0x1000 (ACPI MADT of the MSM8x26 Lumias). Keep that memory
 # untouched and boot the cores through it (kernel/0001-ARM-qcom-parking-protocol-SMP.patch)
 debugfs -R "dump /$DTB $TMP/dtb" "$TMP/boot" >/dev/null 2>&1
-if [ -s "$TMP/dtb" ]; then
+patch_dtb() {
 	fdtput -c "$TMP/dtb" /reserved-memory/mppark@300000
 	fdtput -t x "$TMP/dtb" /reserved-memory/mppark@300000 reg 300000 40000
 	fdtput -t s "$TMP/dtb" /reserved-memory/mppark@300000 no-map ""
@@ -28,6 +28,12 @@ if [ -s "$TMP/dtb" ]; then
 	fdtget "$TMP/dtb" /cpus/cpu@1 enable-method
 	debugfs -w -R "rm /$DTB" "$TMP/boot" >/dev/null 2>&1
 	debugfs -w -R "write $TMP/dtb /$DTB" "$TMP/boot" >/dev/null 2>&1
+}
+if [ -s "$TMP/dtb" ]; then
+	# Never block the image: without this the phone still boots on one core
+	( patch_dtb ) || echo "DTB patch for the parking protocol failed" >&2
+else
+	echo "DTB /$DTB not found in the boot partition" >&2
 fi
 dd if="$TMP/boot" of="$IMG" bs=512 seek="$START" conv=notrunc status=none
 rm -rf "$TMP"

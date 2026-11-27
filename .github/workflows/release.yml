@@ -138,13 +138,19 @@ jobs:
           PY
           grep -n "patch\|pkgrel\|default_prepare" "$KAPK" | head
           pmbootstrap checksum linux-postmarketos-qcom-msm8226
-          pmbootstrap build --arch armv7 linux-postmarketos-qcom-msm8226
+          if ! pmbootstrap build --arch armv7 linux-postmarketos-qcom-msm8226; then
+            tail -n 300 "$WORK/log.txt" > kernel-log.txt
+            # Back to the stock kernel package, or pmbootstrap install would try to rebuild it
+            git -C "$KDIR" checkout -- . && rm -f "$KDIR"/0001-*.patch
+            exit 3
+          fi
 
       - name: Build armv7
         run: pmbootstrap build --arch armv7 cheip-shell postmarketos-ui-cheip
 
       - name: Immagine
         run: |
+          set -x
           pmbootstrap -y install --zap --password 147147
           mkdir -p out
           pmbootstrap export out
@@ -221,4 +227,19 @@ jobs:
 
       - name: Log pmbootstrap in caso di errore
         if: failure()
-        run: tail -n 200 "$WORK/log.txt" || true
+        run: |
+          tail -n 400 "$WORK/log.txt" > ci-log.txt 2>&1 || true
+          cat ci-log.txt | tail -n 200
+
+      # Public copy of the failure log (job logs need a GitHub login to read)
+      - name: Pubblica il log dell'errore
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ci-logs
+          name: CI logs
+          prerelease: true
+          target_commitish: ${{ github.sha }}
+          files: |
+            ci-log.txt
+            kernel-log.txt
