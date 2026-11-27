@@ -226,7 +226,7 @@ function setConnected(ok, label) {
   $("#usb-dot").classList.toggle("on", ok);
   $("#usb-state").textContent = label;
   for (const id of ["#usb-boot", "#usb-info", "#usb-reboot", "#usb-log", "#usb-klog"]) $(id).disabled = !ok || busy;
-  $("#usb-install").disabled = !ok || busy || !sd || !manifest;
+  $("#usb-install").disabled = busy;
 }
 
 $("#usb-connect").addEventListener("click", () => connectPhone());
@@ -279,7 +279,42 @@ async function getChunk(c) {
   }
 }
 
-$("#usb-install").addEventListener("click", () => installOs(false));
+$("#usb-install").addEventListener("click", () => startInstall());
+// Install button: right away if the bootloader is connected, otherwise arm the
+// install and let the phone come to us (the bootloader only waits a few seconds)
+async function startInstall() {
+  if (busy) return;
+  if (dev && sd && manifest) return installOs(false);
+  if (!("usb" in navigator)) return log("This browser has no WebUSB. Open the page in Chrome or Edge on a PC.");
+  const paired = (await navigator.usb.getDevices()).length > 0;
+  if (!paired) {
+    phone("error", "Pair the phone first", "Restart the phone (Power + Volume down). While the bootloader text is on its screen, press Pair phone and pick it in the list. Then press Install again.");
+    return;
+  }
+  if (!confirm("Everything on the microSD inside the phone will be erased and replaced by Cheip OS. Continue?")) return;
+  store.set("cheip-pending", true);
+  log("Install armed. Restart the phone now.");
+  phone("busy", "Waiting for the phone", "Restart it now: hold Power + Volume down until it vibrates, then let go. The install starts by itself when the bootloader appears.");
+}
+async function autoInstall() {
+  if (busy) return;
+  store.set("cheip-pending", false);
+  phone("busy", "Phone found · starting the install", "Keep the cable connected and don't touch the phone.");
+  try {
+    setDebugLevel(0);
+    dev = new FastbootDevice();
+    await dev.connect();
+    const r = await dev.runCommand("oem sd-info");
+    const [blocks, bs] = r.text.trim().split(/\s+/).map(Number);
+    sd = blocks && bs ? { blocks, bs, bytes: blocks * bs } : null;
+    await loadManifest();
+    if (!sd) throw new Error("the bootloader can't see a microSD");
+    return installOs(true);
+  } catch (e) {
+    log("Install could not start: " + (e.message || e));
+    phone("error", "Install could not start", "Press Install Cheip OS and restart the phone again (Power + Volume down).");
+  }
+}
 async function installOs(auto) {
   if (!dev || !sd || !manifest || busy) return;
   if (manifest.size > sd.bytes) return log("The microSD is too small for Cheip OS.");
@@ -450,6 +485,7 @@ if ("usb" in navigator) {
   $("#usb-watch").checked = store.get("cheip-watch", false);
   $("#usb-watch").addEventListener("change", (e) => store.set("cheip-watch", e.target.checked));
   navigator.usb.addEventListener("connect", () => {
+    if (store.get("cheip-pending", false)) return autoInstall();
     if ($("#usb-watch").checked) return captureLogs();
     // Once Cheip OS is installed, holding the bootloader would stop it from starting:
     // only grab the phone if the install is not done yet
@@ -466,7 +502,7 @@ if ("usb" in navigator) {
     phone("idle", "Phone not connected to the bootloader", "Normal while it is in Windows Phone, in Mass Storage or starting Cheip OS. To install or update, restart it (Power + Volume down): this box turns green when it's ready.");
   });
   // Phone already sitting in the bootloader when the page loads
-  navigator.usb.getDevices().then((ds) => { if (ds.length === 1 && ds[0].opened === false) ($("#usb-watch").checked ? captureLogs() : (!store.get("cheip-steps", {})[4] && connectPhone(true))); });
+  navigator.usb.getDevices().then((ds) => { if (ds.length === 1 && ds[0].opened === false) (store.get("cheip-pending", false) ? autoInstall() : $("#usb-watch").checked ? captureLogs() : (!store.get("cheip-steps", {})[4] && connectPhone(true))); });
 }
 
 // Debug kernels print their console on a USB serial port (a COM port on Windows).
