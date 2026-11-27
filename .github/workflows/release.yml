@@ -165,12 +165,15 @@ jobs:
           set -e
           if [ "$rc" -ne 0 ]; then
             { cat kernel-build.txt; tail -n 300 "$WORK/log.txt"; } > kernel-log.txt
+            # The real error, readable without a login
+            grep -vE "^\s*$" "$WORK/log.txt" | grep -v "^(.*) \[" | tail -n 25 | while IFS= read -r l; do echo "::error::kernel: ${l:0:300}"; done
             # Back to the stock kernel package, or pmbootstrap install would try to rebuild it
             git -C "$KDIR" checkout -- . && rm -f "$KDIR"/0001-*.patch
             exit 3
           fi
           # Proof that the SMP code is really inside the kernel that goes in the image
-          KPKG="$(ls -t "$WORK"/packages/edge/armv7/linux-postmarketos-qcom-msm8226-*.apk | head -1)"
+          KPKG="$(find "$WORK/packages" -name 'linux-postmarketos-qcom-msm8226-*.apk' | head -1)"
+          echo "::notice::built kernel package: $KPKG"
           # An .apk is several gzip streams: -i reads past the first end-of-archive
           mkdir -p /tmp/kpkg && tar -xzif "$KPKG" -C /tmp/kpkg 2>/dev/null || true
           SRC_SMP="$(sudo grep -c park_boot_secondary "$WORK"/chroot_native/home/pmos/build/src/linux-*/arch/arm/mach-qcom/platsmp.c 2>/dev/null || echo 0)"
@@ -189,7 +192,7 @@ jobs:
         run: |
           set -x
           pmbootstrap -y install --zap --password 147147
-          for f in "$WORK"/packages/edge/armv7/linux-postmarketos-qcom-msm8226-*; do echo "::notice::local kernel package: $(basename "$f") $(stat -c %y "$f")"; done
+          find "$WORK/packages" -name 'linux-postmarketos-qcom-msm8226-*' | while read -r f; do echo "::notice::local kernel package: $f"; done
           RFS="$(ls -d "$WORK"/chroot_rootfs_* | head -1)"
           echo "::notice::rootfs kernel: $(sudo cat "$RFS"/lib/apk/db/installed 2>/dev/null | grep -A1 '^P:linux-postmarketos-qcom-msm8226$' | tr '\n' ' ')"
           mkdir -p out
