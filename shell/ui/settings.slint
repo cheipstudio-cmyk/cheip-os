@@ -267,6 +267,10 @@ export component SettingsApp inherits Rectangle {
         visible: self.x < root.width;
         animate x { duration: Theme.spatial; easing: Theme.ease; }
         title: "Sound & vibration";
+        if !Sys.has-audio: Text {
+            text: "No sound card yet on this phone: the kernel has no audio driver for it. Alerts vibrate instead.";
+            wrap: word-wrap; color: Theme.error; font-family: Theme.body; font-size: 14px;
+        }
         Segmented { items: ["Ring", "Vibrate", "Silent"]; selected: Sys.ringer; height: 52px; picked(i) => { Sys.set-ringer(i); } }
         Header { text: "   Volume"; }
         GroupItem {

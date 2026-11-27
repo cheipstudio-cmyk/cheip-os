@@ -134,6 +134,11 @@ pub fn kernel() -> String {
     read_trim("/proc/sys/kernel/osrelease").unwrap_or_default()
 }
 
+/// A real sound card (not just the dummy/none): /proc/asound/cards lists it
+pub fn has_audio() -> bool {
+    fs::read_to_string("/proc/asound/cards").map(|c| c.lines().any(|l| l.contains('[') && !l.contains("Dummy"))).unwrap_or(false)
+}
+
 pub fn has_backlight() -> bool {
     backlight_dir().is_some()
 }
@@ -237,8 +242,9 @@ pub fn diag_line(shell_cpu: Option<f32>) -> String {
     let names = |c: &str| class_dirs(c).iter().filter_map(|d| d.file_name().map(|n| n.to_string_lossy().to_string())).collect::<Vec<_>>().join(",");
     let shell = shell_cpu.map(|c| format!(" | shell {c:.0}%")).unwrap_or_default();
     format!(
-        "{} | cpu {online} {mhz} {smp} | load {load}{shell} | {} | power [{}] vbat {} | net [{}] | rproc [{}] | input [{}]",
+        "{} | sound [{}] | cpu {online} {mhz} {smp} | load {load}{shell} | {} | power [{}] vbat {} | net [{}] | rproc [{}] | input [{}]",
         usb_diag(),
+        fs::read_to_string("/proc/asound/cards").map(|c| c.lines().filter(|l| l.contains('[')).map(|l| l.trim().to_string()).collect::<Vec<_>>().join(",")).unwrap_or_else(|_| "no ALSA".into()),
         std::env::var("SLINT_BACKEND").unwrap_or_default(),
         class_dirs("power_supply")
             .iter()

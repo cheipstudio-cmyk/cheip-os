@@ -278,7 +278,12 @@ pub fn alert(ui: &AppWindow, sound: crate::feedback::Sound, vibrate_ms: u16) {
                 crate::feedback::Sound::Notification | crate::feedback::Sound::Message => crate::feedback::Sound::Tone(sys.get_notif_tone()),
                 s => s,
             };
-            crate::feedback::play(sound, sys.get_volume());
+            if HAS_AUDIO.with(|a| a.get()) {
+                crate::feedback::play(sound, sys.get_volume());
+            } else {
+                // No sound card on this phone yet: at least feel it
+                crate::feedback::vibrate(vibrate_ms.max(120));
+            }
             if matches!(sound, crate::feedback::Sound::Ring(_)) && sys.get_vibrate_on_ring() {
                 crate::feedback::vibrate(vibrate_ms);
             }
@@ -593,6 +598,7 @@ thread_local! {
     static PREV_CHARGING: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
     static LOW_WARNED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static CHARGE_TIMER: RefCell<Option<slint::Timer>> = const { RefCell::new(None) };
+    pub static HAS_AUDIO: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
 }
 
 fn push_hw(ui: &AppWindow) {
@@ -602,7 +608,11 @@ fn push_hw(ui: &AppWindow) {
         // Charger plugged in: short rising sound
         if PREV_CHARGING.with(|p| p.replace(Some(ch))) == Some(false) && ch {
             if s.get_snd_charge() && s.get_ringer() == 0 {
-                crate::feedback::play(crate::feedback::Sound::Charge, s.get_volume().max(0.3));
+                if HAS_AUDIO.with(|a| a.get()) {
+                    crate::feedback::play(crate::feedback::Sound::Charge, s.get_volume().max(0.3));
+                } else {
+                    crate::feedback::vibrate(150);
+                }
             }
             // Wake the screen for a moment (even from off) and show the charging animation
             let shell = ui.global::<Shell>();
@@ -997,6 +1007,8 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
         if live {
             let s = ui.global::<Sys>();
             s.set_has_backlight(sys::has_backlight());
+            HAS_AUDIO.with(|a| a.set(sys::has_audio()));
+            s.set_has_audio(sys::has_audio());
             // Design defaults (78%, Wi-Fi on) are for the demo: on the phone show nothing until read
             s.set_has_battery(false);
             s.set_has_wifi(false);
