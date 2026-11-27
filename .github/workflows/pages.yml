@@ -51,6 +51,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Not triggered by a release run (e.g. a site change): newest release run
+          # that still has its "dist" artifact, newer than any release asset
+          if [ ! -f /tmp/dist/dist-cheip-os-web.tar ]; then
+            RUN=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=dist&per_page=20" \
+              -q '[.artifacts[] | select(.expired == false)] | sort_by(.created_at) | reverse | .[0].workflow_run.id')
+            if [ -n "$RUN" ] && [ "$RUN" != "null" ]; then
+              gh run download "$RUN" --repo "$GITHUB_REPOSITORY" -n dist -D /tmp/dist || true
+            fi
+          fi
           if [ -f /tmp/dist/dist-cheip-os-web.tar ]; then
             tar -C site -xf /tmp/dist/dist-cheip-os-web.tar --exclude=os/boot
             echo "Image from the release run artifact"; du -sh site/os
