@@ -224,6 +224,7 @@ jobs:
             boot/emmc_appsboot.mbn
             ota/armv7/*.apk
             ota/manifest.json
+            kernel-log.txt
 
       - name: Log pmbootstrap in caso di errore
         if: failure()
