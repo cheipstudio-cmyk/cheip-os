@@ -1,0 +1,90 @@
+From: Cheip OS <cheipstudio@gmail.com>
+Subject: [PATCH] ARM: qcom: boot secondary CPUs parked by the Lumia UEFI
+
+Lumia phones with MSM8x26 boot through the Windows Phone UEFI. Its
+TrustZone refuses the SCM cold boot address call, so the usual
+"qcom,msm8226-smp" method leaves Linux on one core. The UEFI however
+parks the secondary cores with the (ACPI) parking protocol v1, one 4 KiB
+mailbox per CPU: write the entry point at +8, the CPU id at +0, then
+wake the core with an interrupt.
+
+DT usage, per cpu node:
+	enable-method = "microsoft,parking-protocol";
+	cpu-release-addr = <0x00302000>;
+
+---
+ arch/arm/mach-qcom/Makefile  |  1 +
+ arch/arm/mach-qcom/parking.c | 57 ++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 58 insertions(+)
+
+diff --git a/arch/arm/mach-qcom/Makefile b/arch/arm/mach-qcom/Makefile
+index b839201..ef88cba 100644
+--- a/arch/arm/mach-qcom/Makefile
++++ b/arch/arm/mach-qcom/Makefile
+@@ -1,2 +1,3 @@
+ # SPDX-License-Identifier: GPL-2.0-only
+ obj-$(CONFIG_SMP)	+= platsmp.o
++obj-$(CONFIG_SMP)	+= parking.o
+diff --git a/arch/arm/mach-qcom/parking.c b/arch/arm/mach-qcom/parking.c
+new file mode 100644
+index 0000000..11386c3
+--- /dev/null
++++ b/arch/arm/mach-qcom/parking.c
+@@ -0,0 +1,57 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Secondary CPU boot through the parking protocol mailboxes left by the
++ * Windows Phone UEFI on Lumia MSM8x26 devices.
++ */
++
++#include <linux/init.h>
++#include <linux/io.h>
++#include <linux/of.h>
++#include <linux/sizes.h>
++#include <linux/smp.h>
++
++#include <asm/cacheflush.h>
++#include <asm/smp_plat.h>
++
++#define PARK_CPU_ID	0x0
++#define PARK_JUMP_LO	0x8
++#define PARK_JUMP_HI	0xc
++
++static int park_boot_secondary(unsigned int cpu, struct task_struct *idle)
++{
++	struct device_node *np = of_get_cpu_node(cpu, NULL);
++	void __iomem *mb;
++	u32 addr;
++	int ret = -ENODEV;
++
++	if (!np)
++		return -ENODEV;
++	if (of_property_read_u32(np, "cpu-release-addr", &addr)) {
++		pr_err("CPU%u: no cpu-release-addr for the parking protocol\n", cpu);
++		goto out;
++	}
++
++	mb = ioremap(addr, SZ_4K);
++	if (!mb) {
++		ret = -ENOMEM;
++		goto out;
++	}
++
++	/* Entry point first, then the CPU id that releases the core */
++	writel_relaxed(__pa_symbol(secondary_startup_arm), mb + PARK_JUMP_LO);
++	writel_relaxed(0, mb + PARK_JUMP_HI);
++	wmb();
++	writel_relaxed(cpu_logical_map(cpu) & 0xff, mb + PARK_CPU_ID);
++	wmb();
++	arch_send_wakeup_ipi_mask(cpumask_of(cpu));
++	iounmap(mb);
++	pr_info("CPU%u: released from parking mailbox %#x\n", cpu, addr);
++	ret = 0;
++out:
++	of_node_put(np);
++	return ret;
++}
++
++static const struct smp_operations park_smp_ops __initconst = {
++	.smp_boot_secondary	= park_boot_secondary,
++};

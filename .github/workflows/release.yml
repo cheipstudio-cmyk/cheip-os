@@ -119,6 +119,27 @@ jobs:
           pmbootstrap checksum cheip-shell postmarketos-ui-cheip
           pmbootstrap config ui cheip
 
+      - name: Kernel with the Lumia SMP patch (all four cores)
+        # If it fails the image still builds with the stock kernel (one core)
+        continue-on-error: true
+        run: |
+          KAPK="$(find "$APORTS/device" -path '*/linux-postmarketos-qcom-msm8226/APKBUILD' | head -1)"
+          test -n "$KAPK"
+          KDIR="$(dirname "$KAPK")"
+          cp kernel/*.patch "$KDIR/"
+          python3 - "$KAPK" kernel/*.patch <<'PY'
+          import re, sys, os
+          p = sys.argv[1]
+          s = open(p).read()
+          names = [os.path.basename(x) for x in sys.argv[2:]]
+          s = re.sub(r'^source="', 'source="\n\t' + '\n\t'.join(names) + '\n\t', s, count=1, flags=re.M)
+          s = re.sub(r'^pkgrel=(\d+)', lambda m: 'pkgrel=%d' % (int(m.group(1)) + 100), s, count=1, flags=re.M)
+          open(p, 'w').write(s)
+          PY
+          grep -n "patch\|pkgrel\|default_prepare" "$KAPK" | head
+          pmbootstrap checksum linux-postmarketos-qcom-msm8226
+          pmbootstrap build --arch armv7 linux-postmarketos-qcom-msm8226
+
       - name: Build armv7
         run: pmbootstrap build --arch armv7 cheip-shell postmarketos-ui-cheip
 
@@ -128,7 +149,7 @@ jobs:
           mkdir -p out
           pmbootstrap export out
           # lk1st has no bundled device DTB: explicit fdt line, boot log on screen
-          sudo apt-get install -y -qq e2fsprogs fdisk
+          sudo apt-get install -y -qq e2fsprogs fdisk device-tree-compiler
           for f in out/*.img; do case "$f" in *boot.img*) continue;; esac
             sudo sh scripts/fix-extlinux.sh "$(readlink -f "$f")" qcom-msm8926-microsoft-superman-lte.dtb; done
           for f in out/*.img; do xz -T0 -6 -c "$(readlink -f "$f")" > "dist-$(basename "$f").xz"; done
