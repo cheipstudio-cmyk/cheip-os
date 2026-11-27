@@ -76,6 +76,7 @@ export global Sys {
     in property <string> diag: "";
     // Log app: one entry per line of the diagnostics, newest kernel lines too
     in property <[string]> log-lines;
+    callback refresh-log();
     in property <int> mem-used: 612;
     in property <int> mem-total: 1024;
     in property <int> mem-android: 0;

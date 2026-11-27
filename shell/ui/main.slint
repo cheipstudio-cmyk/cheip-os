@@ -17,6 +17,9 @@ export { Kbd, Theme, Icons, Style, Clock, Sys, Shell, Cal, Notes, Cam, Phone, Ms
 // System log: what the phone is doing (cores, clock, charger, USB, network, input)
 component LogApp inherits Rectangle {
     background: Theme.surface;
+    // Read directly while the app is open, independent of the background reader
+    Timer { interval: 3s; running: true; triggered => { Sys.refresh-log(); } }
+    init => { Sys.refresh-log(); }
     StatusBar { y: 0; width: parent.width; }
     Text { x: 24px; y: 44px; text: "Log"; color: Theme.on-surface; font-family: Theme.display; font-size: 34px; font-weight: 500; }
     Text { x: 24px; y: 90px; width: parent.width - 48px; text: "Refreshed every 5 seconds"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 13px; }

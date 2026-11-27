@@ -425,6 +425,16 @@ fn main() {
 
     shell.invoke_close_app();
     ctx.advance(600);
+    {
+        let sys = ui.global::<cheip_shell::Sys>();
+        let lines: Vec<slint::SharedString> = ["usb udc[ci_hdrc.0=configured] gadget[g1:ci_hdrc.0] vbus 1", "sound [no ALSA]", "cpu 0 787/787 MHz performance", "load 0.80 0.60 0.40 | shell 30%", "linuxkms-software", "power [bif:Charging,dcin:on0,usbin:on1] vbat 3812mV", "net [lo,usb0,wlan0]", "wifi: copied /mnt/wp/Windows/System32/.../wcnss.mbn"].iter().map(|l| (*l).into()).collect();
+        sys.set_log_lines(slint::ModelRc::new(slint::VecModel::from(lines)));
+    }
+    open("log");
+    ctx.advance(700);
+    ctx.shot("log");
+    shell.invoke_close_app();
+    ctx.advance(600);
     open("calendar");
     ctx.advance(700);
     ctx.shot("calendario");

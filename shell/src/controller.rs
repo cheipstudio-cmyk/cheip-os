@@ -416,6 +416,36 @@ thread_local! {
     static H24: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
 }
 
+static HW_STAMP: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Everything the Log app shows, read now (cheap sysfs and log files)
+fn log_lines() -> Vec<SharedString> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let stamp = HW_STAMP.load(std::sync::atomic::Ordering::Relaxed);
+    let mut lines: Vec<SharedString> = vec![if stamp == 0 {
+        "background reader: no reading yet".into()
+    } else {
+        format!("background reader: last reading {}s ago", now.saturating_sub(stamp)).into()
+    }];
+    let diag = std::panic::catch_unwind(|| sys::diag_line(None)).unwrap_or_else(|_| "diagnostics failed".into());
+    lines.extend(diag.split(" | ").map(|l| SharedString::from(l)));
+    match sys::battery() {
+        Some((b, ch)) => lines.push(format!("battery: {} {}", if b >= 0 { format!("{b}%") } else { "level unknown".into() }, if ch { "charging" } else { "not charging" }).into()),
+        None => lines.push("battery: no reading".into()),
+    }
+    for (name, path, n) in [("kernel", "/var/log/cheip-smp.txt", 3), ("wifi", "/var/log/cheip-firmware.txt", 30), ("storage grow", "/var/log/cheip-grow.txt", 3), ("shell", "/var/log/cheip-shell.log", 8)] {
+        if let Ok(f) = std::fs::read_to_string(path) {
+            let v: Vec<&str> = f.lines().filter(|l| !l.trim().is_empty()).collect();
+            for l in v.iter().skip(v.len().saturating_sub(n)) {
+                lines.push(format!("{name}: {l}").into());
+            }
+        } else {
+            lines.push(format!("{name}: no log file").into());
+        }
+    }
+    lines
+}
+
 pub fn push_clock_force(ui: &AppWindow) {
     LAST_MIN.with(|m| m.set(-1));
     push_clock(ui, Local::now().naive_local());
@@ -472,7 +502,7 @@ static WEATHER_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool
 static WEATHER_CITY: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 
 pub fn hw_snapshot() -> Option<Hw> {
-    HW.lock().ok().and_then(|h| h.clone())
+    HW.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
 fn read_hw(last_ticks: &mut Option<u64>, secs: f32, waydroid_tick: bool, prev: &Option<Hw>) -> Hw {
@@ -486,7 +516,7 @@ fn read_hw(last_ticks: &mut Option<u64>, secs: f32, waydroid_tick: bool, prev: &
     let _ = (waydroid_tick, prev);
     // Slow probes (waydroid is a Python program, mmcli can wait on D-Bus) live
     // in their own thread: battery and the rest never wait for them
-    let (android, modem) = SLOW.lock().map(|s| s.clone()).unwrap_or_default();
+    let (android, modem) = SLOW.lock().unwrap_or_else(|e| e.into_inner()).clone();
     let android = android.unwrap_or((false, "Checking".into()));
     let mem_android = if android.0 { sys::android_memory().min(used) } else { 0 };
     Hw {
@@ -556,6 +586,10 @@ fn fetch_weather(city: &str) -> Option<(String, String)> {
 /// Starts the background reader (call once, on the phone)
 pub fn start_hw_thread() {
     std::thread::spawn(|| loop {
+        let _ = std::panic::catch_unwind(slow_round);
+        std::thread::sleep(std::time::Duration::from_secs(30));
+    });
+    fn slow_round() {
         let android = if !sys::waydroid_installed() {
             (false, "Waydroid not installed".to_string())
         } else if sys::waydroid_running() {
@@ -563,15 +597,10 @@ pub fn start_hw_thread() {
         } else {
             (false, "Suspended, starts when you open an Android app".to_string())
         };
-        if let Ok(mut s) = SLOW.lock() {
-            s.0 = Some(android);
-        }
+        SLOW.lock().unwrap_or_else(|e| e.into_inner()).0 = Some(android);
         let modem = crate::modem::status();
-        if let Ok(mut s) = SLOW.lock() {
-            s.1 = Some(modem);
-        }
-        std::thread::sleep(std::time::Duration::from_secs(30));
-    });
+        SLOW.lock().unwrap_or_else(|e| e.into_inner()).1 = Some(modem);
+    }
     std::thread::spawn(|| {
         let mut ticks = None;
         let mut n: u32 = 0;
@@ -590,9 +619,8 @@ pub fn start_hw_thread() {
                     hw.weather = Some(w);
                 }
             }
-            if let Ok(mut g) = HW.lock() {
-                *g = Some(hw);
-            }
+            *HW.lock().unwrap_or_else(|e| e.into_inner()) = Some(hw);
+            HW_STAMP.store(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0), std::sync::atomic::Ordering::Relaxed);
             n += 1;
             std::thread::sleep(std::time::Duration::from_secs(5));
         }
@@ -1077,6 +1105,12 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
                 let mut s = st.borrow_mut();
                 s.store.data.prefs.insert("h24".into(), if on { "1" } else { "0" }.into());
                 s.store.save();
+            }
+        });
+        let w = ui.as_weak();
+        ui.global::<Sys>().on_refresh_log(move || {
+            if let Some(ui) = w.upgrade() {
+                ui.global::<Sys>().set_log_lines(model(log_lines()));
             }
         });
         ui.global::<Sys>().on_preview_tone(|i| crate::feedback::play(crate::feedback::Sound::Tone(i), 0.7));
