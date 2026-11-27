@@ -156,8 +156,15 @@ jobs:
           echo "::notice::kernel APKBUILD: $(grep -c parking "$KAPK") lines mention parking, $(grep '^pkgrel' "$KAPK")"
           cp "$KAPK" kernel-APKBUILD.txt
           set +e
-          pmbootstrap build --arch armv7 linux-postmarketos-qcom-msm8226 2>&1 | tee kernel-build.txt
-          rc=${PIPESTATUS[0]}
+          # GitHub sometimes answers 502 on the kernel tarball: retry the download up to 4 times
+          for try in 1 2 3 4; do
+            pmbootstrap build --arch armv7 linux-postmarketos-qcom-msm8226 2>&1 | tee kernel-build.txt
+            rc=${PIPESTATUS[0]}
+            [ "$rc" -eq 0 ] && break
+            tail -n 40 "$WORK/log.txt" | grep -q "fetch failed" || break
+            echo "::warning::kernel tarball download failed (attempt $try), retrying"
+            sleep 30
+          done
           # abuild's own lines about patches, as public notices
           grep -E ">>> linux-postmarketos-qcom-msm8226: |patching file|Hunk|SMP patch|CHEIP-SMP" "$WORK/log.txt" | tail -n 12 | while IFS= read -r l; do echo "::notice::$l"; done
           # What the build did with our patch, for the release assets
@@ -202,7 +209,7 @@ jobs:
           for f in out/*.img; do case "$f" in *boot.img*) continue;; esac
             sudo sh scripts/fix-extlinux.sh "$(readlink -f "$f")" qcom-msm8926-microsoft-superman-lte.dtb; done
           # Final proof on the real image: the kernel in the boot partition has the SMP code
-          python3 - "$(readlink -f "$(ls out/*.img | grep -v boot.img | head -1)")" <<'PY' || true
+          python3 - "$(readlink -f "$(ls out/*.img | grep -v boot.img | head -1)")" <<'PY'
           import lzma, re, subprocess, sys
           img = sys.argv[1]
           dump = subprocess.run(["sfdisk", "-d", img], capture_output=True, text=True).stdout
@@ -220,7 +227,8 @@ jobs:
               except Exception:
                   pass
           ok = b"parking mailbox" in k
-          print(("::notice::IMAGE kernel HAS the SMP code" if ok else "::warning::IMAGE kernel does NOT have the SMP code") + f" ({len(k)} bytes)")
+          print(("::notice::IMAGE kernel HAS the SMP code" if ok else "::error::IMAGE kernel does NOT have the SMP code, no release") + f" ({len(k)} bytes)")
+          sys.exit(0 if ok else 9)
           PY
           for f in out/*.img; do xz -T0 -6 -c "$(readlink -f "$f")" > "dist-$(basename "$f").xz"; done
           # boot.img per l'avvio da RAM con "fastboot boot" da lk1st
