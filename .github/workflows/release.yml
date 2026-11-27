@@ -158,7 +158,10 @@ jobs:
           fi
           # Proof that the SMP code is really inside the kernel that goes in the image
           KPKG="$(ls -t "$WORK"/packages/edge/armv7/linux-postmarketos-qcom-msm8226-*.apk | head -1)"
-          mkdir -p /tmp/kpkg && tar -xzf "$KPKG" -C /tmp/kpkg 2>/dev/null || true
+          # An .apk is several gzip streams: -i reads past the first end-of-archive
+          mkdir -p /tmp/kpkg && tar -xzif "$KPKG" -C /tmp/kpkg 2>/dev/null || true
+          SRC_SMP="$(sudo grep -c park_boot_secondary "$WORK"/chroot_native/home/pmos/build/src/linux-*/arch/arm/mach-qcom/platsmp.c 2>/dev/null || echo 0)"
+          echo "::notice::platsmp.c in the build tree mentions park_boot_secondary $SRC_SMP times"
           if grep -q park_boot_secondary /tmp/kpkg/boot/System.map* 2>/dev/null; then
             echo "::notice::SMP parking code IS in the kernel ($(basename "$KPKG"))"
           else
