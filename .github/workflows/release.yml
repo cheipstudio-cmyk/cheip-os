@@ -146,8 +146,11 @@ jobs:
           open(p, 'w').write(s)
           PY
           grep -n "parking\|pkgrel\|default_prepare" "$KAPK" | head -20
+          cp "$KAPK" kernel-APKBUILD.txt
           set +e
           pmbootstrap build --arch armv7 linux-postmarketos-qcom-msm8226 2>&1 | tee kernel-build.txt
+          # What the build did with our file, for the release assets
+          grep -n "parking\|mach-qcom" "$WORK/log.txt" | tail -n 60 > kernel-parking.txt
           rc=${PIPESTATUS[0]}
           set -e
           if [ "$rc" -ne 0 ]; then
@@ -237,6 +240,8 @@ jobs:
             ota/armv7/*.apk
             ota/manifest.json
             kernel-log.txt
+            kernel-APKBUILD.txt
+            kernel-parking.txt
 
       - name: Log pmbootstrap in caso di errore
         if: failure()
