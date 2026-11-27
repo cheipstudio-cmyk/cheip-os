@@ -18,23 +18,25 @@ partdev() {
 
 if [ ! -s "$FW/wcnss.mbn" ] || [ ! -s "$NV" ]; then
 	modprobe ntfs3 2>/dev/null
-	DEV=$(partdev MainOS)
-	echo "MainOS: ${DEV:-not found}"
-	if [ -n "$DEV" ]; then
-		mkdir -p /mnt/wp
-		if mount -t ntfs3 -o ro "$DEV" /mnt/wp; then
-			echo "candidates:"
-			find /mnt/wp/Windows/System32 \( -iname '*wcnss*' -o -iname '*pronto*' -o -iname '*wlan*nv*' -o -iname '*qcwlan*' \) 2>/dev/null | head -n 40
-			mbn=$(find /mnt/wp/Windows/System32 \( -iname '*wcnss*.mbn' -o -iname '*pronto*.mbn' \) 2>/dev/null | head -n 1)
-			nv=$(find /mnt/wp/Windows/System32 \( -iname 'WCNSS_qcom_wlan_nv*.bin' -o -iname '*wlan*nv*.bin' \) 2>/dev/null | head -n 1)
-			mkdir -p "$FW" "$(dirname "$NV")"
-			[ -n "$mbn" ] && cp "$mbn" "$FW/wcnss.mbn" && echo "copied $mbn"
-			[ -n "$nv" ] && cp "$nv" "$NV" && echo "copied $nv"
-			umount /mnt/wp
-		else
-			echo "mount of MainOS failed"
-		fi
-	fi
+	modprobe vfat 2>/dev/null
+	mkdir -p /mnt/wp "$FW" "$(dirname "$NV")"
+	: > /tmp/cheip-fw.txt
+	# The Windows Phone partitions that can hold subsystem firmware
+	for part in MainOS PLAT EFIESP DPP; do
+		DEV=$(partdev "$part")
+		echo "$part: ${DEV:-not found}"
+		[ -n "$DEV" ] || continue
+		mount -o ro "$DEV" /mnt/wp 2>/dev/null || mount -t ntfs3 -o ro "$DEV" /mnt/wp || { echo "$part: mount failed"; continue; }
+		echo "$part top: $(ls /mnt/wp | head -n 12 | tr '\n' ' ')"
+		# Folder names differ in case between Windows builds: whole partition, any case
+		find /mnt/wp \( -iname '*wcnss*' -o -iname '*pronto*' -o -iname '*wlan*nv*' -o -iname '*qcwlan*' -o -iname '*riva*' \) 2>/dev/null | tee -a /tmp/cheip-fw.txt | head -n 12
+		mbn=$(grep -iE '(wcnss|pronto|riva)[^/]*\.(mbn|mdt)$' /tmp/cheip-fw.txt | head -n 1)
+		nv=$(grep -iE 'wlan[^/]*nv[^/]*\.bin$' /tmp/cheip-fw.txt | head -n 1)
+		[ -n "$mbn" ] && [ ! -s "$FW/wcnss.mbn" ] && cp "$mbn" "$FW/wcnss.mbn" && echo "copied $mbn"
+		[ -n "$nv" ] && [ ! -s "$NV" ] && cp "$nv" "$NV" && echo "copied $nv"
+		umount /mnt/wp
+	done
+	echo "candidates found: $(wc -l < /tmp/cheip-fw.txt)"
 fi
 
 modprobe qcom_wcnss_pil 2>/dev/null

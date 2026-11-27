@@ -504,22 +504,33 @@ static WEATHER_CITY: std::sync::Mutex<String> = std::sync::Mutex::new(String::ne
 /// Voltage-based level jumps with the load (screen on/off, CPU): average it and
 /// never let it move against the charger state, so lock screen and home agree
 fn smooth_battery(raw: Option<(i32, bool)>) -> Option<(i32, bool)> {
-    static LAST: std::sync::Mutex<Option<(f32, bool)>> = std::sync::Mutex::new(None);
+    // The level is estimated from the battery voltage, which jumps up while
+    // current flows in and sags under load. A real 2220 mAh battery cannot gain
+    // more than ~1% per minute at 1 A, so the shown level moves at most that fast,
+    // and plugging or unplugging the cable never makes it jump.
+    static LAST: std::sync::Mutex<Option<(f32, std::time::Instant)>> = std::sync::Mutex::new(None);
     let (pct, ch) = raw?;
     if pct < 0 {
         return Some((pct, ch));
     }
+    let now = std::time::Instant::now();
     let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
     let v = match *last {
-        Some((prev, prev_ch)) if prev_ch == ch => {
-            let avg = prev * 0.8 + pct as f32 * 0.2;
-            // Charging: the level only goes up; on battery: only down
-            if ch { avg.max(prev) } else { avg.min(prev) }
+        Some((prev, t)) => {
+            let mins = now.duration_since(t).as_secs_f32() / 60.0;
+            let target = pct as f32;
+            if ch {
+                // Charging: only up, at most 1% per minute
+                prev.max(prev + (target - prev).clamp(0.0, mins))
+            } else {
+                // On battery: only down, at most 2% per minute
+                prev.min(prev - (prev - target).clamp(0.0, mins * 2.0))
+            }
         }
-        _ => pct as f32,
+        None => pct as f32,
     };
-    *last = Some((v, ch));
-    Some((v.round() as i32, ch))
+    *last = Some((v, now));
+    Some((v.round().clamp(0.0, 100.0) as i32, ch))
 }
 
 pub fn hw_snapshot() -> Option<Hw> {

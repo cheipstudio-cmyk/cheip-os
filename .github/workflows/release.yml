@@ -90,6 +90,23 @@ jobs:
           echo "WORK=$WORK" >> "$GITHUB_ENV"
           echo "APORTS=$(pmbootstrap config aports)" >> "$GITHUB_ENV"
 
+      # Compiler cache kept between releases: the kernel recompiles only what changed
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.WORK }}/cache_ccache_x86_64
+            ${{ env.WORK }}/cache_ccache_armv7
+          key: ccache-${{ github.run_id }}
+          restore-keys: ccache-
+
+      - name: Permessi ccache
+        run: |
+          for d in "$WORK"/cache_ccache_x86_64 "$WORK"/cache_ccache_armv7; do
+            [ -d "$d" ] && sudo chown -R 12345:12345 "$d" && echo "::notice::ccache restored: $(sudo du -sh "$d" | cut -f1) in $(basename "$d")"
+          done
+          true
+
       - name: Chiave di firma OTA
         # pmbootstrap firma pacchetti e indice con la chiave in config_abuild:
         # mettendoci la nostra, il repository è subito verificabile dai telefoni.
@@ -283,6 +300,10 @@ jobs:
           name: dist
           path: dist-*
           retention-days: 7
+
+      - name: ccache leggibile per il salvataggio
+        if: always()
+        run: sudo chmod -R a+rX "$WORK"/cache_ccache_* 2>/dev/null; sudo du -sh "$WORK"/cache_ccache_* 2>/dev/null || true
 
       - name: Release GitHub
         # GitHub refuses this token the release update lately; the site takes the
