@@ -8,7 +8,7 @@ diff --git a/arch/arm/mach-qcom/platsmp.c b/arch/arm/mach-qcom/platsmp.c
 index eca2fe0..01bb8e5 100644
 --- a/arch/arm/mach-qcom/platsmp.c
 +++ b/arch/arm/mach-qcom/platsmp.c
-@@ -404,3 +404,61 @@ static const struct smp_operations qcom_smp_kpssv2_ops __initconst = {
+@@ -404,3 +404,62 @@ static const struct smp_operations qcom_smp_kpssv2_ops __initconst = {
  #endif
  };
  CPU_METHOD_OF_DECLARE(qcom_smp_kpssv2, "qcom,kpss-acc-v2", &qcom_smp_kpssv2_ops);
@@ -70,3 +70,4 @@ index eca2fe0..01bb8e5 100644
 +static const struct smp_operations park_smp_ops __initconst = {
 +	.smp_boot_secondary	= park_boot_secondary,
 +};
++CPU_METHOD_OF_DECLARE(ms_parking, "microsoft,parking-protocol", &park_smp_ops);
