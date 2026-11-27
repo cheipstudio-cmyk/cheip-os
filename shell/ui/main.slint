@@ -22,7 +22,7 @@ component LogApp inherits Rectangle {
     init => { Sys.refresh-log(); }
     StatusBar { y: 0; width: parent.width; }
     Text { x: 24px; y: 44px; text: "Log"; color: Theme.on-surface; font-family: Theme.display; font-size: 34px; font-weight: 500; }
-    Text { x: 24px; y: 90px; width: parent.width - 48px; text: "Refreshed every 5 seconds"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 13px; }
+    Text { x: 24px; y: 90px; width: parent.width - 48px; text: "Refreshed every 3 seconds"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 13px; }
     Flickable {
         x: 12px; y: 120px; width: parent.width - 24px; height: parent.height - 132px;
         viewport-height: col.preferred-height;

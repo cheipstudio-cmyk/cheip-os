@@ -452,6 +452,36 @@ fn log_lines() -> Vec<SharedString> {
     lines
 }
 
+thread_local! {
+    static LOG_MODEL: std::cell::RefCell<Option<std::rc::Rc<VecModel<SharedString>>>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Updates the Log app in place: only the lines that changed are redrawn,
+/// instead of rebuilding (and re-laying out) the whole list every few seconds
+fn set_log(ui: &AppWindow, lines: Vec<SharedString>) {
+    use slint::Model;
+    LOG_MODEL.with(|m| {
+        let mut m = m.borrow_mut();
+        let vm = m.get_or_insert_with(|| {
+            let vm = std::rc::Rc::new(VecModel::<SharedString>::default());
+            ui.global::<Sys>().set_log_lines(ModelRc::from(vm.clone()));
+            vm
+        });
+        for (i, l) in lines.iter().enumerate() {
+            if i < vm.row_count() {
+                if vm.row_data(i).as_ref() != Some(l) {
+                    vm.set_row_data(i, l.clone());
+                }
+            } else {
+                vm.push(l.clone());
+            }
+        }
+        while vm.row_count() > lines.len() {
+            vm.remove(vm.row_count() - 1);
+        }
+    });
+}
+
 pub fn push_clock_force(ui: &AppWindow) {
     LAST_MIN.with(|m| m.set(-1));
     push_clock(ui, Local::now().naive_local());
@@ -759,7 +789,7 @@ fn push_hw(ui: &AppWindow) {
             lines.push(format!("storage grow: {l}").into());
         }
     }
-    s.set_log_lines(model(lines));
+    set_log(ui, lines);
     s.set_mem_used(hw.mem.0);
     s.set_mem_total(hw.mem.1);
     s.set_mem_android(hw.mem_android);
@@ -1152,7 +1182,7 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
         let w = ui.as_weak();
         ui.global::<Sys>().on_refresh_log(move || {
             if let Some(ui) = w.upgrade() {
-                ui.global::<Sys>().set_log_lines(model(log_lines()));
+                set_log(&ui, log_lines());
             }
         });
         ui.global::<Sys>().on_preview_tone(|i| crate::feedback::play(crate::feedback::Sound::Tone(i), 0.7));
