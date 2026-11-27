@@ -167,12 +167,12 @@ export component SettingsApp inherits Rectangle {
                     Text { x: 56px; height: parent.height; text: "Search settings"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 16px; vertical-alignment: center; }
                 }
                 Rectangle { height: 14px; }
-                MainRow { first: true; icon: Icons.wifi-f; hue: 0; label: "Network & internet"; detail: Sys.wifi-on ? "Wi-Fi, mobile data, hotspot" : "Wi-Fi off"; clicked => { Settings.open-page("network"); } }
+                MainRow { first: true; icon: Icons.wifi-f; hue: 0; label: "Network & internet"; detail: !Sys.has-wifi ? "No Wi-Fi hardware found" : (Sys.wifi-on ? "Wi-Fi, mobile data, hotspot" : "Wi-Fi off"); clicked => { Settings.open-page("network"); } }
                 MainRow { last: true; icon: Icons.devices; hue: 0; label: "Connected devices"; detail: "Bluetooth, NFC, cast"; clicked => { Settings.open-page("devices"); } }
                 Rectangle { height: 14px; }
                 MainRow { first: true; icon: Icons.apps; hue: 1; label: "Apps"; detail: "Recent apps, default apps"; clicked => { Settings.open-page("apps"); } }
                 MainRow { icon: Icons.bell-f; hue: 1; label: "Notifications"; detail: "History, conversations"; clicked => { Settings.open-page("notifications"); } }
-                MainRow { icon: Icons.battery-f; hue: 1; label: "Battery"; detail: Sys.battery + "%" + (Sys.charging ? " · Charging" : ""); clicked => { Settings.open-page("battery"); } }
+                MainRow { icon: Icons.battery-f; hue: 1; label: "Battery"; detail: !Sys.has-battery ? "Level not available" : Sys.battery + "%" + (Sys.charging ? " · Charging" : ""); clicked => { Settings.open-page("battery"); } }
                 MainRow { last: true; icon: Icons.storage; hue: 1; label: "Storage"; detail: Settings.storage-used + " used of " + Settings.storage-total; clicked => { Settings.open-page("storage"); } }
                 Rectangle { height: 14px; }
                 MainRow { first: true; icon: Sys.ringer == 0 ? Icons.speaker-f : (Sys.ringer == 1 ? Icons.vibrate-f : Icons.bell-off-f); hue: 2; label: "Sound & vibration"; detail: (Sys.ringer == 0 ? "Ring" : (Sys.ringer == 1 ? "Vibrate" : "Silent")) + " · Volume " + round(Sys.volume * 100) + "%"; clicked => { Settings.open-page("sound"); } }

@@ -143,9 +143,9 @@ export component StatusBar inherits Rectangle {
         Rectangle { }
         if Sys.ringer == 1: Icon { d: Icons.vibrate-f; size: 15px; tint: root.fg; y: 6.5px; }
         if Sys.ringer == 2: Icon { d: Icons.bell-off-f; size: 15px; tint: root.fg; y: 6.5px; }
-        if Sys.wifi-on: Icon { d: Icons.wifi-f; size: 15px; tint: root.fg; y: 6.5px; }
-        Icon { d: Icons.signal-f; size: 15px; tint: root.fg; y: 6.5px; }
-        Battery { y: (28px - self.height) / 2; fg: root.fg; }
+        if Sys.wifi-on && Sys.has-wifi: Icon { d: Icons.wifi-f; size: 15px; tint: root.fg; y: 6.5px; }
+        if Sys.has-cell: Icon { d: Icons.signal-f; size: 15px; tint: root.fg; y: 6.5px; }
+        if Sys.has-battery: Battery { y: (28px - self.height) / 2; fg: root.fg; }
     }
 }
 

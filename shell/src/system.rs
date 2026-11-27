@@ -26,6 +26,37 @@ pub fn battery() -> Option<(i32, bool)> {
             return Some((cap, charging));
         }
     }
+    // No fuel gauge (Lumia: pm8226 has no BMS driver): estimate from the
+    // battery voltage read by the PMIC ADC, charging state from the charger
+    let mv = vbat_mv()?;
+    let charging = class_dirs("power_supply").iter().any(|d| {
+        read_trim(d.join("online")).as_deref() == Some("1") && read_trim(d.join("type")).as_deref() != Some("Battery")
+    });
+    // Li-ion curve, resting voltage; while charging the voltage reads higher
+    let v = if charging { mv - 120 } else { mv };
+    let pts = [(3300, 0), (3600, 5), (3700, 15), (3750, 30), (3800, 45), (3850, 55), (3900, 65), (4000, 80), (4100, 92), (4200, 100)];
+    let mut pct = 100;
+    for w in pts.windows(2) {
+        let ((v0, p0), (v1, p1)) = (w[0], w[1]);
+        if v < v0 { pct = if v0 == 3300 { 0 } else { p0 }; break; }
+        if v <= v1 { pct = p0 + (p1 - p0) * (v - v0) / (v1 - v0); break; }
+    }
+    Some((pct, charging))
+}
+
+/// Battery voltage in mV from any IIO channel named like vbat
+pub fn vbat_mv() -> Option<i32> {
+    for d in fs::read_dir("/sys/bus/iio/devices").ok()?.flatten() {
+        for f in fs::read_dir(d.path()).ok()?.flatten() {
+            let n = f.file_name().to_string_lossy().to_string();
+            if n.contains("vbat") && n.ends_with("_input") {
+                let raw: i64 = read_trim(f.path())?.parse().ok()?;
+                // spmi-vadc reports microvolts
+                let mv = if raw > 100_000 { raw / 1000 } else { raw };
+                if (2500..5000).contains(&mv) { return Some(mv as i32); }
+            }
+        }
+    }
     None
 }
 
@@ -150,6 +181,48 @@ pub fn radio(kind: &str, on: bool) {
         }
         _ => {}
     }
+}
+
+/// A wireless network interface exists (driver and firmware loaded)
+pub fn has_wifi() -> bool {
+    class_dirs("net").iter().any(|d| d.join("wireless").exists() || d.join("phy80211").exists())
+}
+
+/// A mobile data interface exists
+pub fn has_cell() -> bool {
+    class_dirs("net").iter().any(|d| {
+        let n = d.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        n.starts_with("rmnet") || n.starts_with("wwan")
+    })
+}
+
+/// One line with what the phone is really doing: cores, clock, load, power and network devices
+pub fn diag_line(shell_cpu: Option<f32>) -> String {
+    let online = read_trim("/sys/devices/system/cpu/online").unwrap_or_else(|| "?".into());
+    let mhz = read_trim("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq")
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(|k| format!("{} MHz", k / 1000))
+        .unwrap_or_else(|| "no cpufreq".into());
+    let load = read_trim("/proc/loadavg").map(|l| l.split_whitespace().take(3).collect::<Vec<_>>().join(" ")).unwrap_or_default();
+    let names = |c: &str| class_dirs(c).iter().filter_map(|d| d.file_name().map(|n| n.to_string_lossy().to_string())).collect::<Vec<_>>().join(",");
+    let shell = shell_cpu.map(|c| format!(" | shell {c:.0}%")).unwrap_or_default();
+    format!(
+        "cpu {online} {mhz} | load {load}{shell} | {} | power [{}] vbat {} | net [{}] | rproc [{}] | input [{}]",
+        std::env::var("SLINT_BACKEND").unwrap_or_default(),
+        names("power_supply"),
+        vbat_mv().map(|v| format!("{v}mV")).unwrap_or_else(|| "?".into()),
+        names("net"),
+        names("remoteproc"),
+        class_dirs("input").iter().filter_map(|d| read_trim(d.join("name"))).collect::<Vec<_>>().join(","),
+    )
+}
+
+/// Total CPU ticks used by this process (utime + stime)
+pub fn self_ticks() -> Option<u64> {
+    let s = fs::read_to_string("/proc/self/stat").ok()?;
+    let rest = &s[s.rfind(')')? + 2..];
+    let f: Vec<&str> = rest.split_whitespace().collect();
+    Some(f.get(11)?.parse::<u64>().ok()? + f.get(12)?.parse::<u64>().ok()?)
 }
 
 pub fn wifi_on() -> bool {

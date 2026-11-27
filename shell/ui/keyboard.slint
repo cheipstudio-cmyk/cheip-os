@@ -1,0 +1,87 @@
+// On-screen keyboard. Shows up by itself when a text field has focus
+// (TextInputInterface.text-input-focused) and sends key presses to the
+// window through Kbd.key, handled in Rust with dispatch_event.
+import { Theme } from "theme.slint";
+import { Icon, Icons } from "components.slint";
+
+export global Kbd {
+    callback key(string);
+    in-out property <bool> shift: false;
+    in-out property <bool> symbols: false;
+}
+
+component KeyCap inherits Rectangle {
+    in property <string> label;
+    in property <string> send: self.label;
+    in property <bool> accent: false;
+    in property <bool> active: false;
+    in property <string> icon: "";
+    callback tap();
+    border-radius: 12px;
+    background: ta.pressed ? Theme.primary : (root.active ? Theme.primary-container : (root.accent ? Theme.secondary-container : Theme.container-high));
+    if root.icon != "": Icon { d: root.icon; size: 22px; tint: ta.pressed ? Theme.on-primary : Theme.on-surface; }
+    if root.icon == "": Text {
+        text: root.label;
+        color: ta.pressed ? Theme.on-primary : Theme.on-surface;
+        font-family: Theme.body;
+        font-size: root.label.character-count > 1 ? 15px : 21px;
+        font-weight: 500;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    ta := TouchArea {
+        clicked => { root.tap(); }
+    }
+}
+
+component Row inherits HorizontalLayout {
+    in property <[string]> keys;
+    in property <length> inset: 0px;
+    padding-left: self.inset;
+    padding-right: self.inset;
+    spacing: 5px;
+    for k in root.keys: KeyCap {
+        label: Kbd.shift && !Kbd.symbols ? k.to-uppercase() : k;
+        tap => {
+            Kbd.key(self.label);
+            Kbd.shift = false;
+        }
+    }
+}
+
+export component Keyboard inherits Rectangle {
+    background: Theme.container;
+    height: 4 * 50px + 3 * 8px + 26px;
+
+    VerticalLayout {
+        padding: 6px;
+        padding-bottom: 20px;
+        spacing: 8px;
+
+        Row { keys: Kbd.symbols ? ["1","2","3","4","5","6","7","8","9","0"] : ["q","w","e","r","t","y","u","i","o","p"]; }
+        Row { inset: Kbd.symbols ? 0px : 16px; keys: Kbd.symbols ? ["@","#","€","_","&","-","+","(",")","/"] : ["a","s","d","f","g","h","j","k","l"]; }
+        HorizontalLayout {
+            spacing: 5px;
+            KeyCap {
+                horizontal-stretch: 1.5;
+                label: "=";
+                icon: Kbd.symbols ? "" : (Kbd.shift ? Icons.up-f : Icons.up);
+                accent: true;
+                active: Kbd.shift;
+                tap => {
+                    if (Kbd.symbols) { Kbd.key("="); } else { Kbd.shift = !Kbd.shift; }
+                }
+            }
+            Row { horizontal-stretch: 7; keys: Kbd.symbols ? ["*","\"","'",":",";","!","?"] : ["z","x","c","v","b","n","m"]; }
+            KeyCap { horizontal-stretch: 1.5; icon: Icons.back; accent: true; tap => { Kbd.key(Key.Backspace); } }
+        }
+        HorizontalLayout {
+            spacing: 5px;
+            KeyCap { horizontal-stretch: 1.5; label: Kbd.symbols ? "ABC" : "?123"; accent: true; tap => { Kbd.symbols = !Kbd.symbols; Kbd.shift = false; } }
+            KeyCap { horizontal-stretch: 1; label: ","; tap => { Kbd.key(","); } }
+            KeyCap { horizontal-stretch: 5; label: "space"; tap => { Kbd.key(" "); } }
+            KeyCap { horizontal-stretch: 1; label: "."; tap => { Kbd.key("."); } }
+            KeyCap { horizontal-stretch: 1.5; icon: Icons.check; accent: true; tap => { Kbd.key(Key.Return); } }
+        }
+    }
+}

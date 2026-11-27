@@ -10,8 +10,9 @@ import { SettingsApp } from "settings.slint";
 import { ClockApp, AlarmOverlay } from "clock.slint";
 import { Icon, Icons } from "components.slint";
 import { BootSplash } from "splash.slint";
+import { Keyboard, Kbd } from "keyboard.slint";
 
-export { Theme, Icons, Style, Clock, Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow, CatRow, AlarmRow, CityRow, LapRow, SRow, Swatch }
+export { Kbd, Theme, Icons, Style, Clock, Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow, CatRow, AlarmRow, CityRow, LapRow, SRow, Swatch }
 
 export component AppWindow inherits Window {
     title: "Cheip OS";
@@ -26,6 +27,9 @@ export component AppWindow inherits Window {
     // Avanzamento del gesto di chiusura (0 = app intera, 1 = scheda piccola)
     property <float> drag-p: min(1, max(0, Shell.close-drag / 420px));
     property <bool> dragging: Shell.close-drag > 0px;
+    // On-screen keyboard: open while a text field has focus, apps shrink above it
+    property <bool> kb-open: TextInputInterface.text-input-focused;
+    property <length> kb-h: root.kb-open ? kb.height : 0px;
 
     home := HomeScreen {
         width: root.width; height: root.height;
@@ -53,7 +57,7 @@ export component AppWindow inherits Window {
 
         Rectangle {
             x: 0; y: 0;
-            width: root.width; height: root.height;
+            width: root.width; height: root.height - root.kb-h;
             transform-origin: { x: 0px, y: 0px };
             transform-scale: host.width / root.width;
             opacity: Shell.app-open ? 1 : 0;
@@ -110,7 +114,7 @@ export component AppWindow inherits Window {
             pointer-event(ev) => {
                 if (ev.kind == PointerEventKind.up || ev.kind == PointerEventKind.cancel) {
                     let d = Shell.close-drag;
-                    if (d > 300px) {
+                    if (d > 170px) {
                         Shell.close-app();
                         Shell.screen = ScreenId.switcher;
                     } else if (d > 40px) {
@@ -237,6 +241,18 @@ export component AppWindow inherits Window {
             }
             Icon { y: parent.height - 44px; d: Icons.tune; size: 22px; tint: Theme.on-surface-variant; }
         }
+    }
+
+    kb := Keyboard {
+        width: root.width;
+        y: root.kb-open ? root.height - self.height : root.height;
+        animate y { duration: 220ms; easing: Theme.ease; }
+    }
+
+    // Screen off: everything black, swallows touches until the power key is pressed again
+    if Shell.screen-off: Rectangle {
+        background: black;
+        TouchArea { }
     }
 
     // Boot animation on top of everything, removes itself when done

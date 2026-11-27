@@ -168,7 +168,7 @@ pub fn glyph(ui: &AppWindow, id: &str) -> SharedString {
 impl State {
     fn new(store: Store, now: NaiveDateTime, live: bool) -> Self {
         let today = now.date();
-        let wifi = if live { sys::wifi_on() } else { true };
+        let wifi = if live { sys::has_wifi() && sys::wifi_on() } else { true };
         State {
             store,
             live,
@@ -369,11 +369,12 @@ pub fn on_key(k: crate::keys::Key) {
                 return;
             }
             s.screen_off = !s.screen_off;
+            let g = ui.global::<Shell>();
             if s.screen_off {
-                let g = ui.global::<Shell>();
                 g.set_controls_open(false);
                 g.set_screen(ScreenId::Lock);
             }
+            g.set_screen_off(s.screen_off);
             if s.live {
                 sys::set_screen(!s.screen_off);
             }
@@ -403,12 +404,29 @@ pub fn push_clock(ui: &AppWindow, now: NaiveDateTime) {
     s.set_date(cal::long_label(now.date()).into());
 }
 
+thread_local! {
+    static LAST_TICKS: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+}
+
 fn push_hw(ui: &AppWindow) {
     let s = ui.global::<Sys>();
-    if let Some((b, ch)) = sys::battery() {
-        s.set_battery(b);
-        s.set_charging(ch);
+    match sys::battery() {
+        Some((b, ch)) => {
+            s.set_has_battery(true);
+            s.set_battery(b);
+            s.set_charging(ch);
+        }
+        None => s.set_has_battery(false),
     }
+    s.set_has_wifi(sys::has_wifi());
+    s.set_has_cell(sys::has_cell());
+    // Share of one core used by the shell since the last reading (100 ticks/s, every 5 s)
+    let now = sys::self_ticks();
+    let cpu = match (now, LAST_TICKS.with(|t| t.replace(now))) {
+        (Some(a), Some(b)) => Some((a.saturating_sub(b)) as f32 / 5.0),
+        _ => None,
+    };
+    s.set_diag(sys::diag_line(cpu).into());
     let (used, total) = sys::memory();
     s.set_mem_used(used);
     s.set_mem_total(total);
@@ -682,6 +700,17 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
     let st: Shared = Rc::new(RefCell::new(State::new(store, now, live)));
     UI.with(|u| *u.borrow_mut() = Some(ui.as_weak()));
     STATE.with(|s| *s.borrow_mut() = Some(st.clone()));
+    {
+        // On-screen keyboard: every key becomes a real key event for the focused field
+        let w = ui.as_weak();
+        ui.global::<Kbd>().on_key(move |t| {
+            if let Some(ui) = w.upgrade() {
+                use slint::platform::WindowEvent;
+                ui.window().dispatch_event(WindowEvent::KeyPressed { text: t.clone() });
+                ui.window().dispatch_event(WindowEvent::KeyReleased { text: t });
+            }
+        });
+    }
     {
         let s = ui.global::<Sys>();
         s.set_version(VERSION.into());

@@ -33,6 +33,12 @@ export global Sys {
     in property <string> date: "Wednesday, November 25";
     in property <int> battery: 78;
     in property <bool> charging: false;
+    // Real hardware present? On the phone they stay false until read from sysfs
+    in property <bool> has-battery: true;
+    in property <bool> has-wifi: true;
+    in property <bool> has-cell: true;
+    // Diagnostic line on the lock screen (empty = hidden)
+    in property <string> diag: "";
     in property <int> mem-used: 612;
     in property <int> mem-total: 1024;
     in property <int> mem-android: 0;
@@ -71,6 +77,8 @@ export global Shell {
     // Boot animation (off in the web demo screenshots)
     in-out property <bool> show-splash: true;
     in-out property <ScreenId> screen: ScreenId.lock;
+    // Power key: screen black (AMOLED pixels off) and touches ignored
+    in property <bool> screen-off: false;
     in-out property <bool> controls-open: false;
     in-out property <bool> app-open: false;
     in-out property <string> app-id: "";
