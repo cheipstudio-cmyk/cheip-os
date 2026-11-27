@@ -223,7 +223,16 @@ pub fn diag_line(shell_cpu: Option<f32>) -> String {
         "{} | cpu {online} {mhz} {smp} | load {load}{shell} | {} | power [{}] vbat {} | net [{}] | rproc [{}] | input [{}]",
         usb_diag(),
         std::env::var("SLINT_BACKEND").unwrap_or_default(),
-        names("power_supply"),
+        class_dirs("power_supply")
+            .iter()
+            .map(|d| {
+                let n = d.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                let st = read_trim(d.join("status")).unwrap_or_default();
+                let on = read_trim(d.join("online")).unwrap_or_default();
+                format!("{}{}{}", n.trim_start_matches("smbb-"), if st.is_empty() { String::new() } else { format!(":{st}") }, if on.is_empty() { String::new() } else { format!(":on{on}") })
+            })
+            .collect::<Vec<_>>()
+            .join(","),
         vbat_mv().map(|v| format!("{v}mV")).unwrap_or_else(|| "?".into()),
         names("net"),
         names("remoteproc"),

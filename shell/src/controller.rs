@@ -454,6 +454,8 @@ pub struct Hw {
 }
 
 static HW: std::sync::Mutex<Option<Hw>> = std::sync::Mutex::new(None);
+type Slow = (Option<(bool, String)>, Option<crate::modem::Status>);
+static SLOW: std::sync::Mutex<Slow> = std::sync::Mutex::new((None, None));
 static WEATHER_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static WEATHER_CITY: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 
@@ -469,16 +471,11 @@ fn read_hw(last_ticks: &mut Option<u64>, secs: f32, waydroid_tick: bool, prev: &
     };
     *last_ticks = now;
     let (used, total) = sys::memory();
-    // waydroid status is a Python program: seconds of CPU here, so only every 30 s
-    let android = if !sys::waydroid_installed() {
-        (false, "Waydroid not installed".to_string())
-    } else if !waydroid_tick {
-        prev.as_ref().map(|p| p.android.clone()).unwrap_or((false, "Checking".into()))
-    } else if sys::waydroid_running() {
-        (true, "Running, suspends after 2 minutes with no apps".to_string())
-    } else {
-        (false, "Suspended, starts when you open an Android app".to_string())
-    };
+    let _ = (waydroid_tick, prev);
+    // Slow probes (waydroid is a Python program, mmcli can wait on D-Bus) live
+    // in their own thread: battery and the rest never wait for them
+    let (android, modem) = SLOW.lock().map(|s| s.clone()).unwrap_or_default();
+    let android = android.unwrap_or((false, "Checking".into()));
     let mem_android = if android.0 { sys::android_memory().min(used) } else { 0 };
     Hw {
         battery: sys::battery(),
@@ -488,7 +485,7 @@ fn read_hw(last_ticks: &mut Option<u64>, secs: f32, waydroid_tick: bool, prev: &
         mem: (used, total),
         mem_android,
         android,
-        modem: Some(crate::modem::status()),
+        modem,
         weather: prev.as_ref().and_then(|p| p.weather.clone()),
         disk: disk_usage(),
     }
@@ -546,12 +543,33 @@ fn fetch_weather(city: &str) -> Option<(String, String)> {
 
 /// Starts the background reader (call once, on the phone)
 pub fn start_hw_thread() {
+    std::thread::spawn(|| loop {
+        let android = if !sys::waydroid_installed() {
+            (false, "Waydroid not installed".to_string())
+        } else if sys::waydroid_running() {
+            (true, "Running, suspends after 2 minutes with no apps".to_string())
+        } else {
+            (false, "Suspended, starts when you open an Android app".to_string())
+        };
+        if let Ok(mut s) = SLOW.lock() {
+            s.0 = Some(android);
+        }
+        let modem = crate::modem::status();
+        if let Ok(mut s) = SLOW.lock() {
+            s.1 = Some(modem);
+        }
+        std::thread::sleep(std::time::Duration::from_secs(30));
+    });
     std::thread::spawn(|| {
         let mut ticks = None;
         let mut n: u32 = 0;
         loop {
             let prev = hw_snapshot();
-            let mut hw = read_hw(&mut ticks, 5.0, n % 6 == 0, &prev);
+            // A panic in one reading must not stop the battery and the rest
+            let Ok(mut hw) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| read_hw(&mut ticks, 5.0, n % 6 == 0, &prev))) else {
+                std::thread::sleep(std::time::Duration::from_secs(5));
+                continue;
+            };
             // Weather every 30 minutes (every 360 rounds of 5 s), or right after a city change
             let city = WEATHER_CITY.lock().map(|c| c.clone()).unwrap_or_default();
             let force = n % 360 == 0 || hw.weather.is_none() && n % 12 == 0;
@@ -937,7 +955,12 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
     STATE.with(|s| *s.borrow_mut() = Some(st.clone()));
     {
         if live {
-            ui.global::<Sys>().set_has_backlight(sys::has_backlight());
+            let s = ui.global::<Sys>();
+            s.set_has_backlight(sys::has_backlight());
+            // Design defaults (78%, Wi-Fi on) are for the demo: on the phone show nothing until read
+            s.set_has_battery(false);
+            s.set_has_wifi(false);
+            s.set_has_cell(false);
         }
         // Simple int/bool settings saved by name
         let w = ui.as_weak();
