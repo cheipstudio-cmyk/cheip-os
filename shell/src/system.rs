@@ -278,6 +278,38 @@ fn usb_diag() -> String {
 }
 
 /// Total CPU ticks used by this process (utime + stime)
+/// CPU use per thread of this process since the last call: "name:tid 45%, ..."
+pub fn thread_cpu() -> String {
+    use std::collections::HashMap;
+    static PREV: std::sync::Mutex<Option<(std::time::Instant, HashMap<String, u64>)>> = std::sync::Mutex::new(None);
+    let mut now_map = HashMap::new();
+    if let Ok(rd) = fs::read_dir("/proc/self/task") {
+        for e in rd.flatten() {
+            let tid = e.file_name().to_string_lossy().to_string();
+            let Ok(st) = fs::read_to_string(e.path().join("stat")) else { continue };
+            let (Some(a), Some(b)) = (st.find('('), st.rfind(')')) else { continue };
+            let name = st[a + 1..b].to_string();
+            let f: Vec<&str> = st[b + 2..].split_whitespace().collect();
+            let t = f.get(11).and_then(|v| v.parse::<u64>().ok()).unwrap_or(0) + f.get(12).and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
+            now_map.insert(format!("{name}:{tid}"), t);
+        }
+    }
+    let now = std::time::Instant::now();
+    let mut prev = PREV.lock().unwrap_or_else(|e| e.into_inner());
+    let out = match prev.as_ref() {
+        Some((t0, old)) => {
+            let secs = now.duration_since(*t0).as_secs_f64().max(0.1);
+            let mut v: Vec<(String, f64)> = now_map.iter().map(|(k, t)| (k.clone(), (t.saturating_sub(*old.get(k).unwrap_or(t))) as f64 / secs)).collect();
+            v.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+            // USER_HZ is 100 on ARM Linux: ticks per second = percent of one core
+            v.iter().take(4).map(|(k, p)| format!("{k} {p:.0}%")).collect::<Vec<_>>().join(", ")
+        }
+        None => "measuring…".into(),
+    };
+    *prev = Some((now, now_map));
+    out
+}
+
 pub fn self_ticks() -> Option<u64> {
     let s = fs::read_to_string("/proc/self/stat").ok()?;
     let rest = &s[s.rfind(')')? + 2..];

@@ -218,13 +218,15 @@ export component HomeScreen inherits Rectangle {
 
     // Pages of apps, swiped sideways like Android
     property <int> rows: max(1, floor((root.dock-y - root.grid-y - 8px) / root.row-h));
+    // The rows share the whole height down to the dock: no empty band above it
+    property <length> row-step: (root.dock-y - root.grid-y - 8px) / root.rows;
     property <int> per-page: root.rows * 4;
     property <int> pages: max(1, ceil(root.n / root.per-page));
     property <int> page: 0;
     pure function index-at(x: length, y: length) -> int {
         if (x < 0 || y < 0) { return -1; }
         let col = min(3, floor(x / root.col-w));
-        let row = min(root.rows - 1, floor(y / root.row-h));
+        let row = min(root.rows - 1, floor(y / root.row-step));
         let i = root.page * root.per-page + row * 4 + col;
         return i < root.n ? i : -1;
     }
@@ -232,7 +234,7 @@ export component HomeScreen inherits Rectangle {
         return (floor(s / root.per-page) - root.page) * (root.width - 24px) + mod(mod(s, root.per-page), 4) * root.col-w + (root.col-w - root.icon) / 2;
     }
     pure function slot-y(s: int) -> length {
-        return floor(mod(s, root.per-page) / 4) * root.row-h + 12px;
+        return floor(mod(s, root.per-page) / 4) * root.row-step + (root.row-step - root.row-h) / 2 + 12px;
     }
     pure function slot-of(i: int) -> int {
         if (root.drag-index < 0 || root.target-index < 0) { return i; }

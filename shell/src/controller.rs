@@ -417,6 +417,8 @@ thread_local! {
 }
 
 static HW_STAMP: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static UI_MAX_STALL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static UI_STALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// Everything the Log app shows, read now (cheap sysfs and log files)
 fn log_lines() -> Vec<SharedString> {
@@ -427,13 +429,17 @@ fn log_lines() -> Vec<SharedString> {
     } else {
         format!("background reader: last reading {}s ago", now.saturating_sub(stamp)).into()
     }];
+    let stall = UI_MAX_STALL.swap(0, std::sync::atomic::Ordering::Relaxed);
+    let stalls = UI_STALLS.swap(0, std::sync::atomic::Ordering::Relaxed);
+    lines.push(format!("ui thread: longest stall {stall} ms, {stalls} stalls over 50 ms since last refresh").into());
+    lines.push(format!("threads: {}", sys::thread_cpu()).into());
     let diag = std::panic::catch_unwind(|| sys::diag_line(None)).unwrap_or_else(|_| "diagnostics failed".into());
     lines.extend(diag.split(" | ").map(|l| SharedString::from(l)));
     match sys::battery() {
         Some((b, ch)) => lines.push(format!("battery: {} {}", if b >= 0 { format!("{b}%") } else { "level unknown".into() }, if ch { "charging" } else { "not charging" }).into()),
         None => lines.push("battery: no reading".into()),
     }
-    for (name, path, n) in [("kernel", "/var/log/cheip-smp.txt", 3), ("wifi", "/var/log/cheip-firmware.txt", 30), ("storage grow", "/var/log/cheip-grow.txt", 3), ("charger", "/var/log/cheip-charger.txt", 4), ("usb", "/var/log/cheip-usb.txt", 6), ("shell", "/var/log/cheip-shell.log", 8)] {
+    for (name, path, n) in [("kernel", "/var/log/cheip-smp.txt", 3), ("wifi", "/var/log/cheip-firmware.txt", 30), ("storage grow", "/var/log/cheip-grow.txt", 3), ("charger", "/var/log/cheip-charger.txt", 4), ("usb", "/var/log/cheip-usb.txt", 25), ("shell", "/var/log/cheip-shell.log", 3)] {
         if let Ok(f) = std::fs::read_to_string(path) {
             let v: Vec<&str> = f.lines().filter(|l| !l.trim().is_empty()).collect();
             for l in v.iter().skip(v.len().saturating_sub(n)) {
@@ -617,7 +623,7 @@ fn fetch_weather(city: &str) -> Option<(String, String)> {
 
 /// Starts the background reader (call once, on the phone)
 pub fn start_hw_thread() {
-    std::thread::spawn(|| loop {
+    let _ = std::thread::Builder::new().name("hw-slow".into()).spawn(|| loop {
         let _ = std::panic::catch_unwind(slow_round);
         std::thread::sleep(std::time::Duration::from_secs(30));
     });
@@ -633,7 +639,7 @@ pub fn start_hw_thread() {
         let modem = crate::modem::status();
         SLOW.lock().unwrap_or_else(|e| e.into_inner()).1 = Some(modem);
     }
-    std::thread::spawn(|| {
+    let _ = std::thread::Builder::new().name("hw-reader".into()).spawn(|| {
         let mut ticks = None;
         let mut n: u32 = 0;
         loop {
@@ -1550,7 +1556,17 @@ pub fn start_timers(ui: &AppWindow, st: &Shared) -> Vec<slint::Timer> {
             push_hw(&ui);
         }
     }); }
-    let mut v = vec![clock, hw];
+    // UI stall meter: a 100 ms tick that fires late means the UI thread was busy
+    // (drawing or handling input) for that long. Shown in the Log app.
+    let meter = slint::Timer::default();
+    let last = std::cell::Cell::new(std::time::Instant::now());
+    meter.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(100), move || {
+        let now = std::time::Instant::now();
+        let late = now.duration_since(last.replace(now)).as_millis().saturating_sub(100) as u64;
+        UI_MAX_STALL.fetch_max(late, std::sync::atomic::Ordering::Relaxed);
+        if late > 50 { UI_STALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed); }
+    });
+    let mut v = vec![clock, hw, meter];
     v.extend(crate::ctl_comm::timers(ui, st));
     v.push(crate::ctl_files::timer(ui, st));
     v

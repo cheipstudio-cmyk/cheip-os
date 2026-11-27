@@ -74,3 +74,7 @@ codegen-units = 1
 strip = true
 # unwind: a panic in a background reader must not take the whole interface down
 panic = "unwind"
+
+# Cheip OS: linuxkms with double-buffered dumb buffers (partial redraws on the phone)
+[patch.crates-io]
+i-slint-backend-linuxkms = { path = "vendor/i-slint-backend-linuxkms-1.19.1" }

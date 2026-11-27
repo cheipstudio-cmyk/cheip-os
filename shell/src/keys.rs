@@ -24,7 +24,7 @@ pub fn listen<F: Fn(Key) + Send + Sync + Clone + 'static>(on_key: F) {
     for mut dev in enumerate() {
         if !(dev.has_key(KEY_VOLUMEUP) || dev.has_key(KEY_VOLUMEDOWN) || dev.has_key(KEY_POWER)) {
             // Touchscreen and the rest: only note that the user is there
-            std::thread::spawn(move || loop {
+            let _ = std::thread::Builder::new().name("touch-watch".into()).spawn(move || loop {
                 if dev.read_events().is_err() {
                     return;
                 }
@@ -35,7 +35,7 @@ pub fn listen<F: Fn(Key) + Send + Sync + Clone + 'static>(on_key: F) {
         let on_key = on_key.clone();
         // Power: short press on release, long press after 600 ms held
         let held = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
-        std::thread::spawn(move || loop {
+        let _ = std::thread::Builder::new().name("keys".into()).spawn(move || loop {
             let Ok(events) = dev.read_events() else { return };
             for ev in events {
                 if ev.kind != EV_KEY {

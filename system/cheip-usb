@@ -5,7 +5,6 @@
 #  - a network port (CDC NCM): the phone is 172.16.42.1, the PC gets an address
 LOG=/var/log/cheip-usb.txt
 exec >"$LOG" 2>&1
-set -x
 modprobe libcomposite; modprobe usb_f_acm; modprobe usb_f_ncm
 mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config
 G=/sys/kernel/config/usb_gadget
@@ -41,7 +40,24 @@ if [ ! -d "$G/cheip" ]; then
 	ln -s functions/ncm.cheip configs/c.1/
 fi
 echo "$UDC" > "$G/cheip/UDC"
-cat "/sys/class/udc/$UDC/state"
+st() { cat "/sys/class/udc/$UDC/state" 2>/dev/null; }
+echo "state after bind: $(st)"
+
+# The PC must reset the bus within seconds of the pull-up: "powered" means it never
+# did. Try the known recoveries one by one and log which state each one reaches.
+waitcfg() { i=0; while [ $i -lt "$1" ]; do case "$(st)" in configured|addressed|default) return 0;; esac; sleep 1; i=$((i+1)); done; return 1; }
+if ! waitcfg 15; then
+	echo "no host after 15 s ($(st)): soft disconnect/connect"
+	echo disconnect > "/sys/class/udc/$UDC/soft_connect" 2>&1; sleep 2
+	echo connect > "/sys/class/udc/$UDC/soft_connect" 2>&1
+	if ! waitcfg 10; then
+		echo "still $(st): rebind the gadget"
+		echo "" > "$G/cheip/UDC"; sleep 2; echo "$UDC" > "$G/cheip/UDC"
+		waitcfg 10 || echo "still $(st) after rebind"
+	fi
+fi
+echo "state: $(st)"
+dmesg | grep -iE "ci_hdrc|msm_hsusb|usb-hs-phy|ulpi|gadget|udc|extcon|smbb" | tail -n 15
 
 IF=$(cat "$G/cheip/functions/ncm.cheip/ifname")
 ip addr add 172.16.42.1/24 dev "$IF" 2>/dev/null

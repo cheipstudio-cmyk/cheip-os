@@ -162,6 +162,35 @@ fn main() {
         sys.set_has_cell(false);
         sys.set_wifi_on(false);
     }
+    // CHEIP_ANIMCHECK: is anything forcing endless redraws on the idle home (lite, charging)?
+    if std::env::var("CHEIP_ANIMCHECK").is_ok() {
+        ui.global::<cheip_shell::Theme>().set_lite(true);
+        let sys = ui.global::<cheip_shell::Sys>();
+        sys.set_charging(true);
+        sys.set_has_battery(true);
+        sys.set_has_backlight(false);
+        if let Ok(b) = std::env::var("CHEIP_BRIGHT") { sys.set_brightness(b.parse().unwrap_or(1.0)); }
+        println!("ANIMCHECK brightness={}", sys.get_brightness());
+        for _ in 0..3 { ctx.advance(1000); ctx.shot("animcheck"); }
+        // One idle second at 60 Hz: how many frames does Slint want to repaint?
+        let mut frames = 0;
+        for _ in 0..60 {
+            ctx.advance(16);
+            let mut buf = vec![PremultipliedRgbaColor::default(); (W * H) as usize];
+            if window.draw_if_needed(|r| { r.render(&mut buf, W as usize); }) { frames += 1; }
+        }
+        println!("ANIMCHECK idle repaints per second={frames} active_animations={}", window.has_active_animations());
+        // Cost of one full-screen frame (what every animation step pays on the phone)
+        let mut buf = vec![PremultipliedRgbaColor::default(); (W * H) as usize];
+        let t0 = std::time::Instant::now();
+        let n: usize = std::env::var("CHEIP_FRAMES").ok().and_then(|v| v.parse().ok()).unwrap_or(200);
+        for _ in 0..n {
+            window.request_redraw();
+            window.draw_if_needed(|r| { r.render(&mut buf, W as usize); });
+        }
+        println!("ANIMCHECK full frame {:.1} ms on this PC", t0.elapsed().as_secs_f64() * 1000.0 / n as f64);
+        return;
+    }
     let shell = ui.global::<Shell>();
     let set = ui.global::<Settings>();
     let open = |id: &str| shell.invoke_open_app(id.into(), 152.0, 300.0, 56.0);

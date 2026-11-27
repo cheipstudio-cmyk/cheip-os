@@ -396,7 +396,8 @@ export component ClockApp inherits Rectangle {
 // ---------- Sveglia o timer che suona ----------
 export component AlarmOverlay inherits Rectangle {
     background: Theme.surface;
-    property <float> pulse: mod(animation-tick() / 1ms, 1600) / 1600;
+    // Only while ringing: animation-tick() keeps the whole screen redrawing
+    property <float> pulse: Clock.ringing ? mod(animation-tick() / 1ms, 1600) / 1600 : 0;
     StatusBar { y: 0; width: parent.width; }
     Icon { x: (parent.width - 36px) / 2; y: 70px; d: Clock.ring-kind == "timer" ? Icons.hourglass-f : Icons.alarm-f; size: 36px; tint: Theme.primary; }
     Text { y: 116px; width: parent.width; text: Clock.ring-label; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 18px; horizontal-alignment: center; }

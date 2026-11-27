@@ -86,7 +86,8 @@ export component Battery inherits Rectangle {
             animate width { duration: 700ms; easing: Theme.ease; }
             animate background { duration: 400ms; }
 
-            if root.charging: Rectangle {
+            // The moving shine redraws the whole screen every frame: never in lite mode
+            if root.charging && !Theme.lite: Rectangle {
                 width: 10px;
                 height: parent.height;
                 x: -10px + (parent.width + 10px) * mod(animation-tick() / 1600ms, 1.0);
