@@ -9,11 +9,27 @@ pub enum Key {
     PowerLong,
 }
 
+/// Seconds since the epoch of the last touch or key (screen timeout)
+pub static LAST_ACTIVITY: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+pub fn touch_activity() {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    LAST_ACTIVITY.store(now, std::sync::atomic::Ordering::Relaxed);
+}
+
 #[cfg(feature = "native")]
 pub fn listen<F: Fn(Key) + Send + Sync + Clone + 'static>(on_key: F) {
     use crate::evdev_lite::{enumerate, EV_KEY, KEY_POWER, KEY_VOLUMEDOWN, KEY_VOLUMEUP};
+    touch_activity();
     for mut dev in enumerate() {
         if !(dev.has_key(KEY_VOLUMEUP) || dev.has_key(KEY_VOLUMEDOWN) || dev.has_key(KEY_POWER)) {
+            // Touchscreen and the rest: only note that the user is there
+            std::thread::spawn(move || loop {
+                if dev.read_events().is_err() {
+                    return;
+                }
+                touch_activity();
+            });
             continue;
         }
         let on_key = on_key.clone();
@@ -25,6 +41,7 @@ pub fn listen<F: Fn(Key) + Send + Sync + Clone + 'static>(on_key: F) {
                 if ev.kind != EV_KEY {
                     continue;
                 }
+                touch_activity();
                 if ev.code == KEY_POWER {
                     use std::sync::atomic::Ordering::SeqCst;
                     if ev.value == 1 {

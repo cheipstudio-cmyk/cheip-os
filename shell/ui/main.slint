@@ -14,6 +14,33 @@ import { Keyboard, Kbd } from "keyboard.slint";
 
 export { Kbd, Theme, Icons, Style, Clock, Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow, CatRow, AlarmRow, CityRow, LapRow, SRow, Swatch }
 
+// Navigation key: Expressive round touch target, Android-style glyph
+component NavKey inherits Rectangle {
+    in property <int> kind; // 0 back, 1 home, 2 recents
+    in property <color> tint;
+    callback tap();
+    horizontal-stretch: 1;
+    Rectangle {
+        width: 64px; height: 40px; border-radius: 20px;
+        background: nta.pressed ? root.tint.with-alpha(0.18) : transparent;
+    }
+    if root.kind == 0: Path {
+        width: 18px; height: 20px;
+        viewbox-width: 18; viewbox-height: 20;
+        commands: "M 15 2.5 L 3 10 L 15 17.5 Z";
+        stroke: root.tint; stroke-width: 2.4px; fill: transparent;
+    }
+    if root.kind == 1: Rectangle {
+        width: 20px; height: 20px; border-radius: 10px;
+        border-width: 2.4px; border-color: root.tint;
+    }
+    if root.kind == 2: Rectangle {
+        width: 17px; height: 17px; border-radius: 5px;
+        border-width: 2.4px; border-color: root.tint;
+    }
+    nta := TouchArea { clicked => { root.tap(); } }
+}
+
 export component AppWindow inherits Window {
     title: "Cheip OS";
     preferred-width: 360px;
@@ -30,10 +57,15 @@ export component AppWindow inherits Window {
     // On-screen keyboard: open while a text field has focus, apps shrink above it
     property <bool> kb-open: TextInputInterface.text-input-focused;
     property <length> kb-h: root.kb-open ? kb.height : 0px;
+    property <length> nav-h: 48px;
+    // Space at the bottom taken by the keyboard or the navigation buttons
+    property <length> bottom-h: root.kb-open ? root.kb-h : (root.unlocked ? root.nav-h : 0px);
 
     home := HomeScreen {
-        width: root.width; height: root.height;
+        width: root.width; height: root.height - root.bottom-h;
         shown: Shell.screen == ScreenId.home && !Shell.app-open;
+        // Lite: never paint the home behind a full-screen app (translucent layers cost a full redraw)
+        visible: !(Theme.lite && Shell.app-open && !root.dragging);
         opacity: (Shell.app-open || Shell.screen == ScreenId.switcher) ? 0.15 + 0.85 * root.drag-p : 1;
         transform-scale: (Shell.app-open || Shell.screen == ScreenId.switcher) ? 0.92 + 0.08 * root.drag-p : 1;
         animate opacity, transform-scale { duration: root.dragging ? 0ms : Theme.slow; easing: Theme.ease; }
@@ -57,7 +89,7 @@ export component AppWindow inherits Window {
 
         Rectangle {
             x: 0; y: 0;
-            width: root.width; height: root.height - root.kb-h;
+            width: root.width; height: root.height - root.bottom-h;
             transform-origin: { x: 0px, y: 0px };
             transform-scale: host.width / root.width;
             opacity: Shell.app-open ? 1 : 0;
@@ -85,7 +117,7 @@ export component AppWindow inherits Window {
     }
 
     switcher := SwitcherScreen {
-        width: root.width; height: root.height;
+        width: root.width; height: root.height - root.bottom-h;
         y: Shell.screen == ScreenId.switcher ? 0px : root.height;
         animate y { duration: Theme.slow; easing: Theme.ease; }
     }
@@ -93,7 +125,14 @@ export component AppWindow inherits Window {
     // Bordo alto: i Controlli scendono seguendo il dito
     if root.unlocked && !Shell.controls-open: TouchArea {
         y: 0; height: 28px;
-        moved => { Shell.controls-drag = max(0px, self.mouse-y - self.pressed-y); }
+        moved => {
+            // Lite: no finger-following (each frame is a full redraw on one core), open at once
+            if (Theme.lite) {
+                if (self.mouse-y - self.pressed-y > 50px) { Shell.controls-open = true; }
+            } else {
+                Shell.controls-drag = max(0px, self.mouse-y - self.pressed-y);
+            }
+        }
         pointer-event(ev) => {
             if (ev.kind == PointerEventKind.up || ev.kind == PointerEventKind.cancel) {
                 if (Shell.controls-drag > 110px) { Shell.controls-open = true; }
@@ -102,28 +141,41 @@ export component AppWindow inherits Window {
         }
     }
 
-    // Barra gesti: l'app segue il dito; corto = home, lungo = app aperte
-    if root.unlocked: Rectangle {
-        y: root.height - 28px; height: 28px;
-        Rectangle {
-            y: 18px; width: 108px + 24px * root.drag-p; height: 5px; border-radius: 2.5px;
-            background: (Shell.app-open || Shell.controls-open) ? Theme.on-surface.with-alpha(0.6) : Style.wp-ink.with-alpha(0.75);
-        }
-        TouchArea {
-            moved => { Shell.close-drag = max(0px, self.pressed-y - self.mouse-y); }
-            pointer-event(ev) => {
-                if (ev.kind == PointerEventKind.up || ev.kind == PointerEventKind.cancel) {
-                    let d = Shell.close-drag;
-                    if (d > 170px) {
-                        Shell.close-app();
-                        Shell.screen = ScreenId.switcher;
-                    } else if (d > 40px) {
-                        Shell.close-app();
-                        Shell.searching = false;
-                        Shell.edit-mode = false;
-                        Shell.screen = ScreenId.home;
-                    }
-                    Shell.close-drag = 0px;
+    // Three-button navigation: back, home, recents
+    if root.unlocked && !root.kb-open: Rectangle {
+        y: root.height - root.nav-h; height: root.nav-h;
+        background: Shell.app-open ? Theme.surface : transparent;
+        HorizontalLayout {
+            padding-left: 36px; padding-right: 36px;
+            NavKey {
+                kind: 0;
+                tint: Shell.app-open || Shell.controls-open ? Theme.on-surface : Style.wp-ink;
+                tap => {
+                    if (Shell.controls-open) { Shell.controls-open = false; }
+                    else if (Shell.app-open && Shell.app-id == "settings" && Settings.page != "") { Settings.page = ""; }
+                    else if (Shell.app-open) { Shell.close-app(); Shell.screen = ScreenId.home; }
+                    else if (Shell.searching || Shell.edit-mode) { Shell.searching = false; Shell.edit-mode = false; }
+                    else { Shell.screen = ScreenId.home; }
+                }
+            }
+            NavKey {
+                kind: 1;
+                tint: Shell.app-open || Shell.controls-open ? Theme.on-surface : Style.wp-ink;
+                tap => {
+                    Shell.controls-open = false;
+                    Shell.close-app();
+                    Shell.searching = false;
+                    Shell.edit-mode = false;
+                    Shell.screen = ScreenId.home;
+                }
+            }
+            NavKey {
+                kind: 2;
+                tint: Shell.app-open || Shell.controls-open ? Theme.on-surface : Style.wp-ink;
+                tap => {
+                    Shell.controls-open = false;
+                    if (Shell.screen == ScreenId.switcher) { Shell.screen = ScreenId.home; }
+                    else { Shell.close-app(); Shell.screen = ScreenId.switcher; }
                 }
             }
         }
@@ -247,6 +299,11 @@ export component AppWindow inherits Window {
         width: root.width;
         y: root.kb-open ? root.height - self.height : root.height;
         animate y { duration: Theme.fast; easing: Theme.ease; }
+    }
+
+    // No backlight control (UEFI framebuffer): dim with black on top. AMOLED: darker pixels are dimmer
+    if !Sys.has-backlight && Sys.brightness < 0.98: Rectangle {
+        background: #000000.with-alpha((1 - max(0.08, Sys.brightness)) * 0.9);
     }
 
     // Power menu: three big Expressive pills over a dimmed screen

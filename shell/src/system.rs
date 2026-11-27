@@ -21,16 +21,19 @@ fn class_dirs(class: &str) -> Vec<PathBuf> {
 pub fn battery() -> Option<(i32, bool)> {
     for d in class_dirs("power_supply") {
         if read_trim(d.join("type")).as_deref() == Some("Battery") {
-            let cap = read_trim(d.join("capacity"))?.parse().ok()?;
-            let charging = read_trim(d.join("status")).as_deref() == Some("Charging");
-            return Some((cap, charging));
+            // smbb-bif on the Lumia is a Battery without capacity: fall through
+            if let Some(cap) = read_trim(d.join("capacity")).and_then(|c| c.parse().ok()) {
+                let charging = read_trim(d.join("status")).as_deref() == Some("Charging");
+                return Some((cap, charging));
+            }
         }
     }
     // No fuel gauge (Lumia: pm8226 has no BMS driver): estimate from the
     // battery voltage read by the PMIC ADC, charging state from the charger
     let mv = vbat_mv()?;
     let charging = class_dirs("power_supply").iter().any(|d| {
-        read_trim(d.join("online")).as_deref() == Some("1") && read_trim(d.join("type")).as_deref() != Some("Battery")
+        read_trim(d.join("status")).as_deref() == Some("Charging")
+            || (read_trim(d.join("online")).as_deref() == Some("1") && read_trim(d.join("type")).as_deref() != Some("Battery"))
     });
     // Li-ion curve, resting voltage; while charging the voltage reads higher
     let v = if charging { mv - 120 } else { mv };
@@ -44,12 +47,15 @@ pub fn battery() -> Option<(i32, bool)> {
     Some((pct, charging))
 }
 
-/// Battery voltage in mV from any IIO channel named like vbat
+/// Battery voltage in mV from the PMIC ADC: vbat if present, else VPH_PWR
+/// (channel 7 on pm8226, the system rail fed straight by the battery)
 pub fn vbat_mv() -> Option<i32> {
     for d in fs::read_dir("/sys/bus/iio/devices").ok()?.flatten() {
+        let vadc = read_trim(d.path().join("name")).map(|n| n.contains("vadc")).unwrap_or(false);
         for f in fs::read_dir(d.path()).ok()?.flatten() {
             let n = f.file_name().to_string_lossy().to_string();
-            if n.contains("vbat") && n.ends_with("_input") {
+            let hit = (n.contains("vbat") || n.contains("vph") || (vadc && n == "in_voltage7_input")) && n.ends_with("_input");
+            if hit {
                 let raw: i64 = read_trim(f.path())?.parse().ok()?;
                 // spmi-vadc reports microvolts
                 let mv = if raw > 100_000 { raw / 1000 } else { raw };
@@ -109,6 +115,10 @@ pub fn model() -> String {
 
 pub fn kernel() -> String {
     read_trim("/proc/sys/kernel/osrelease").unwrap_or_default()
+}
+
+pub fn has_backlight() -> bool {
+    backlight_dir().is_some()
 }
 
 fn backlight_dir() -> Option<PathBuf> {
@@ -199,15 +209,18 @@ pub fn has_cell() -> bool {
 /// One line with what the phone is really doing: cores, clock, load, power and network devices
 pub fn diag_line(shell_cpu: Option<f32>) -> String {
     let online = read_trim("/sys/devices/system/cpu/online").unwrap_or_else(|| "?".into());
-    let mhz = read_trim("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq")
-        .and_then(|v| v.parse::<u64>().ok())
-        .map(|k| format!("{} MHz", k / 1000))
-        .unwrap_or_else(|| "no cpufreq".into());
+    let khz = |f: &str| read_trim(format!("/sys/devices/system/cpu/cpu0/cpufreq/{f}")).and_then(|v| v.parse::<u64>().ok()).map(|k| k / 1000);
+    let mhz = match khz("scaling_cur_freq") {
+        Some(c) => format!("{c}/{} MHz {}", khz("cpuinfo_max_freq").unwrap_or(0),
+            read_trim("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").unwrap_or_default()),
+        None => "no cpufreq".into(),
+    };
+    let smp = read_trim("/var/log/cheip-smp.txt").unwrap_or_default();
     let load = read_trim("/proc/loadavg").map(|l| l.split_whitespace().take(3).collect::<Vec<_>>().join(" ")).unwrap_or_default();
     let names = |c: &str| class_dirs(c).iter().filter_map(|d| d.file_name().map(|n| n.to_string_lossy().to_string())).collect::<Vec<_>>().join(",");
     let shell = shell_cpu.map(|c| format!(" | shell {c:.0}%")).unwrap_or_default();
     format!(
-        "cpu {online} {mhz} | load {load}{shell} | {} | power [{}] vbat {} | net [{}] | rproc [{}] | input [{}]",
+        "cpu {online} {mhz} {smp} | load {load}{shell} | {} | power [{}] vbat {} | net [{}] | rproc [{}] | input [{}]",
         std::env::var("SLINT_BACKEND").unwrap_or_default(),
         names("power_supply"),
         vbat_mv().map(|v| format!("{v}mV")).unwrap_or_else(|| "?".into()),

@@ -295,7 +295,8 @@ pub fn timers(ui: &AppWindow, st: &Shared) -> Vec<slint::Timer> {
         slint::TimerMode::Repeated,
         std::time::Duration::from_secs(5),
         with!(ui, st, |ui, s| {
-            let ms = modem::status();
+            // Read on the background thread (mmcli is slow), never here
+            let Some(ms) = crate::controller::hw_snapshot().and_then(|h| h.modem) else { return };
             let ok = ms.present;
             let p = ui.global::<Phone>();
             p.set_modem_label((if ok { ms.operator.clone() } else { "Modem not available".to_string() }).into());

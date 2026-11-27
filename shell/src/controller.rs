@@ -274,6 +274,10 @@ pub fn alert(ui: &AppWindow, sound: crate::feedback::Sound, vibrate_ms: u16) {
     let sys = ui.global::<Sys>();
     match sys.get_ringer() {
         0 => {
+            let sound = match sound {
+                crate::feedback::Sound::Notification | crate::feedback::Sound::Message => crate::feedback::Sound::Tone(sys.get_notif_tone()),
+                s => s,
+            };
             crate::feedback::play(sound, sys.get_volume());
             if matches!(sound, crate::feedback::Sound::Ring(_)) && sys.get_vibrate_on_ring() {
                 crate::feedback::vibrate(vibrate_ms);
@@ -381,6 +385,9 @@ pub fn on_key(k: crate::keys::Key) {
                 return;
             }
             s.screen_off = !s.screen_off;
+            if !s.screen_off {
+                crate::keys::touch_activity();
+            }
             let g = ui.global::<Shell>();
             if s.screen_off {
                 g.set_controls_open(false);
@@ -388,6 +395,9 @@ pub fn on_key(k: crate::keys::Key) {
             }
             g.set_screen_off(s.screen_off);
             g.set_power_menu(false);
+            if g.get_screen_off() == s.screen_off && ui.global::<Sys>().get_snd_lock() && ui.global::<Sys>().get_ringer() == 0 {
+                crate::feedback::play(if s.screen_off { crate::feedback::Sound::Lock } else { crate::feedback::Sound::Unlock }, 0.4);
+            }
             if s.live {
                 sys::set_screen(!s.screen_off);
             }
@@ -403,12 +413,22 @@ thread_local! {
 
 pub fn set_h24(on: bool) {
     H24.with(|h| h.set(on));
+    LAST_MIN.with(|m| m.set(-1));
     if let Some(ui) = ui_handle() {
         push_clock(&ui, Local::now().naive_local());
     }
 }
 
+thread_local! {
+    static LAST_MIN: std::cell::Cell<i64> = const { std::cell::Cell::new(-1) };
+}
+
 pub fn push_clock(ui: &AppWindow, now: NaiveDateTime) {
+    // Redraw the clock texts only when the minute changes, not every second
+    let key = now.and_utc().timestamp() / 60 + if H24.with(|h| h.get()) { 0 } else { 1 << 40 };
+    if LAST_MIN.with(|m| m.replace(key)) == key {
+        return;
+    }
     let s = ui.global::<Sys>();
     let hour = if H24.with(|h| h.get()) { now.hour() } else { (now.hour() + 11) % 12 + 1 };
     s.set_time(format!("{:02}:{:02}", hour, now.minute()).into());
@@ -417,13 +437,100 @@ pub fn push_clock(ui: &AppWindow, now: NaiveDateTime) {
     s.set_date(cal::long_label(now.date()).into());
 }
 
+/// Hardware state read on a background thread: process spawns (waydroid,
+/// mmcli) and sysfs scans never block the UI thread, which on the Lumia
+/// has a single slow core to itself
+#[derive(Clone, Default)]
+pub struct Hw {
+    pub battery: Option<(i32, bool)>,
+    pub has_wifi: bool,
+    pub has_cell: bool,
+    pub diag: String,
+    pub mem: (i32, i32),
+    pub mem_android: i32,
+    pub android: (bool, String),
+    pub modem: Option<crate::modem::Status>,
+}
+
+static HW: std::sync::Mutex<Option<Hw>> = std::sync::Mutex::new(None);
+
+pub fn hw_snapshot() -> Option<Hw> {
+    HW.lock().ok().and_then(|h| h.clone())
+}
+
+fn read_hw(last_ticks: &mut Option<u64>, secs: f32, waydroid_tick: bool, prev: &Option<Hw>) -> Hw {
+    let now = sys::self_ticks();
+    let cpu = match (now, *last_ticks) {
+        (Some(a), Some(b)) => Some((a.saturating_sub(b)) as f32 / secs),
+        _ => None,
+    };
+    *last_ticks = now;
+    let (used, total) = sys::memory();
+    // waydroid status is a Python program: seconds of CPU here, so only every 30 s
+    let android = if !sys::waydroid_installed() {
+        (false, "Waydroid not installed".to_string())
+    } else if !waydroid_tick {
+        prev.as_ref().map(|p| p.android.clone()).unwrap_or((false, "Checking".into()))
+    } else if sys::waydroid_running() {
+        (true, "Running, suspends after 2 minutes with no apps".to_string())
+    } else {
+        (false, "Suspended, starts when you open an Android app".to_string())
+    };
+    let mem_android = if android.0 { sys::android_memory().min(used) } else { 0 };
+    Hw {
+        battery: sys::battery(),
+        has_wifi: sys::has_wifi(),
+        has_cell: sys::has_cell(),
+        diag: sys::diag_line(cpu),
+        mem: (used, total),
+        mem_android,
+        android,
+        modem: Some(crate::modem::status()),
+    }
+}
+
+/// Starts the background reader (call once, on the phone)
+pub fn start_hw_thread() {
+    std::thread::spawn(|| {
+        let mut ticks = None;
+        let mut n: u32 = 0;
+        loop {
+            let prev = hw_snapshot();
+            let hw = read_hw(&mut ticks, 5.0, n % 6 == 0, &prev);
+            if let Ok(mut g) = HW.lock() {
+                *g = Some(hw);
+            }
+            n += 1;
+            std::thread::sleep(std::time::Duration::from_secs(5));
+        }
+    });
+}
+
 thread_local! {
-    static LAST_TICKS: std::cell::Cell<Option<u64>> = const { std::cell::Cell::new(None) };
+    static PREV_CHARGING: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
+    static LOW_WARNED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 fn push_hw(ui: &AppWindow) {
+    let Some(hw) = hw_snapshot() else { return };
     let s = ui.global::<Sys>();
-    match sys::battery() {
+    if let Some((level, ch)) = hw.battery {
+        // Charger plugged in: short rising sound and the screen wakes up like Android
+        if PREV_CHARGING.with(|p| p.replace(Some(ch))) == Some(false) && ch && s.get_snd_charge() && s.get_ringer() == 0 {
+            crate::feedback::play(crate::feedback::Sound::Charge, s.get_volume().max(0.3));
+        }
+        if ch || level > 20 {
+            LOW_WARNED.with(|w| w.set(false));
+        } else if level <= 15 && !LOW_WARNED.with(|w| w.replace(true)) {
+            if let Some(st) = shared() {
+                if let Ok(mut st) = st.try_borrow_mut() {
+                    let snd = if s.get_snd_lowbat() { crate::feedback::Sound::LowBattery } else { crate::feedback::Sound::Notification };
+                    post(ui, &mut st, "settings", "Battery low", &format!("{level}% left. Connect the charger."), snd);
+                }
+            }
+        }
+    }
+    match hw.battery {
         Some((b, ch)) => {
             s.set_has_battery(true);
             s.set_battery(b);
@@ -431,28 +538,14 @@ fn push_hw(ui: &AppWindow) {
         }
         None => s.set_has_battery(false),
     }
-    s.set_has_wifi(sys::has_wifi());
-    s.set_has_cell(sys::has_cell());
-    // Share of one core used by the shell since the last reading (100 ticks/s, every 5 s)
-    let now = sys::self_ticks();
-    let cpu = match (now, LAST_TICKS.with(|t| t.replace(now))) {
-        (Some(a), Some(b)) => Some((a.saturating_sub(b)) as f32 / 5.0),
-        _ => None,
-    };
-    s.set_diag(sys::diag_line(cpu).into());
-    let (used, total) = sys::memory();
-    s.set_mem_used(used);
-    s.set_mem_total(total);
-    s.set_mem_android(sys::android_memory().min(used));
-    let (running, label) = if !sys::waydroid_installed() {
-        (false, "Waydroid not installed".to_string())
-    } else if sys::waydroid_running() {
-        (true, "Running, suspends after 2 minutes with no apps".to_string())
-    } else {
-        (false, "Suspended, starts when you open an Android app".to_string())
-    };
-    s.set_android_running(running);
-    s.set_android_state(label.into());
+    s.set_has_wifi(hw.has_wifi);
+    s.set_has_cell(hw.has_cell);
+    s.set_diag(hw.diag.into());
+    s.set_mem_used(hw.mem.0);
+    s.set_mem_total(hw.mem.1);
+    s.set_mem_android(hw.mem_android);
+    s.set_android_running(hw.android.0);
+    s.set_android_state(hw.android.1.into());
 }
 
 pub fn push_toggles(ui: &AppWindow, st: &State) {
@@ -709,11 +802,101 @@ fn install_update(ui: &AppWindow, live: bool) {
 // ---------- collegamento ----------
 
 /// `live = false` per screenshot e test: niente timer, niente comandi di sistema.
+fn set_pref_ui(ui: &AppWindow, k: &str, v: i32) {
+    let s = ui.global::<Sys>();
+    match k {
+        "notif_tone" => s.set_notif_tone(v),
+        "snd_charge" => s.set_snd_charge(v != 0),
+        "snd_lowbat" => s.set_snd_lowbat(v != 0),
+        "snd_lock" => s.set_snd_lock(v != 0),
+        "kbd_vibrate" => s.set_kbd_vibrate(v != 0),
+        _ => {}
+    }
+}
+
+/// Lite rendering: forced on with software rendering, or chosen in Accessibility
+pub fn set_lite_pref(ui: &AppWindow, on: bool) {
+    let software = std::env::var("SLINT_BACKEND").map(|b| b.contains("software")).unwrap_or(false);
+    ui.global::<Theme>().set_lite(on || software);
+}
+
+pub fn apply_display_size(ui: &AppWindow, i: i32) {
+    let scale = [1.75f32, 2.0, 2.3][i.clamp(0, 2) as usize];
+    ui.global::<Sys>().set_display_size(i.clamp(0, 2));
+    ui.window().dispatch_event(slint::platform::WindowEvent::ScaleFactorChanged { scale_factor: scale });
+}
+
+const TIMEOUTS: [u64; 6] = [15, 30, 60, 120, 300, 0];
+
+/// Every second: turn the screen off after the chosen time without touches
+fn screen_timeout_tick(ui: &AppWindow) {
+    let Some(st) = shared() else { return };
+    let idx = ui.global::<Sys>().get_screen_timeout().clamp(0, 5) as usize;
+    let limit = TIMEOUTS[idx];
+    if limit == 0 {
+        return;
+    }
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let last = crate::keys::LAST_ACTIVITY.load(std::sync::atomic::Ordering::Relaxed);
+    let busy = {
+        let s = st.borrow();
+        s.screen_off || s.ring_timer.is_some() || s.call.is_some()
+    };
+    if !busy && last > 0 && now.saturating_sub(last) >= limit {
+        on_key(crate::keys::Key::Power);
+    }
+}
+
 pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Shared {
     let st: Shared = Rc::new(RefCell::new(State::new(store, now, live)));
     UI.with(|u| *u.borrow_mut() = Some(ui.as_weak()));
     STATE.with(|s| *s.borrow_mut() = Some(st.clone()));
     {
+        if live {
+            ui.global::<Sys>().set_has_backlight(sys::has_backlight());
+        }
+        // Simple int/bool settings saved by name
+        let w = ui.as_weak();
+        ui.global::<Sys>().on_pref(move |k, v| {
+            let Some(ui) = w.upgrade() else { return };
+            set_pref_ui(&ui, k.as_str(), v);
+            if let Some(st) = shared() {
+                let mut s = st.borrow_mut();
+                s.store.data.prefs.insert(format!("p_{k}"), v.to_string());
+                s.store.save();
+            }
+        });
+        ui.global::<Sys>().on_preview_tone(|i| crate::feedback::play(crate::feedback::Sound::Tone(i), 0.7));
+        let w = ui.as_weak();
+        ui.global::<Kbd>().on_click(move || {
+            if let Some(ui) = w.upgrade() {
+                if ui.global::<Sys>().get_kbd_vibrate() {
+                    crate::feedback::vibrate(14);
+                }
+            }
+        });
+        // Display size: live change of the scale factor, saved in prefs
+        let w = ui.as_weak();
+        ui.global::<Sys>().on_set_display_size(move |i| {
+            let Some(ui) = w.upgrade() else { return };
+            apply_display_size(&ui, i);
+            if let Some(st) = shared() {
+                let mut s = st.borrow_mut();
+                s.store.data.prefs.insert("display_size".into(), i.to_string());
+                s.store.save();
+            }
+        });
+        let w = ui.as_weak();
+        ui.global::<Sys>().on_set_screen_timeout(move |i| {
+            let Some(ui) = w.upgrade() else { return };
+            ui.global::<Sys>().set_screen_timeout(i);
+            crate::keys::touch_activity();
+            if let Some(st) = shared() {
+                let mut s = st.borrow_mut();
+                s.store.data.prefs.insert("screen_timeout".into(), i.to_string());
+                s.store.save();
+            }
+        });
         // On-screen keyboard: every key becomes a real key event for the focused field
         let w = ui.as_weak();
         ui.global::<Kbd>().on_key(move |t| {
@@ -1040,6 +1223,20 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
     {
         let s = st.borrow();
         set_h24(s.store.data.prefs.get("h24").map(|v| v == "1").unwrap_or(true));
+        let size = s.store.data.prefs.get("display_size").and_then(|v| v.parse().ok()).unwrap_or(1);
+        let timeout = s.store.data.prefs.get("screen_timeout").and_then(|v| v.parse().ok()).unwrap_or(1);
+        ui.global::<Sys>().set_screen_timeout(timeout);
+        if s.store.data.prefs.get("noanim").map(|v| v == "1").unwrap_or(false) {
+            set_lite_pref(ui, true);
+        }
+        for (k, v) in s.store.data.prefs.iter() {
+            if let (Some(name), Ok(v)) = (k.strip_prefix("p_"), v.parse::<i32>()) {
+                set_pref_ui(ui, name, v);
+            }
+        }
+        if size != 1 {
+            apply_display_size(ui, size);
+        }
     }
     st
 }
@@ -1048,14 +1245,19 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
 pub fn start_timers(ui: &AppWindow, st: &Shared) -> Vec<slint::Timer> {
     let clock = slint::Timer::default();
     let w = ui.as_weak();
+    let live_t = st.borrow().live;
     clock.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(1), move || {
         if let Some(ui) = w.upgrade() {
+            if live_t {
+                screen_timeout_tick(&ui);
+            }
             push_clock(&ui, Local::now().naive_local());
         }
     });
     let hw = slint::Timer::default();
     let w = ui.as_weak();
     let live = st.borrow().live;
+    if live { start_hw_thread(); }
     if live { hw.start(slint::TimerMode::Repeated, std::time::Duration::from_secs(5), move || {
         if let Some(ui) = w.upgrade() {
             push_hw(&ui);

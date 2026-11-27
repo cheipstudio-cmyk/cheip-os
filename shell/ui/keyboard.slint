@@ -6,6 +6,8 @@ import { Icon, Icons } from "components.slint";
 
 export global Kbd {
     callback key(string);
+    // Every tap: haptic tick (Rust, if enabled in Settings)
+    callback click();
     in-out property <bool> shift: false;
     in-out property <bool> symbols: false;
 }
@@ -30,7 +32,19 @@ component KeyCap inherits Rectangle {
         vertical-alignment: center;
     }
     ta := TouchArea {
+        pointer-event(e) => { if (e.kind == PointerEventKind.down) { Kbd.click(); } }
         clicked => { root.tap(); }
+    }
+    // Letter preview above the finger while pressed
+    if ta.pressed && root.icon == "" && root.label.character-count == 1: Rectangle {
+        y: -62px; width: max(root.width + 8px, 46px); height: 58px;
+        border-radius: 18px;
+        background: Theme.primary;
+        Text {
+            text: root.label; color: Theme.on-primary;
+            font-family: Theme.body; font-size: 30px; font-weight: 500;
+            horizontal-alignment: center; vertical-alignment: center;
+        }
     }
 }
 

@@ -36,10 +36,26 @@ start_pre() {
 	printf '\033[2J\033[H\033[?25l' > /dev/tty1 2>/dev/null
 	# Charger, battery ADC and power key drivers (no-op if built in or missing)
 	for m in qcom_smbb qcom_spmi_vadc pm8941_pwrkey; do modprobe "$m" 2>/dev/null; done
-	# Fastest CPU clock available: the UI renders on the CPU
-	for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-		[ -w "$f" ] && echo performance > "$f"
-	done
+	# Fastest CPU clock available: the UI renders on the CPU. cpufreq-dt may load
+	# late, so try again in the background for a minute
+	( for i in 1 2 3 4 5 6; do
+		for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+			[ -w "$f" ] && echo performance > "$f"
+		done
+		sleep 10
+	done ) >/dev/null 2>&1 &
+	# Why only one core: kernel lines about the secondary CPUs, shown in the diagnostics
+	dmesg 2>/dev/null | grep -iE "smp|secondary|cpu[123]|scm|boot address" | tail -n 3 | cut -c1-90 | tr '\n' ' ' > /var/log/cheip-smp.txt
+	chmod 644 /var/log/cheip-smp.txt
+	# First boot: the root partition is as big as the image (about 600 MB).
+	# Grow it to the whole microSD or the whole internal partition, once
+	if [ ! -e /var/lib/cheip/grown ]; then
+		( root=$(findmnt -no SOURCE /)
+		  disk=/dev/$(lsblk -no PKNAME "$root")
+		  part=$(cat /sys/class/block/$(basename "$root")/partition)
+		  growpart "$disk" "$part" && resize2fs "$root" && mkdir -p /var/lib/cheip && touch /var/lib/cheip/grown
+		) > /var/log/cheip-grow.txt 2>&1 &
+	fi
 	uid=$(id -u "$cheip_user")
 	mkdir -p "/run/user/$uid"
 	chown "$cheip_user" "/run/user/$uid"

@@ -37,6 +37,20 @@ export global Sys {
     in property <bool> has-battery: true;
     in property <bool> has-wifi: true;
     in property <bool> has-cell: true;
+    in property <bool> has-backlight: true;
+    // Display & touch
+    in-out property <int> display-size: 1;
+    in-out property <int> screen-timeout: 1;
+    callback set-display-size(int);
+    callback set-screen-timeout(int);
+    // System sounds and keyboard (saved by Rust through pref)
+    in-out property <int> notif-tone: 0;
+    in-out property <bool> snd-charge: true;
+    in-out property <bool> snd-lowbat: true;
+    in-out property <bool> snd-lock: true;
+    in-out property <bool> kbd-vibrate: true;
+    callback pref(string, int);
+    callback preview-tone(int);
     // Diagnostic line on the lock screen (empty = hidden)
     in property <string> diag: "";
     in property <int> mem-used: 612;

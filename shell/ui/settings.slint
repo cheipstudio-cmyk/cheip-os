@@ -152,7 +152,7 @@ export component SettingsApp inherits Rectangle {
     Rectangle {
         x: root.main ? 0px : -root.width * 0.2;
         opacity: root.main ? 1 : 0;
-        animate x { duration: 420ms; easing: Theme.ease; }
+        animate x { duration: Theme.spatial; easing: Theme.ease; }
         animate opacity { duration: 220ms; }
         StatusBar { y: 0; width: parent.width; }
         Flickable {
@@ -168,23 +168,20 @@ export component SettingsApp inherits Rectangle {
                 }
                 Rectangle { height: 14px; }
                 MainRow { first: true; icon: Icons.wifi-f; hue: 0; label: "Network & internet"; detail: !Sys.has-wifi ? "No Wi-Fi hardware found" : (Sys.wifi-on ? "Wi-Fi, mobile data, hotspot" : "Wi-Fi off"); clicked => { Settings.open-page("network"); } }
-                MainRow { last: true; icon: Icons.devices; hue: 0; label: "Connected devices"; detail: "Bluetooth, NFC, cast"; clicked => { Settings.open-page("devices"); } }
+                MainRow { last: true; icon: Icons.devices; hue: 0; label: "Connected devices"; detail: "Bluetooth"; clicked => { Settings.open-page("devices"); } }
                 Rectangle { height: 14px; }
                 MainRow { first: true; icon: Icons.apps; hue: 1; label: "Apps"; detail: "Recent apps, default apps"; clicked => { Settings.open-page("apps"); } }
-                MainRow { icon: Icons.bell-f; hue: 1; label: "Notifications"; detail: "History, conversations"; clicked => { Settings.open-page("notifications"); } }
+                MainRow { icon: Icons.bell-f; hue: 1; label: "Notifications"; detail: "Do Not Disturb"; clicked => { Settings.open-page("notifications"); } }
                 MainRow { icon: Icons.battery-f; hue: 1; label: "Battery"; detail: !Sys.has-battery ? "Level not available" : Sys.battery + "%" + (Sys.charging ? " · Charging" : ""); clicked => { Settings.open-page("battery"); } }
                 MainRow { last: true; icon: Icons.storage; hue: 1; label: "Storage"; detail: Settings.storage-used + " used of " + Settings.storage-total; clicked => { Settings.open-page("storage"); } }
                 Rectangle { height: 14px; }
                 MainRow { first: true; icon: Sys.ringer == 0 ? Icons.speaker-f : (Sys.ringer == 1 ? Icons.vibrate-f : Icons.bell-off-f); hue: 2; label: "Sound & vibration"; detail: (Sys.ringer == 0 ? "Ring" : (Sys.ringer == 1 ? "Vibrate" : "Silent")) + " · Volume " + round(Sys.volume * 100) + "%"; clicked => { Settings.open-page("sound"); } }
-                MainRow { icon: Icons.brightness; hue: 2; label: "Display & touch"; detail: "Dark theme, font size, brightness"; clicked => { Settings.open-page("display"); } }
+                MainRow { icon: Icons.brightness; hue: 2; label: "Display & touch"; detail: "Brightness, display size, screen timeout"; clicked => { Settings.open-page("display"); } }
                 MainRow { icon: Icons.palette-f; hue: 2; label: "Wallpaper & style"; detail: "Colors, themed icons, app grid"; clicked => { Settings.open-page("style"); } }
-                MainRow { last: true; icon: Icons.a11y; hue: 2; label: "Accessibility"; detail: "Display, interaction, audio"; clicked => { Settings.open-page("a11y"); } }
-                Rectangle { height: 14px; }
-                MainRow { first: true; icon: Icons.security-f; hue: 0; label: "Security & privacy"; detail: "Screen lock, permissions"; clicked => { Settings.open-page("security"); } }
-                MainRow { last: true; icon: Icons.location-f; hue: 0; label: "Location"; detail: "On · Apps with location access"; clicked => { Settings.open-page("location"); } }
+                MainRow { last: true; icon: Icons.a11y; hue: 2; label: "Accessibility"; detail: "Remove animations"; clicked => { Settings.open-page("a11y"); } }
                 Rectangle { height: 14px; }
                 MainRow { first: true; icon: Icons.android-f; hue: 1; label: "Android apps"; detail: Sys.android-running ? "Running" : "Suspended"; clicked => { Settings.open-page("android"); } }
-                MainRow { icon: Icons.phone-device; hue: 1; label: "System"; detail: "Languages, gestures, time, reset"; clicked => { Settings.open-page("system"); } }
+                MainRow { icon: Icons.phone-device; hue: 1; label: "System"; detail: "Languages, time, reset"; clicked => { Settings.open-page("system"); } }
                 MainRow { icon: Icons.update-f; hue: 1; label: "System update"; detail: Sys.update-available ? "Update available: " + Sys.update-version : "Cheip OS " + Sys.version; clicked => { Settings.open-page("update"); } }
                 MainRow { last: true; icon: Icons.info-f; hue: 1; label: "About phone"; detail: Sys.model; clicked => { Settings.open-page("about"); } }
                 if Sys.demo: Header { text: "   Try it (demo only)"; }
@@ -199,7 +196,7 @@ export component SettingsApp inherits Rectangle {
     Page {
         x: Settings.page == "gen" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 420ms; easing: Theme.ease; }
+        animate x { duration: Theme.spatial; easing: Theme.ease; }
         title: Settings.title;
         for r[i] in Settings.rows: Rectangle {
             height: r.kind == 0 ? 48px : g.height;
@@ -217,7 +214,7 @@ export component SettingsApp inherits Rectangle {
     Page {
         x: Settings.page == "wifi" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 420ms; easing: Theme.ease; }
+        animate x { duration: Theme.spatial; easing: Theme.ease; }
         title: "Internet";
         Rectangle {
             height: 72px; border-radius: 36px; background: Sys.wifi-on ? Theme.primary-container : Theme.container-high;
@@ -268,7 +265,7 @@ export component SettingsApp inherits Rectangle {
     Page {
         x: Settings.page == "sound" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 420ms; easing: Theme.ease; }
+        animate x { duration: Theme.spatial; easing: Theme.ease; }
         title: "Sound & vibration";
         Segmented { items: ["Ring", "Vibrate", "Silent"]; selected: Sys.ringer; height: 52px; picked(i) => { Sys.set-ringer(i); } }
         Header { text: "   Volume"; }
@@ -282,14 +279,44 @@ export component SettingsApp inherits Rectangle {
             label: r; on: Sys.ringtone == i;
             clicked => { Sys.set-ringtone(i); }
         }
+        Header { text: "   Notification sound"; }
+        for r[i] in ["Pop", "Chime", "Drop"]: RadioRow {
+            first: i == 0; last: i == 2;
+            label: r; on: Sys.notif-tone == i;
+            clicked => { Sys.pref("notif_tone", i); Sys.preview-tone(i); }
+        }
         Rectangle { height: 14px; }
-        SwitchItem { first: true; last: true; label: "Vibrate when ringing"; detail: "Also vibrate for calls"; on: Sys.vibrate-on-ring; toggled(v) => { Sys.vibrate-on-ring = v; } }
+        SwitchItem { first: true; label: "Vibrate when ringing"; detail: "Also vibrate for calls"; on: Sys.vibrate-on-ring; toggled(v) => { Sys.vibrate-on-ring = v; } }
+        SwitchItem { label: "Charging sound"; detail: "When you plug in the charger"; on: Sys.snd-charge; toggled(v) => { Sys.pref("snd_charge", v ? 1 : 0); } }
+        SwitchItem { label: "Low battery alert"; detail: "Sound and notification at 15%"; on: Sys.snd-lowbat; toggled(v) => { Sys.pref("snd_lowbat", v ? 1 : 0); } }
+        SwitchItem { label: "Screen lock sound"; detail: "Power key on and off"; on: Sys.snd-lock; toggled(v) => { Sys.pref("snd_lock", v ? 1 : 0); } }
+        SwitchItem { last: true; label: "Keyboard vibration"; detail: "A light tick on every key"; on: Sys.kbd-vibrate; toggled(v) => { Sys.pref("kbd_vibrate", v ? 1 : 0); } }
+    }
+
+    Page {
+        x: Settings.page == "display" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: Theme.spatial; easing: Theme.ease; }
+        title: "Display & touch";
+        Header { text: "   Brightness"; }
+        GroupItem {
+            first: true; last: true; height: 84px;
+            Slider { x: 16px; width: parent.width - 32px; track: 52px; icon: Icons.brightness; value: Sys.brightness; changed(v) => { Sys.brightness = v; Sys.brightness-changed(v); } }
+        }
+        Header { text: "   Display size"; }
+        Segmented { items: ["Small", "Default", "Large"]; selected: Sys.display-size; height: 52px; picked(i) => { Sys.set-display-size(i); } }
+        Header { text: "   Screen timeout"; }
+        for r[i] in ["15 seconds", "30 seconds", "1 minute", "2 minutes", "5 minutes", "Never"]: RadioRow {
+            first: i == 0; last: i == 5;
+            label: r; on: Sys.screen-timeout == i;
+            clicked => { Sys.set-screen-timeout(i); }
+        }
     }
 
     Page {
         x: Settings.page == "battery" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 420ms; easing: Theme.ease; }
+        animate x { duration: Theme.spatial; easing: Theme.ease; }
         title: "Battery";
         GroupItem {
             first: true; last: true; height: 170px;
@@ -301,15 +328,14 @@ export component SettingsApp inherits Rectangle {
             }
         }
         Rectangle { height: 14px; }
-        SwitchItem { first: true; label: "Battery Saver"; detail: "Limits background work"; on: Sys.eco-on; toggled => { Sys.toggle("eco"); } }
-        SwitchItem { label: "Battery percentage"; detail: "Show it in the status bar"; on: true; }
-        SwitchItem { last: true; label: "Adaptive charging"; detail: "Slows charging overnight"; on: false; }
+        SwitchItem { first: true; last: true; label: "Battery Saver"; detail: "Limits background work"; on: Sys.eco-on; toggled => { Sys.toggle("eco"); } }
+
     }
 
     Page {
         x: Settings.page == "storage" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 420ms; easing: Theme.ease; }
+        animate x { duration: Theme.spatial; easing: Theme.ease; }
         title: "Storage";
         GroupItem {
             first: true; last: true; height: 140px;
@@ -328,7 +354,7 @@ export component SettingsApp inherits Rectangle {
     Page {
         x: Settings.page == "android" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 420ms; easing: Theme.ease; }
+        animate x { duration: Theme.spatial; easing: Theme.ease; }
         title: "Android apps";
         GroupItem {
             first: true; last: true; height: 160px;
@@ -345,7 +371,7 @@ export component SettingsApp inherits Rectangle {
     Page {
         x: Settings.page == "update" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 420ms; easing: Theme.ease; }
+        animate x { duration: Theme.spatial; easing: Theme.ease; }
         title: "System update";
         GroupItem {
             first: true; last: true; height: 190px;
@@ -369,7 +395,7 @@ export component SettingsApp inherits Rectangle {
     Page {
         x: Settings.page == "appinfo" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 420ms; easing: Theme.ease; }
+        animate x { duration: Theme.spatial; easing: Theme.ease; }
         title: "App info";
         Rectangle {
             height: 170px;
@@ -396,7 +422,7 @@ export component SettingsApp inherits Rectangle {
     Page {
         x: Settings.page == "style" ? 0px : root.width;
         visible: self.x < root.width;
-        animate x { duration: 420ms; easing: Theme.ease; }
+        animate x { duration: Theme.spatial; easing: Theme.ease; }
         title: "Wallpaper & style";
         // Anteprima: blocco e home affiancati
         HorizontalLayout {

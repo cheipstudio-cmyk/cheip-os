@@ -400,32 +400,33 @@ export component Switch inherits Rectangle {
 export component Slider inherits Rectangle {
     in-out property <float> value: 0.5;
     in property <string> icon;
+    in property <length> track: 16px;
     callback changed(float);
-    height: 44px;
+    height: max(44px, root.track + 12px);
     property <length> handle-x: (root.width - 4px) * root.value;
     property <length> gap: 6px;
     // parte attiva
     Rectangle {
-        x: 0; y: (root.height - 16px) / 2;
+        x: 0; y: (root.height - root.track) / 2;
         width: max(0px, root.handle-x - root.gap);
-        height: 16px;
-        border-radius: 8px;
+        height: root.track;
+        border-radius: root.track / 2;
         background: Theme.primary;
-        if root.icon != "" && self.width > 34px: Icon { x: 8px; d: root.icon; size: 18px; tint: Theme.on-primary; }
+        if root.icon != "" && self.width > 34px: Icon { d: root.icon; size: root.track > 30px ? 24px : 18px; tint: Theme.on-primary; x: root.track > 30px ? 14px : 8px; }
     }
     // parte inattiva
     Rectangle {
-        x: root.handle-x + 4px + root.gap; y: (root.height - 16px) / 2;
+        x: root.handle-x + 4px + root.gap; y: (root.height - root.track) / 2;
         width: max(0px, root.width - self.x);
-        height: 16px;
-        border-radius: 8px;
+        height: root.track;
+        border-radius: root.track / 2;
         background: Theme.secondary-container;
         Rectangle { x: parent.width - 10px; width: 4px; height: 4px; border-radius: 2px; background: Theme.on-secondary-container; }
     }
     // maniglia
     Rectangle {
         x: root.handle-x; y: (root.height - self.height) / 2;
-        width: ta.pressed ? 2px : 4px; height: 44px;
+        width: ta.pressed ? 2px : 4px; height: root.height;
         border-radius: 2px;
         background: Theme.primary;
         animate width { duration: 160ms; }

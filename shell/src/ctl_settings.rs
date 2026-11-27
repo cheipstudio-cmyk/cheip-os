@@ -43,7 +43,7 @@ thread_local! {
 }
 
 /// Pagine disegnate a mano nello .slint
-const CUSTOM: [&str; 8] = ["wifi", "sound", "battery", "storage", "android", "update", "appinfo", "style"];
+const CUSTOM: [&str; 9] = ["wifi", "sound", "battery", "storage", "android", "update", "appinfo", "style", "display"];
 
 fn row(kind: i32, key: &str, title: &str, sub: &str, glyph: SharedString, on: bool, value: f32) -> SRow {
     SRow { kind, key: key.into(), title: title.into(), subtitle: sub.into(), glyph, on, value }
@@ -103,9 +103,6 @@ fn build(ui: &AppWindow, st: &State, page: &str) -> (String, Vec<SRow>) {
             nav("nav:wifi", "Internet", if t("wifi") { "Wi-Fi on" } else { "Wi-Fi off" }, i.get_wifi_f()),
             sw("t:dati", "Mobile data", if st.modem_ok { "Use data over the mobile network" } else { "Modem not available" }, t("dati")),
             sw("t:airplane", "Airplane mode", "Turns off all radios", t("airplane")),
-            sw("t:hotspot", "Hotspot & tethering", "Share this phone's connection", t("hotspot")),
-            sw("p:datasaver", "Data Saver", "Limits background data", pb(st, "datasaver", false)),
-            val("opt:dns", "Private DNS", &opt(st, "dns")),
             h("SIM"),
             val("", "Carrier", &ui.global::<Settings>().get_modem_operator()),
             val("", "Signal", &ui.global::<Settings>().get_modem_signal()),
@@ -123,12 +120,6 @@ fn build(ui: &AppWindow, st: &State, page: &str) -> (String, Vec<SRow>) {
             for d in paired.iter() {
                 v.push(nav("", &d, "Paired", i.get_bluetooth_f()));
             }
-            v.extend([
-                h("Connection preferences"),
-                sw("p:nfc", "NFC", "Contactless with nearby devices", pb(st, "nfc", false)),
-                val("opt:usb", "USB", &opt(st, "usb")),
-                val("", "Cast", "Not available yet"),
-            ]);
             ("Connected devices".into(), v)
         }
         "apps" => {
@@ -141,12 +132,7 @@ fn build(ui: &AppWindow, st: &State, page: &str) -> (String, Vec<SRow>) {
             }
             let n = catalog().len();
             v.push(nav("nav:apps_all", &format!("See all {n} apps"), "", i.get_apps()));
-            v.extend([
-                h("General"),
-                val("", "Default browser", "Browser"),
-                val("", "Default phone app", "Phone"),
-                nav("nav:android", "Android apps", "Waydroid layer", i.get_android_f()),
-            ]);
+            v.push(nav("nav:android", "Android apps", "Waydroid layer", i.get_android_f()));
             ("Apps".into(), v)
         }
         "apps_all" => {
@@ -158,13 +144,6 @@ fn build(ui: &AppWindow, st: &State, page: &str) -> (String, Vec<SRow>) {
         }
         "notifications" => ("Notifications".into(), vec![
             sw("t:dnd", "Do Not Disturb", "Silences calls and alerts", t("dnd")),
-            sw("p:history", "Notification history", "Keep dismissed notifications", pb(st, "history", true)),
-            sw("p:cooldown", "Notification cooldown", "Lower volume for quick bursts", pb(st, "cooldown", true)),
-            h("Lock screen"),
-            val("opt:lockscreen", "Notifications on lock screen", &opt(st, "lockscreen")),
-            h("Advanced"),
-            sw("p:flash", "Flash notifications", "Blink the screen for new alerts", pb(st, "flash", false)),
-            sw("p:dots", "App icon badges", "Dots on icons with new items", pb(st, "dots", true)),
         ]),
         "display" => ("Display & touch".into(), vec![
             sl("sl:brightness", "Brightness", ui.global::<Sys>().get_brightness()),
@@ -179,15 +158,7 @@ fn build(ui: &AppWindow, st: &State, page: &str) -> (String, Vec<SRow>) {
             sw("p:taptowake", "Tap to wake", "Double tap the screen to wake it", pb(st, "taptowake", true)),
         ]),
         "a11y" => ("Accessibility".into(), vec![
-            h("Display"),
-            sw("p:contrast", "High contrast text", "", pb(st, "contrast", false)),
-            sw("p:invert", "Color inversion", "", pb(st, "invert", false)),
-            sw("p:extradim", "Extra dim", "Dim the screen below minimum", pb(st, "extradim", false)),
-            sw("p:noanim", "Remove animations", "", pb(st, "noanim", false)),
-            h("Interaction"),
-            sw("p:magnify", "Magnification", "Triple tap to zoom", pb(st, "magnify", false)),
-            sw("p:powerend", "Power button ends call", "", pb(st, "powerend", true)),
-            val("", "TalkBack", "Not available yet"),
+            sw("p:noanim", "Remove animations", "Instant transitions, smoother on this phone", pb(st, "noanim", false)),
         ]),
         "security" => ("Security & privacy".into(), vec![
             h("Device unlock"),
@@ -211,14 +182,10 @@ fn build(ui: &AppWindow, st: &State, page: &str) -> (String, Vec<SRow>) {
         "system" => {
             let mut v = vec![
                 val("", "Languages", "English (United States)"),
-                nav("nav:gestures", "Gestures", "Navigation, quick actions", i.get_gesture()),
                 nav("nav:datetime", "Date & time", &ui.global::<Settings>().get_timezone(), i.get_clock_f()),
                 nav("nav:update", "System update", "", i.get_update_f()),
                 nav("nav:reset", "Reset options", "", i.get_restart()),
             ];
-            if pb(st, "dev", false) {
-                v.push(nav("nav:developer", "Developer options", "", i.get_code()));
-            }
             ("System".into(), v)
         }
         "gestures" => ("Gestures".into(), vec![
@@ -230,7 +197,6 @@ fn build(ui: &AppWindow, st: &State, page: &str) -> (String, Vec<SRow>) {
             sw("p:lift", "Lift to check phone", "", pb(st, "lift", false)),
         ]),
         "datetime" => ("Date & time".into(), vec![
-            sw("p:autotime", "Set time automatically", "From the network", pb(st, "autotime", true)),
             val("", "Time zone", &ui.global::<Settings>().get_timezone()),
             sw("p:h24", "Use 24-hour format", "13:00", pb(st, "h24", true)),
         ]),
@@ -396,6 +362,9 @@ pub fn wire(ui: &AppWindow, st: &Shared) {
                 s.store.save();
                 if k == "h24" {
                     crate::controller::set_h24(on);
+                }
+                if k == "noanim" {
+                    crate::controller::set_lite_pref(&ui, on);
                 }
             }
         }

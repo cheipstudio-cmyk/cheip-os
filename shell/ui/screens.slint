@@ -520,7 +520,13 @@ export component ControlsPanel inherits Rectangle {
     property <int> nbig: 4;
     out property <length> lift: 0px;
     TouchArea {
-        moved => { root.lift = max(0px, self.pressed-y - self.mouse-y); }
+        moved => {
+            if (Theme.lite) {
+                if (self.pressed-y - self.mouse-y > 60px) { Shell.controls-open = false; }
+            } else {
+                root.lift = max(0px, self.pressed-y - self.mouse-y);
+            }
+        }
         pointer-event(ev) => {
             if (ev.kind == PointerEventKind.up || ev.kind == PointerEventKind.cancel) {
                 if (root.lift > 90px) { Shell.controls-open = false; }
@@ -563,14 +569,14 @@ export component ControlsPanel inherits Rectangle {
 
     property <length> sl-y: 90px + (2 + ceil((Sys.toggles.length - root.nbig) / 4)) * (68px + root.gap) + 4px;
     Slider {
-        x: root.pad; y: root.sl-y; width: parent.width - 2 * root.pad; height: 48px;
+        x: root.pad; y: root.sl-y; width: parent.width - 2 * root.pad; track: 52px;
         icon: Icons.brightness; value: Sys.brightness;
         changed(v) => { Sys.brightness = v; Sys.brightness-changed(v); }
     }
 
     // Notifiche
     Flickable {
-        x: 12px; y: root.sl-y + 64px; width: parent.width - 24px; height: parent.height - self.y - 36px;
+        x: 12px; y: root.sl-y + 72px; width: parent.width - 24px; height: parent.height - self.y - 36px;
         content-height: col.preferred-height;
         col := VerticalLayout {
             width: parent.width;
@@ -593,25 +599,6 @@ export component ControlsPanel inherits Rectangle {
                 dismiss => { Shell.dismiss-notification(n.id); }
             }
             Rectangle { height: 10px; }
-            // Memoria e Android
-            Rectangle {
-                height: 96px; border-radius: 24px; background: Theme.container-high;
-                Icon { x: 16px; y: 16px; d: Icons.chip; size: 20px; tint: Theme.on-surface-variant; }
-                Text { x: 44px; y: 16px; text: Sys.mem-used + " / " + Sys.mem-total + " MB"; color: Theme.on-surface; font-family: Theme.body; font-size: 14px; font-weight: 600; }
-                Text { x: parent.width - self.width - 16px; y: 16px; text: "Android " + Sys.mem-android + " MB"; color: Theme.tertiary; font-family: Theme.body; font-size: 13px; }
-                Rectangle {
-                    x: 16px; y: 44px; width: parent.width - 32px; height: 10px; border-radius: 5px; background: Theme.secondary-container; clip: true;
-                    Rectangle { x: 0; width: parent.width * (Sys.mem-used - Sys.mem-android) / max(1, Sys.mem-total); border-radius: 5px; background: Theme.primary; animate width { duration: Theme.slow; easing: Theme.ease; } }
-                    Rectangle { x: parent.width * (Sys.mem-used - Sys.mem-android) / max(1, Sys.mem-total) + 3px; width: parent.width * Sys.mem-android / max(1, Sys.mem-total); border-radius: 5px; background: Theme.tertiary; }
-                }
-                Text { x: 16px; y: 64px; width: parent.width - 120px; text: Sys.android-state; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 12px; overflow: elide; }
-                PillButton {
-                    x: parent.width - self.width - 12px; y: 56px; height: 32px; pad: 14px;
-                    label: Sys.android-running ? "Suspend" : "Start Android"; active: true;
-                    clicked => { Sys.android-toggle(); }
-                }
-            }
-            Rectangle { height: 2px; }
             Rectangle {
                 height: 64px; border-radius: 24px; background: Theme.container-high;
                 Icon { x: 16px; d: Icons.update-f; size: 22px; tint: Sys.update-available ? Theme.primary : Theme.on-surface-variant; }

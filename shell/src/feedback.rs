@@ -8,6 +8,15 @@ pub enum Sound {
     Notification,
     Message,
     Ring(i32),
+    /// Notification tone picked in Settings (0 Pop, 1 Chime, 2 Drop)
+    Tone(i32),
+    /// Charger plugged in
+    Charge,
+    /// Battery under 15%
+    LowBattery,
+    /// Screen turned off / on with the power key
+    Lock,
+    Unlock,
 }
 
 /// (frequenza Hz, inizio ms, durata ms, volume 0..1)
@@ -15,6 +24,15 @@ pub fn notes(s: Sound) -> Vec<(f32, u32, u32, f32)> {
     match s {
         Sound::Notification => vec![(988.0, 0, 140, 0.5), (1319.0, 120, 320, 0.45)],
         Sound::Message => vec![(880.0, 0, 110, 0.45), (1175.0, 95, 110, 0.45), (1568.0, 190, 300, 0.4)],
+        Sound::Tone(1) => vec![(784.0, 0, 260, 0.4), (1046.5, 140, 260, 0.38), (1568.0, 280, 520, 0.34)],
+        Sound::Tone(2) => vec![(1760.0, 0, 70, 0.4), (1318.5, 60, 90, 0.42), (880.0, 130, 380, 0.45)],
+        Sound::Tone(_) => vec![(988.0, 0, 140, 0.5), (1319.0, 120, 320, 0.45)],
+        // Rising two-note "plugged in"
+        Sound::Charge => vec![(659.25, 0, 120, 0.4), (987.77, 110, 260, 0.42)],
+        // Falling, a bit insistent
+        Sound::LowBattery => vec![(880.0, 0, 160, 0.45), (659.25, 170, 160, 0.45), (523.25, 340, 380, 0.45)],
+        Sound::Lock => vec![(523.25, 0, 70, 0.3)],
+        Sound::Unlock => vec![(783.99, 0, 70, 0.3)],
         Sound::Ring(0) => {
             // Lakeside: arpeggio morbido
             let mut v = vec![];
@@ -101,6 +119,11 @@ mod imp {
             Sound::Notification => "notification".to_string(),
             Sound::Message => "message".to_string(),
             Sound::Ring(i) => format!("ring{i}"),
+            Sound::Tone(i) => format!("tone{i}"),
+            Sound::Charge => "charge".to_string(),
+            Sound::LowBattery => "lowbattery".to_string(),
+            Sound::Lock => "lock".to_string(),
+            Sound::Unlock => "unlock".to_string(),
         };
         let p = crate::media::cache_dir().with_file_name("sounds").join(format!("{name}.wav"));
         if !p.exists() {
