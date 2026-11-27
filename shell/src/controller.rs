@@ -501,6 +501,27 @@ static SLOW: std::sync::Mutex<Slow> = std::sync::Mutex::new((None, None));
 static WEATHER_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static WEATHER_CITY: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 
+/// Voltage-based level jumps with the load (screen on/off, CPU): average it and
+/// never let it move against the charger state, so lock screen and home agree
+fn smooth_battery(raw: Option<(i32, bool)>) -> Option<(i32, bool)> {
+    static LAST: std::sync::Mutex<Option<(f32, bool)>> = std::sync::Mutex::new(None);
+    let (pct, ch) = raw?;
+    if pct < 0 {
+        return Some((pct, ch));
+    }
+    let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+    let v = match *last {
+        Some((prev, prev_ch)) if prev_ch == ch => {
+            let avg = prev * 0.8 + pct as f32 * 0.2;
+            // Charging: the level only goes up; on battery: only down
+            if ch { avg.max(prev) } else { avg.min(prev) }
+        }
+        _ => pct as f32,
+    };
+    *last = Some((v, ch));
+    Some((v.round() as i32, ch))
+}
+
 pub fn hw_snapshot() -> Option<Hw> {
     HW.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
@@ -520,7 +541,7 @@ fn read_hw(last_ticks: &mut Option<u64>, secs: f32, waydroid_tick: bool, prev: &
     let android = android.unwrap_or((false, "Checking".into()));
     let mem_android = if android.0 { sys::android_memory().min(used) } else { 0 };
     Hw {
-        battery: sys::battery(),
+        battery: smooth_battery(sys::battery()),
         has_wifi: sys::has_wifi(),
         has_cell: sys::has_cell(),
         diag: sys::diag_line(cpu),
