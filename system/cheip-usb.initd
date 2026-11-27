@@ -1,0 +1,13 @@
+#!/sbin/openrc-run
+description="Cheip OS: USB serial + network link to the PC"
+
+depend() {
+	need localmount
+	after udev
+}
+
+start() {
+	ebegin "Starting the USB link"
+	/usr/libexec/cheip/cheip-usb &
+	eend 0
+}

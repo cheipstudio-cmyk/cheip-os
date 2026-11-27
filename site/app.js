@@ -530,13 +530,20 @@ async function readSerial(port) {
   log("---- Linux console ----");
   const reader = port.readable.getReader();
   const dec = new TextDecoder();
+  // Cheip OS prints a full report every 15 s: keep a fresh copy in Downloads every minute
+  let lastSave = Date.now();
   try {
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
       const t = dec.decode(value);
       serialText += t;
-      $("#usb-out").textContent += t; $("#usb-out").scrollTop = $("#usb-out").scrollHeight;
+      $("#usb-out").textContent = ($("#usb-out").textContent + t).slice(-20000); $("#usb-out").scrollTop = $("#usb-out").scrollHeight;
+      if (Date.now() - lastSave > 180000) {
+        lastSave = Date.now();
+        saveCopy("cheip-console.txt", new TextEncoder().encode(serialText.slice(-400000)));
+        phone("ok", "Cheip OS connected over USB", "The phone report is saved to Downloads as cheip-console.txt every 3 minutes.");
+      }
     }
   } catch (e) {
     log("\nConsole ended: " + (e.message || e));
