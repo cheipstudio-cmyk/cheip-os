@@ -191,6 +191,27 @@ jobs:
           sudo apt-get install -y -qq e2fsprogs fdisk device-tree-compiler
           for f in out/*.img; do case "$f" in *boot.img*) continue;; esac
             sudo sh scripts/fix-extlinux.sh "$(readlink -f "$f")" qcom-msm8926-microsoft-superman-lte.dtb; done
+          # Final proof on the real image: the kernel in the boot partition has the SMP code
+          python3 - "$(readlink -f "$(ls out/*.img | grep -v boot.img | head -1)")" <<'PY' || true
+          import lzma, re, subprocess, sys
+          img = sys.argv[1]
+          dump = subprocess.run(["sfdisk", "-d", img], capture_output=True, text=True).stdout
+          m = re.search(r"start=\s*(\d+), size=\s*(\d+)", dump)
+          start, size = int(m.group(1)), int(m.group(2))
+          with open(img, "rb") as f:
+              f.seek(start * 512)
+              open("/tmp/bootpart", "wb").write(f.read(size * 512))
+          subprocess.run(["debugfs", "-R", "dump /vmlinuz /tmp/vmlinuz", "/tmp/bootpart"], capture_output=True)
+          d = open("/tmp/vmlinuz", "rb").read()
+          k = b""
+          for mm in re.finditer(re.escape(b"\xfd7zXZ\x00"), d):
+              try:
+                  k = lzma.LZMADecompressor(format=lzma.FORMAT_XZ).decompress(d[mm.start():]); break
+              except Exception:
+                  pass
+          ok = b"parking mailbox" in k
+          print(("::notice::IMAGE kernel HAS the SMP code" if ok else "::warning::IMAGE kernel does NOT have the SMP code") + f" ({len(k)} bytes)")
+          PY
           for f in out/*.img; do xz -T0 -6 -c "$(readlink -f "$f")" > "dist-$(basename "$f").xz"; done
           # boot.img per l'avvio da RAM con "fastboot boot" da lk1st
           for f in out/boot.img*; do [ -e "$f" ] && cp "$(readlink -f "$f")" "dist-$(basename "$f")"; done
