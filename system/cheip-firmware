@@ -1,0 +1,55 @@
+#!/bin/sh
+# Lumia 735: the Wi-Fi firmware is not free to redistribute, but the phone
+# already has it in its Windows Phone partition. Copy it once from MainOS
+# (read only) and start the Wi-Fi core. Everything goes to the Log app.
+FW=/lib/firmware/qcom/msm8926/microsoft/superman
+NV=/lib/firmware/wlan/prima/WCNSS_qcom_wlan_nv.bin
+LOG=/var/log/cheip-firmware.txt
+exec >"$LOG" 2>&1
+
+partdev() {
+	for u in /sys/class/block/*/uevent; do
+		if grep -qx "PARTNAME=$1" "$u"; then
+			echo "/dev/$(grep '^DEVNAME=' "$u" | cut -d= -f2)"
+			return
+		fi
+	done
+}
+
+if [ ! -s "$FW/wcnss.mbn" ] || [ ! -s "$NV" ]; then
+	modprobe ntfs3 2>/dev/null
+	DEV=$(partdev MainOS)
+	echo "MainOS: ${DEV:-not found}"
+	if [ -n "$DEV" ]; then
+		mkdir -p /mnt/wp
+		if mount -t ntfs3 -o ro "$DEV" /mnt/wp; then
+			echo "candidates:"
+			find /mnt/wp/Windows/System32 \( -iname '*wcnss*' -o -iname '*pronto*' -o -iname '*wlan*nv*' -o -iname '*qcwlan*' \) 2>/dev/null | head -n 40
+			mbn=$(find /mnt/wp/Windows/System32 \( -iname '*wcnss*.mbn' -o -iname '*pronto*.mbn' \) 2>/dev/null | head -n 1)
+			nv=$(find /mnt/wp/Windows/System32 \( -iname 'WCNSS_qcom_wlan_nv*.bin' -o -iname '*wlan*nv*.bin' \) 2>/dev/null | head -n 1)
+			mkdir -p "$FW" "$(dirname "$NV")"
+			[ -n "$mbn" ] && cp "$mbn" "$FW/wcnss.mbn" && echo "copied $mbn"
+			[ -n "$nv" ] && cp "$nv" "$NV" && echo "copied $nv"
+			umount /mnt/wp
+		else
+			echo "mount of MainOS failed"
+		fi
+	fi
+fi
+
+modprobe qcom_wcnss_pil 2>/dev/null
+modprobe wcn36xx 2>/dev/null
+for r in /sys/class/remoteproc/remoteproc*; do
+	[ -e "$r/name" ] || continue
+	echo "remoteproc $(cat "$r/name"): $(cat "$r/state")"
+	if grep -q pronto "$r/name" 2>/dev/null || grep -qi wcnss "$r/firmware" 2>/dev/null; then
+		[ "$(cat "$r/state")" = offline ] && echo start > "$r/state"
+	fi
+done
+sleep 15
+for r in /sys/class/remoteproc/remoteproc*; do
+	[ -e "$r/name" ] && echo "after start: $(cat "$r/name"): $(cat "$r/state")"
+done
+dmesg | grep -iE "wcnss|pronto|wcn36xx|remoteproc|scm" | tail -n 15
+ip -o link | cut -d: -f2 | tr '\n' ' '
+echo

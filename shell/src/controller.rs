@@ -678,6 +678,11 @@ fn push_hw(ui: &AppWindow) {
             lines.push(format!("kernel: {}", k.trim()).into());
         }
     }
+    if let Ok(f) = std::fs::read_to_string("/var/log/cheip-firmware.txt") {
+        for l in f.lines().filter(|l| !l.trim().is_empty()).take(30) {
+            lines.push(format!("wifi: {l}").into());
+        }
+    }
     if let Ok(g) = std::fs::read_to_string("/var/log/cheip-grow.txt") {
         if let Some(l) = g.lines().last() {
             lines.push(format!("storage grow: {l}").into());

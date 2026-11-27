@@ -39,6 +39,8 @@ package() {
 	install -Dm755 system/cheip-preinstall "$pkgdir"/usr/libexec/cheip/cheip-preinstall
 	install -Dm755 system/cheip-shell.initd "$pkgdir"/etc/init.d/cheip-shell
 	install -Dm755 system/cheip-bootcheck "$pkgdir"/etc/init.d/cheip-bootcheck
+	install -Dm755 system/cheip-firmware "$pkgdir"/usr/libexec/cheip/cheip-firmware
+	install -Dm755 system/cheip-firmware.initd "$pkgdir"/etc/init.d/cheip-firmware
 	install -Dm600 system/cheip.doas.conf "$pkgdir"/etc/doas.d/cheip.conf
 	install -Dm644 system/90-cheip.rules "$pkgdir"/usr/lib/udev/rules.d/90-cheip.rules
 	install -Dm644 system/update.json "$pkgdir"/etc/cheip/update.json

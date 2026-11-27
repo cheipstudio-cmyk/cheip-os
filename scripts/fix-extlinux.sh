@@ -18,20 +18,14 @@ debugfs -R "cat /extlinux/extlinux.conf" "$TMP/boot" 2>/dev/null
 # untouched and boot the cores through it (kernel/0001-ARM-qcom-parking-protocol-SMP.patch)
 debugfs -R "dump /$DTB $TMP/dtb" "$TMP/boot" >/dev/null 2>&1
 patch_dtb() {
-	fdtput -c "$TMP/dtb" /reserved-memory/mppark@300000
-	fdtput -t x "$TMP/dtb" /reserved-memory/mppark@300000 reg 300000 40000
-	fdtput -t s "$TMP/dtb" /reserved-memory/mppark@300000 no-map ""
-	for n in 0 1 2 3; do
-		fdtput -t s "$TMP/dtb" /cpus/cpu@$n enable-method microsoft,parking-protocol
-		fdtput -t x "$TMP/dtb" /cpus/cpu@$n cpu-release-addr "$(printf %x $((0x301000 + n * 0x1000)))"
-	done
-	fdtget "$TMP/dtb" /cpus/cpu@1 enable-method
+	# Only replace the DTB once the new one exists (errexit is off inside "||")
+	python3 "$(dirname "$0")/dtb-lumia.py" "$TMP/dtb" "$TMP/dtb.new" && [ -s "$TMP/dtb.new" ] || return 1
 	debugfs -w -R "rm /$DTB" "$TMP/boot" >/dev/null 2>&1
-	debugfs -w -R "write $TMP/dtb /$DTB" "$TMP/boot" >/dev/null 2>&1
+	debugfs -w -R "write $TMP/dtb.new /$DTB" "$TMP/boot" >/dev/null 2>&1
 }
 if [ -s "$TMP/dtb" ]; then
 	# Never block the image: without this the phone still boots on one core
-	( patch_dtb ) || echo "DTB patch for the parking protocol failed" >&2
+	( patch_dtb ) || echo "DTB patch (SMP, Wi-Fi) failed" >&2
 else
 	echo "DTB /$DTB not found in the boot partition" >&2
 fi

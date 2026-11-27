@@ -1,0 +1,14 @@
+#!/sbin/openrc-run
+description="Cheip OS: Lumia firmware from the Windows partition, starts Wi-Fi"
+
+depend() {
+	need localmount
+	after udev
+	before networkmanager
+}
+
+start() {
+	ebegin "Loading Lumia firmware"
+	/usr/libexec/cheip/cheip-firmware &
+	eend 0
+}
