@@ -136,6 +136,13 @@ jobs:
           s = open(p).read()
           s = re.sub(r'^source="', 'source="\n\t' + name + '\n\t', s, count=1, flags=re.M)
           s = re.sub(r'^pkgrel=(\d+)', lambda m: 'pkgrel=%d' % (int(m.group(1)) + 100), s, count=1, flags=re.M)
+          # Apply it explicitly too, and stop the build if the SMP code is not there:
+          # a kernel without it must never be called "the SMP kernel" again
+          hook = ('\tpatch -N -p1 -i "$srcdir"/' + name + ' || true\n'
+                  '\tgrep -q park_boot_secondary arch/arm/mach-qcom/platsmp.c || { echo "SMP patch missing"; return 1; }\n')
+          s, n = re.subn(r'(^\s*default_prepare\s*\n)', lambda m: m.group(1) + hook, s, count=1, flags=re.M)
+          if n == 0:
+              raise SystemExit("no default_prepare in the kernel APKBUILD")
           h = hashlib.sha512(open(src, 'rb').read()).hexdigest()
           s, n = re.subn(r'^sha512sums="', 'sha512sums="\n' + h + '  ' + name, s, count=1, flags=re.M)
           if n == 0:
@@ -147,6 +154,8 @@ jobs:
           set +e
           pmbootstrap build --arch armv7 linux-postmarketos-qcom-msm8226 2>&1 | tee kernel-build.txt
           rc=${PIPESTATUS[0]}
+          # abuild's own lines about patches, as public notices
+          grep -E ">>> linux-postmarketos-qcom-msm8226: |patching file|Hunk|SMP patch|platsmp" "$WORK/log.txt" | tail -n 12 | while IFS= read -r l; do echo "::notice::$l"; done
           # What the build did with our patch, for the release assets
           grep -n "parking\|mach-qcom\|platsmp" "$WORK/log.txt" | tail -n 60 > kernel-parking.txt
           set -e
