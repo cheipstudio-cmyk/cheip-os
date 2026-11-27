@@ -427,6 +427,17 @@ export component SettingsApp inherits Rectangle {
         visible: self.x < root.width;
         animate x { duration: Theme.spatial; easing: Theme.ease; }
         title: "Wallpaper & style";
+        Header { text: "   Home widget"; }
+        SwitchItem { first: true; label: "Show widget"; detail: "Above the apps on the home screen"; on: Sys.w-show; toggled(v) => { Sys.pref("w_show", v ? 1 : 0); } }
+        SwitchItem { label: "Memory"; detail: "RAM used, Android share in a second color"; on: Sys.w-ram; toggled(v) => { Sys.pref("w_ram", v ? 1 : 0); } }
+        SwitchItem { label: "Battery"; detail: "Level and charging"; on: Sys.w-bat; toggled(v) => { Sys.pref("w_bat", v ? 1 : 0); } }
+        SwitchItem { label: "Storage"; detail: "Space used on the phone"; on: Sys.w-disk; toggled(v) => { Sys.pref("w_disk", v ? 1 : 0); } }
+        SwitchItem { last: true; label: "Weather"; detail: "Needs internet and a city"; on: Sys.w-weather; toggled(v) => { Sys.pref("w_weather", v ? 1 : 0); } }
+        if Sys.w-weather: Field {
+            placeholder: Sys.weather-city == "" ? "City for the weather" : Sys.weather-city;
+            accepted(t) => { Sys.set-weather-city(t); }
+        }
+        Header { text: "   Look"; }
         // Anteprima: blocco e home affiancati
         HorizontalLayout {
             height: 280px; spacing: 12px; alignment: center;

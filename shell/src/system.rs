@@ -220,7 +220,8 @@ pub fn diag_line(shell_cpu: Option<f32>) -> String {
     let names = |c: &str| class_dirs(c).iter().filter_map(|d| d.file_name().map(|n| n.to_string_lossy().to_string())).collect::<Vec<_>>().join(",");
     let shell = shell_cpu.map(|c| format!(" | shell {c:.0}%")).unwrap_or_default();
     format!(
-        "cpu {online} {mhz} {smp} | load {load}{shell} | {} | power [{}] vbat {} | net [{}] | rproc [{}] | input [{}]",
+        "{} | cpu {online} {mhz} {smp} | load {load}{shell} | {} | power [{}] vbat {} | net [{}] | rproc [{}] | input [{}]",
+        usb_diag(),
         std::env::var("SLINT_BACKEND").unwrap_or_default(),
         names("power_supply"),
         vbat_mv().map(|v| format!("{v}mV")).unwrap_or_else(|| "?".into()),
@@ -228,6 +229,20 @@ pub fn diag_line(shell_cpu: Option<f32>) -> String {
         names("remoteproc"),
         class_dirs("input").iter().filter_map(|d| read_trim(d.join("name"))).collect::<Vec<_>>().join(","),
     )
+}
+
+/// USB gadget state: controller, its state, and which gadget is bound to it
+fn usb_diag() -> String {
+    let udc = class_dirs("udc")
+        .iter()
+        .map(|d| format!("{}={}", d.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default(), read_trim(d.join("state")).unwrap_or_default()))
+        .collect::<Vec<_>>()
+        .join(",");
+    let bound = fs::read_dir("/sys/kernel/config/usb_gadget")
+        .map(|it| it.flatten().filter_map(|g| read_trim(g.path().join("UDC")).map(|u| format!("{}:{}", g.file_name().to_string_lossy(), u))).collect::<Vec<_>>().join(","))
+        .unwrap_or_else(|_| "no configfs".into());
+    let usbin = class_dirs("power_supply").iter().find(|d| d.ends_with("smbb-usbin")).and_then(|d| read_trim(d.join("online"))).unwrap_or_default();
+    format!("usb udc[{udc}] gadget[{bound}] vbus {usbin}")
 }
 
 /// Total CPU ticks used by this process (utime + stime)

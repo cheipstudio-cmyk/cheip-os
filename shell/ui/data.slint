@@ -51,6 +51,18 @@ export global Sys {
     in-out property <bool> kbd-vibrate: true;
     // System navigation: true = Back/Home/Recents buttons, false = gestures
     in-out property <bool> nav-buttons: true;
+    // Home widget: which tiles it shows (Settings > Wallpaper & style)
+    in-out property <bool> w-show: true;
+    in-out property <bool> w-ram: true;
+    in-out property <bool> w-bat: true;
+    in-out property <bool> w-disk: false;
+    in-out property <bool> w-weather: false;
+    in-out property <string> weather-city: "";
+    in property <string> weather-temp: "";
+    in property <string> weather-desc: "";
+    in property <string> disk-used: "";
+    in property <float> disk-frac: 0;
+    callback set-weather-city(string);
     callback pref(string, int);
     callback preview-tone(int);
     // Diagnostic line on the lock screen (empty = hidden)

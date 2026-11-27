@@ -448,9 +448,14 @@ pub struct Hw {
     pub mem_android: i32,
     pub android: (bool, String),
     pub modem: Option<crate::modem::Status>,
+    /// (temperature, description) from open-meteo, refreshed every 30 minutes
+    pub weather: Option<(String, String)>,
+    pub disk: (String, f32),
 }
 
 static HW: std::sync::Mutex<Option<Hw>> = std::sync::Mutex::new(None);
+static WEATHER_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static WEATHER_CITY: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 
 pub fn hw_snapshot() -> Option<Hw> {
     HW.lock().ok().and_then(|h| h.clone())
@@ -484,7 +489,59 @@ fn read_hw(last_ticks: &mut Option<u64>, secs: f32, waydroid_tick: bool, prev: &
         mem_android,
         android,
         modem: Some(crate::modem::status()),
+        weather: prev.as_ref().and_then(|p| p.weather.clone()),
+        disk: disk_usage(),
     }
+}
+
+#[cfg(not(feature = "native"))]
+fn disk_usage() -> (String, f32) { (String::new(), 0.0) }
+
+#[cfg(feature = "native")]
+fn disk_usage() -> (String, f32) {
+    let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
+    let path = std::ffi::CString::new("/").unwrap();
+    if unsafe { libc::statvfs(path.as_ptr(), &mut st) } != 0 {
+        return (String::new(), 0.0);
+    }
+    let total = st.f_blocks as f64 * st.f_frsize as f64;
+    let free = st.f_bavail as f64 * st.f_frsize as f64;
+    let gb = |b: f64| b / 1_073_741_824.0;
+    (format!("{:.1} / {:.1} GB", gb(total - free), gb(total)), ((total - free) / total.max(1.0)) as f32)
+}
+
+fn weather_text(code: i64) -> &'static str {
+    match code {
+        0 => "Clear",
+        1 | 2 => "Partly cloudy",
+        3 => "Cloudy",
+        45 | 48 => "Fog",
+        51..=57 => "Drizzle",
+        61..=67 | 80..=82 => "Rain",
+        71..=77 | 85 | 86 => "Snow",
+        95..=99 => "Thunderstorm",
+        _ => "",
+    }
+}
+
+#[cfg(not(feature = "native"))]
+fn fetch_weather(_city: &str) -> Option<(String, String)> { None }
+
+/// open-meteo: free, no key. City name to coordinates, then current weather
+#[cfg(feature = "native")]
+fn fetch_weather(city: &str) -> Option<(String, String)> {
+    let get = |url: &str| -> Option<serde_json::Value> {
+        ureq::get(url).timeout(std::time::Duration::from_secs(10)).call().ok()?.into_json().ok()
+    };
+    let q: String = city.chars().map(|c| if c == ' ' { '+' } else { c }).filter(|c| c.is_alphanumeric() || *c == '+' || *c == '-').collect();
+    let g = get(&format!("https://geocoding-api.open-meteo.com/v1/search?name={q}&count=1"))?;
+    let r = g.get("results")?.get(0)?;
+    let (lat, lon) = (r.get("latitude")?.as_f64()?, r.get("longitude")?.as_f64()?);
+    let w = get(&format!("https://api.open-meteo.com/v1/forecast?latitude={lat:.3}&longitude={lon:.3}&current=temperature_2m,weather_code"))?;
+    let c = w.get("current")?;
+    let t = c.get("temperature_2m")?.as_f64()?;
+    let code = c.get("weather_code").and_then(|v| v.as_i64()).unwrap_or(-1);
+    Some((format!("{:.0}°C", t), weather_text(code).to_string()))
 }
 
 /// Starts the background reader (call once, on the phone)
@@ -494,7 +551,15 @@ pub fn start_hw_thread() {
         let mut n: u32 = 0;
         loop {
             let prev = hw_snapshot();
-            let hw = read_hw(&mut ticks, 5.0, n % 6 == 0, &prev);
+            let mut hw = read_hw(&mut ticks, 5.0, n % 6 == 0, &prev);
+            // Weather every 30 minutes (every 360 rounds of 5 s), or right after a city change
+            let city = WEATHER_CITY.lock().map(|c| c.clone()).unwrap_or_default();
+            let force = n % 360 == 0 || hw.weather.is_none() && n % 12 == 0;
+            if WEATHER_ON.load(std::sync::atomic::Ordering::Relaxed) && !city.is_empty() && force {
+                if let Some(w) = fetch_weather(&city) {
+                    hw.weather = Some(w);
+                }
+            }
             if let Ok(mut g) = HW.lock() {
                 *g = Some(hw);
             }
@@ -537,6 +602,18 @@ fn push_hw(ui: &AppWindow) {
         None => s.set_has_battery(false),
     }
     s.set_has_wifi(hw.has_wifi);
+    s.set_disk_used(hw.disk.0.into());
+    s.set_disk_frac(hw.disk.1);
+    match &hw.weather {
+        Some((t, d)) => {
+            s.set_weather_temp(t.into());
+            s.set_weather_desc(d.into());
+        }
+        None => {
+            s.set_weather_temp("".into());
+            s.set_weather_desc("".into());
+        }
+    }
     s.set_has_cell(hw.has_cell);
     s.set_diag(hw.diag.into());
     s.set_mem_used(hw.mem.0);
@@ -809,6 +886,14 @@ fn set_pref_ui(ui: &AppWindow, k: &str, v: i32) {
         "snd_lock" => s.set_snd_lock(v != 0),
         "kbd_vibrate" => s.set_kbd_vibrate(v != 0),
         "nav_buttons" => s.set_nav_buttons(v != 0),
+        "w_show" => s.set_w_show(v != 0),
+        "w_ram" => s.set_w_ram(v != 0),
+        "w_bat" => s.set_w_bat(v != 0),
+        "w_disk" => s.set_w_disk(v != 0),
+        "w_weather" => {
+            s.set_w_weather(v != 0);
+            WEATHER_ON.store(v != 0, std::sync::atomic::Ordering::Relaxed);
+        }
         _ => {}
     }
 }
@@ -862,6 +947,24 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
             if let Some(st) = shared() {
                 let mut s = st.borrow_mut();
                 s.store.data.prefs.insert(format!("p_{k}"), v.to_string());
+                s.store.save();
+            }
+        });
+        let w = ui.as_weak();
+        ui.global::<Sys>().on_set_weather_city(move |c| {
+            let c = c.trim().to_string();
+            if let Ok(mut g) = WEATHER_CITY.lock() {
+                *g = c.clone();
+            }
+            if let Ok(mut h) = HW.lock() {
+                if let Some(h) = h.as_mut() { h.weather = None; }
+            }
+            if let Some(ui) = w.upgrade() {
+                ui.global::<Sys>().set_weather_city(c.clone().into());
+            }
+            if let Some(st) = shared() {
+                let mut s = st.borrow_mut();
+                s.store.data.prefs.insert("weather_city".into(), c);
                 s.store.save();
             }
         });
@@ -1227,6 +1330,10 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
         ui.global::<Sys>().set_screen_timeout(timeout);
         if s.store.data.prefs.get("noanim").map(|v| v == "1").unwrap_or(false) {
             set_lite_pref(ui, true);
+        }
+        if let Some(c) = s.store.data.prefs.get("weather_city") {
+            ui.global::<Sys>().set_weather_city(c.clone().into());
+            if let Ok(mut g) = WEATHER_CITY.lock() { *g = c.clone(); }
         }
         for (k, v) in s.store.data.prefs.iter() {
             if let (Some(name), Ok(v)) = (k.strip_prefix("p_"), v.parse::<i32>()) {
