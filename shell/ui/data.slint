@@ -67,6 +67,8 @@ export global Sys {
     callback preview-tone(int);
     // Diagnostic line on the lock screen (empty = hidden)
     in property <string> diag: "";
+    // Log app: one entry per line of the diagnostics, newest kernel lines too
+    in property <[string]> log-lines;
     in property <int> mem-used: 612;
     in property <int> mem-total: 1024;
     in property <int> mem-android: 0;
@@ -107,6 +109,8 @@ export global Shell {
     in-out property <ScreenId> screen: ScreenId.lock;
     // Power key: screen black (AMOLED pixels off) and touches ignored
     in property <bool> screen-off: false;
+    // Charger plugged in: short full-screen animation
+    in property <bool> charge-anim: false;
     in-out property <bool> controls-open: false;
     in-out property <bool> app-open: false;
     in-out property <string> app-id: "";

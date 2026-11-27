@@ -126,38 +126,44 @@ jobs:
           KAPK="$(find "$APORTS/device" -path '*/linux-postmarketos-qcom-msm8226/APKBUILD' | head -1)"
           test -n "$KAPK"
           KDIR="$(dirname "$KAPK")"
-          # No patch context to match: copy the file and add it to the Makefile in prepare()
-          cp kernel/files/parking.c "$KDIR/"
-          python3 - "$KAPK" "$KDIR/parking.c" <<'PY'
-          import re, sys, hashlib
+          # Patch made against msm8226-mainline/linux v6.16.12-msm8226-u2 (the tree this
+          # APKBUILD builds): appends the parking protocol code to platsmp.c
+          cp kernel/0001-ARM-qcom-Lumia-parking-protocol.patch "$KDIR/"
+          python3 - "$KAPK" "$KDIR/0001-ARM-qcom-Lumia-parking-protocol.patch" <<'PY'
+          import re, sys, hashlib, os
           p, src = sys.argv[1], sys.argv[2]
+          name = os.path.basename(src)
           s = open(p).read()
-          s = re.sub(r'^source="', 'source="\n\tparking.c\n\t', s, count=1, flags=re.M)
+          s = re.sub(r'^source="', 'source="\n\t' + name + '\n\t', s, count=1, flags=re.M)
           s = re.sub(r'^pkgrel=(\d+)', lambda m: 'pkgrel=%d' % (int(m.group(1)) + 100), s, count=1, flags=re.M)
-          hook = '\tcp "$srcdir"/parking.c "$builddir"/arch/arm/mach-qcom/parking.c\n\tgrep -q parking.o "$builddir"/arch/arm/mach-qcom/Makefile || echo \'obj-$(CONFIG_SMP) += parking.o\' >> "$builddir"/arch/arm/mach-qcom/Makefile\n'
-          s, n = re.subn(r'(^\s*default_prepare\s*\n)', lambda m: m.group(1) + hook, s, count=1, flags=re.M)
-          if n == 0:
-              raise SystemExit("no default_prepare in the kernel APKBUILD")
-          # Checksum computed here: no network, nothing else in the APKBUILD changes
           h = hashlib.sha512(open(src, 'rb').read()).hexdigest()
-          s, n = re.subn(r'^sha512sums="', 'sha512sums="\n' + h + '  parking.c', s, count=1, flags=re.M)
+          s, n = re.subn(r'^sha512sums="', 'sha512sums="\n' + h + '  ' + name, s, count=1, flags=re.M)
           if n == 0:
               raise SystemExit("no sha512sums in the kernel APKBUILD")
           open(p, 'w').write(s)
           PY
-          grep -n "parking\|pkgrel\|default_prepare" "$KAPK" | head -20
+          echo "::notice::kernel APKBUILD: $(grep -c parking "$KAPK") lines mention parking, $(grep '^pkgrel' "$KAPK")"
           cp "$KAPK" kernel-APKBUILD.txt
           set +e
           pmbootstrap build --arch armv7 linux-postmarketos-qcom-msm8226 2>&1 | tee kernel-build.txt
-          # What the build did with our file, for the release assets
-          grep -n "parking\|mach-qcom" "$WORK/log.txt" | tail -n 60 > kernel-parking.txt
           rc=${PIPESTATUS[0]}
+          # What the build did with our patch, for the release assets
+          grep -n "parking\|mach-qcom\|platsmp" "$WORK/log.txt" | tail -n 60 > kernel-parking.txt
           set -e
           if [ "$rc" -ne 0 ]; then
             { cat kernel-build.txt; tail -n 300 "$WORK/log.txt"; } > kernel-log.txt
             # Back to the stock kernel package, or pmbootstrap install would try to rebuild it
-            git -C "$KDIR" checkout -- . && rm -f "$KDIR"/parking.c
+            git -C "$KDIR" checkout -- . && rm -f "$KDIR"/0001-*.patch
             exit 3
+          fi
+          # Proof that the SMP code is really inside the kernel that goes in the image
+          KPKG="$(ls -t "$WORK"/packages/edge/armv7/linux-postmarketos-qcom-msm8226-*.apk | head -1)"
+          mkdir -p /tmp/kpkg && tar -xzf "$KPKG" -C /tmp/kpkg 2>/dev/null || true
+          if grep -q park_boot_secondary /tmp/kpkg/boot/System.map* 2>/dev/null; then
+            echo "::notice::SMP parking code IS in the kernel ($(basename "$KPKG"))"
+          else
+            echo "::warning::SMP parking code is NOT in the kernel ($(basename "$KPKG"))"
+            ls /tmp/kpkg/boot | head
           fi
 
       - name: Build armv7

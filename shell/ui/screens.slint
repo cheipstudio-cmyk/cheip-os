@@ -284,11 +284,6 @@ export component HomeScreen inherits Rectangle {
         }
     }
 
-    if Sys.diag != "": Text {
-        x: 24px; y: root.height - root.inset - 150px; width: root.width - 48px;
-        text: Sys.diag; wrap: word-wrap;
-        color: Style.wp-ink; font-family: Theme.body; font-size: 12px;
-    }
 
     // Modalita modifica
     Rectangle {

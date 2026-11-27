@@ -126,7 +126,7 @@ pub fn when(ts: i64, now: NaiveDateTime) -> String {
 }
 
 /// App di sistema: (id, nome, nel dock)
-pub const SYSTEM_APPS: [(&str, &str, bool); 9] = [
+pub const SYSTEM_APPS: [(&str, &str, bool); 10] = [
     ("phone", "Phone", true),
     ("messages", "Messages", true),
     ("browser", "Browser", true),
@@ -136,6 +136,7 @@ pub const SYSTEM_APPS: [(&str, &str, bool); 9] = [
     ("notes", "Notes", false),
     ("clock", "Clock", false),
     ("settings", "Settings", false),
+    ("log", "Log", false),
 ];
 
 pub fn glyph(ui: &AppWindow, id: &str) -> SharedString {
@@ -150,6 +151,7 @@ pub fn glyph(ui: &AppWindow, id: &str) -> SharedString {
         "notes" => i.get_notes_f(),
         "clock" => i.get_alarm_f(),
         "settings" | "system" => i.get_gear_f(),
+        "log" => i.get_code_f(),
         "wifi" => i.get_wifi_f(),
         "dati" => i.get_data_f(),
         "bt" => i.get_bluetooth_f(),
@@ -590,6 +592,7 @@ pub fn start_hw_thread() {
 thread_local! {
     static PREV_CHARGING: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
     static LOW_WARNED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static CHARGE_TIMER: RefCell<Option<slint::Timer>> = const { RefCell::new(None) };
 }
 
 fn push_hw(ui: &AppWindow) {
@@ -597,8 +600,26 @@ fn push_hw(ui: &AppWindow) {
     let s = ui.global::<Sys>();
     if let Some((_, ch)) = hw.battery {
         // Charger plugged in: short rising sound
-        if PREV_CHARGING.with(|p| p.replace(Some(ch))) == Some(false) && ch && s.get_snd_charge() && s.get_ringer() == 0 {
-            crate::feedback::play(crate::feedback::Sound::Charge, s.get_volume().max(0.3));
+        if PREV_CHARGING.with(|p| p.replace(Some(ch))) == Some(false) && ch {
+            if s.get_snd_charge() && s.get_ringer() == 0 {
+                crate::feedback::play(crate::feedback::Sound::Charge, s.get_volume().max(0.3));
+            }
+            // Wake the screen for a moment (even from off) and show the charging animation
+            let shell = ui.global::<Shell>();
+            let was_off = shell.get_screen_off();
+            shell.set_screen_off(false);
+            shell.set_charge_anim(true);
+            let t = slint::Timer::default();
+            t.start(slint::TimerMode::SingleShot, std::time::Duration::from_millis(2600), move || {
+                if let Some(ui) = ui_handle() {
+                    let shell = ui.global::<Shell>();
+                    shell.set_charge_anim(false);
+                    if was_off {
+                        shell.set_screen_off(true);
+                    }
+                }
+            });
+            CHARGE_TIMER.with(|c| *c.borrow_mut() = Some(t));
         }
     }
     if let Some((level, ch)) = hw.battery.filter(|b| b.0 >= 0) {
@@ -640,7 +661,19 @@ fn push_hw(ui: &AppWindow) {
         }
     }
     s.set_has_cell(hw.has_cell);
-    s.set_diag(hw.diag.into());
+    s.set_diag(hw.diag.clone().into());
+    let mut lines: Vec<SharedString> = hw.diag.split(" | ").map(|l| l.into()).collect();
+    if let Ok(k) = std::fs::read_to_string("/var/log/cheip-smp.txt") {
+        if !k.trim().is_empty() {
+            lines.push(format!("kernel: {}", k.trim()).into());
+        }
+    }
+    if let Ok(g) = std::fs::read_to_string("/var/log/cheip-grow.txt") {
+        if let Some(l) = g.lines().last() {
+            lines.push(format!("storage grow: {l}").into());
+        }
+    }
+    s.set_log_lines(model(lines));
     s.set_mem_used(hw.mem.0);
     s.set_mem_total(hw.mem.1);
     s.set_mem_android(hw.mem_android);

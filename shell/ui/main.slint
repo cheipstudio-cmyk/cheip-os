@@ -8,11 +8,36 @@ import { BrowserApp } from "browser.slint";
 import { FilesApp } from "files.slint";
 import { SettingsApp } from "settings.slint";
 import { ClockApp, AlarmOverlay } from "clock.slint";
-import { Icon, Icons } from "components.slint";
+import { Icon, Icons, StatusBar, Shapes } from "components.slint";
 import { BootSplash } from "splash.slint";
 import { Keyboard, Kbd } from "keyboard.slint";
 
 export { Kbd, Theme, Icons, Style, Clock, Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow, CatRow, AlarmRow, CityRow, LapRow, SRow, Swatch }
+
+// System log: what the phone is doing (cores, clock, charger, USB, network, input)
+component LogApp inherits Rectangle {
+    background: Theme.surface;
+    StatusBar { y: 0; width: parent.width; }
+    Text { x: 24px; y: 44px; text: "Log"; color: Theme.on-surface; font-family: Theme.display; font-size: 34px; font-weight: 500; }
+    Text { x: 24px; y: 90px; width: parent.width - 48px; text: "Refreshed every 5 seconds"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 13px; }
+    Flickable {
+        x: 12px; y: 120px; width: parent.width - 24px; height: parent.height - 132px;
+        viewport-height: col.preferred-height;
+        col := VerticalLayout {
+            spacing: 4px;
+            for l[i] in Sys.log-lines: Rectangle {
+                border-radius: i == 0 ? 20px : (i == Sys.log-lines.length - 1 ? 20px : 6px);
+                background: Theme.container;
+                height: t.preferred-height + 24px;
+                t := Text {
+                    x: 16px; width: parent.width - 32px;
+                    text: l; wrap: word-wrap;
+                    color: Theme.on-surface; font-family: "monospace"; font-size: 13px;
+                }
+            }
+        }
+    }
+}
 
 // Navigation key: Expressive round touch target, Android-style glyph
 component NavKey inherits Rectangle {
@@ -49,7 +74,7 @@ export component AppWindow inherits Window {
     default-font-family: "Google Sans Flex";
 
     property <bool> unlocked: Shell.screen != ScreenId.lock;
-    property <bool> system-app: Shell.app-id == "calendar" || Shell.app-id == "notes" || Shell.app-id == "camera" || Shell.app-id == "settings" || Shell.app-id == "phone" || Shell.app-id == "messages" || Shell.app-id == "browser" || Shell.app-id == "files" || Shell.app-id == "clock";
+    property <bool> system-app: Shell.app-id == "calendar" || Shell.app-id == "notes" || Shell.app-id == "camera" || Shell.app-id == "settings" || Shell.app-id == "phone" || Shell.app-id == "messages" || Shell.app-id == "browser" || Shell.app-id == "files" || Shell.app-id == "clock" || Shell.app-id == "log";
 
     // Avanzamento del gesto di chiusura (0 = app intera, 1 = scheda piccola)
     property <float> drag-p: min(1, max(0, Shell.close-drag / 420px));
@@ -103,6 +128,7 @@ export component AppWindow inherits Window {
             if Shell.app-id == "camera": CameraApp { }
             if Shell.app-id == "settings": SettingsApp { }
             if Shell.app-id == "clock": ClockApp { }
+            if Shell.app-id == "log": LogApp { }
             if !root.system-app: Rectangle {
                 background: Theme.surface;
                 Icon { y: 240px; d: Icons.android-f; size: 64px; tint: Theme.tertiary; }
@@ -366,6 +392,29 @@ export component AppWindow inherits Window {
                 pta := TouchArea { clicked => { Shell.power-menu = false; Shell.power-action(item.id); } }
             }
         }
+    }
+
+    // Charger plugged in: Expressive pulse with the bolt, about two seconds
+    if Shell.charge-anim: Rectangle {
+        background: #000000e6;
+        property <bool> grown: false;
+        Timer { interval: 30ms; running: !parent.grown; triggered => { parent.grown = true; } }
+        Path {
+            width: 200px; height: 200px;
+            commands: Shapes.cookie; viewbox-width: 100; viewbox-height: 100;
+            fill: Theme.primary-container;
+            transform-scale: parent.grown ? 1 : 0.2;
+            transform-rotation: parent.grown ? 30deg : 0deg;
+            animate transform-scale { duration: 700ms; easing: spring(0.35); }
+            animate transform-rotation { duration: 1800ms; easing: Theme.decel; }
+        }
+        Icon { d: Icons.bolt-f; size: 72px; tint: Theme.on-primary-container; }
+        Text {
+            y: parent.height / 2 + 130px; width: parent.width;
+            text: Sys.has-battery ? "Charging · " + Sys.battery + "%" : "Charging";
+            color: white; font-family: Theme.display; font-size: 24px; font-weight: 500; horizontal-alignment: center;
+        }
+        TouchArea { }
     }
 
     // Screen off: everything black, swallows touches until the power key is pressed again
