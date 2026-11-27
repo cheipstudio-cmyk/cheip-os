@@ -167,7 +167,7 @@ export component SettingsApp inherits Rectangle {
                     Text { x: 56px; height: parent.height; text: "Search settings"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 16px; vertical-alignment: center; }
                 }
                 Rectangle { height: 14px; }
-                MainRow { first: true; icon: Icons.wifi-f; hue: 0; label: "Network & internet"; detail: !Sys.has-wifi ? "No Wi-Fi hardware found" : (Sys.wifi-on ? "Wi-Fi, mobile data, hotspot" : "Wi-Fi off"); clicked => { Settings.open-page("network"); } }
+                MainRow { first: true; icon: Icons.wifi-f; hue: 0; label: "Network & internet"; detail: !Sys.has-wifi ? "No Wi-Fi hardware found" : (Sys.wifi-on ? "Wi-Fi, mobile data" : "Wi-Fi off"); clicked => { Settings.open-page("network"); } }
                 MainRow { last: true; icon: Icons.devices; hue: 0; label: "Connected devices"; detail: "Bluetooth"; clicked => { Settings.open-page("devices"); } }
                 Rectangle { height: 14px; }
                 MainRow { first: true; icon: Icons.apps; hue: 1; label: "Apps"; detail: "Recent apps, default apps"; clicked => { Settings.open-page("apps"); } }
@@ -305,6 +305,9 @@ export component SettingsApp inherits Rectangle {
         }
         Header { text: "   Display size"; }
         Segmented { items: ["Small", "Default", "Large"]; selected: Sys.display-size; height: 52px; picked(i) => { Sys.set-display-size(i); } }
+        Header { text: "   System navigation"; }
+        RadioRow { first: true; label: "3-button navigation"; on: Sys.nav-buttons; clicked => { Sys.pref("nav_buttons", 1); } }
+        RadioRow { last: true; label: "Gesture navigation"; on: !Sys.nav-buttons; clicked => { Sys.pref("nav_buttons", 0); } }
         Header { text: "   Screen timeout"; }
         for r[i] in ["15 seconds", "30 seconds", "1 minute", "2 minutes", "5 minutes", "Never"]: RadioRow {
             first: i == 0; last: i == 5;

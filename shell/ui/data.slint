@@ -49,6 +49,8 @@ export global Sys {
     in-out property <bool> snd-lowbat: true;
     in-out property <bool> snd-lock: true;
     in-out property <bool> kbd-vibrate: true;
+    // System navigation: true = Back/Home/Recents buttons, false = gestures
+    in-out property <bool> nav-buttons: true;
     callback pref(string, int);
     callback preview-tone(int);
     // Diagnostic line on the lock screen (empty = hidden)

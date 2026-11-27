@@ -183,10 +183,8 @@ impl State {
                 Toggle { id: "dark", label: "Dark theme", on: true },
                 Toggle { id: "torcia", label: "Flashlight", on: false },
                 Toggle { id: "dati", label: "Mobile data", on: false },
-                Toggle { id: "rot", label: "Auto-rotate", on: false },
                 Toggle { id: "eco", label: "Battery Saver", on: false },
                 Toggle { id: "airplane", label: "Airplane mode", on: false },
-                Toggle { id: "hotspot", label: "Hotspot", on: false },
                 Toggle { id: "alarm", label: "Alarm", on: false },
             ],
             recents: Vec::new(),
@@ -810,6 +808,7 @@ fn set_pref_ui(ui: &AppWindow, k: &str, v: i32) {
         "snd_lowbat" => s.set_snd_lowbat(v != 0),
         "snd_lock" => s.set_snd_lock(v != 0),
         "kbd_vibrate" => s.set_kbd_vibrate(v != 0),
+        "nav_buttons" => s.set_nav_buttons(v != 0),
         _ => {}
     }
 }

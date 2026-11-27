@@ -57,7 +57,7 @@ export component AppWindow inherits Window {
     // On-screen keyboard: open while a text field has focus, apps shrink above it
     property <bool> kb-open: TextInputInterface.text-input-focused;
     property <length> kb-h: root.kb-open ? kb.height : 0px;
-    property <length> nav-h: 48px;
+    property <length> nav-h: Sys.nav-buttons ? 48px : 0px;
     // Space at the bottom taken by the keyboard or the navigation buttons
     property <length> bottom-h: root.kb-open ? root.kb-h : (root.unlocked ? root.nav-h : 0px);
 
@@ -141,8 +141,43 @@ export component AppWindow inherits Window {
         }
     }
 
+    // Gesture navigation (chosen in Settings): short swipe up = home, long = recents.
+    // Lite: the app does not follow the finger, the gesture is judged on release
+    if root.unlocked && !root.kb-open && !Sys.nav-buttons: gbar := Rectangle {
+        y: root.height - 28px; height: 28px;
+        property <length> d: 0px;
+        Rectangle {
+            y: 18px; width: 108px + 24px * min(1, gbar.d / 170px); height: 5px; border-radius: 2.5px;
+            background: (Shell.app-open || Shell.controls-open) ? Theme.on-surface.with-alpha(0.6) : Style.wp-ink.with-alpha(0.75);
+        }
+        TouchArea {
+            moved => {
+                parent.d = max(0px, self.pressed-y - self.mouse-y);
+                if (!Theme.lite) { Shell.close-drag = parent.d; }
+            }
+            pointer-event(ev) => {
+                if (ev.kind == PointerEventKind.up || ev.kind == PointerEventKind.cancel) {
+                    let d = parent.d;
+                    if (d > 170px) {
+                        Shell.controls-open = false;
+                        Shell.close-app();
+                        Shell.screen = ScreenId.switcher;
+                    } else if (d > 40px) {
+                        Shell.controls-open = false;
+                        Shell.close-app();
+                        Shell.searching = false;
+                        Shell.edit-mode = false;
+                        Shell.screen = ScreenId.home;
+                    }
+                    Shell.close-drag = 0px;
+                    parent.d = 0px;
+                }
+            }
+        }
+    }
+
     // Three-button navigation: back, home, recents
-    if root.unlocked && !root.kb-open: Rectangle {
+    if root.unlocked && !root.kb-open && Sys.nav-buttons: Rectangle {
         y: root.height - root.nav-h; height: root.nav-h;
         background: Shell.app-open ? Theme.surface : transparent;
         HorizontalLayout {
