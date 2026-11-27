@@ -213,6 +213,20 @@ const bar = $("#usb-bar");
 const progress = (p) => { bar.style.display = "block"; bar.firstElementChild.style.width = (p * 100).toFixed(1) + "%"; };
 let dev = null, sd = null, busy = false;
 
+// The phone can be opened by two parties at once right after it appears (the
+// browser itself and fastboot.js): "operation in progress" just means wait a bit
+async function connectRetry(d) {
+  for (let i = 0; ; i++) {
+    try {
+      return await d.connect();
+    } catch (e) {
+      const busyNow = /in progress|already open|InvalidStateError/i.test(String(e && (e.message || e)));
+      if (!busyNow || i >= 8) throw e;
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  }
+}
+
 // Big status box at the top of the install section: what the phone is doing, what to do next
 function phone(kind, title, hint) {
   const el = $("#phone-status");
@@ -236,7 +250,7 @@ async function connectPhone(auto = false) {
   try {
     setDebugLevel(0);
     dev = new FastbootDevice();
-    await dev.connect();
+    await connectRetry(dev);
     const product = await dev.getVariable("product").catch(() => "");
     sd = null;
     try {
@@ -303,7 +317,7 @@ async function autoInstall() {
   try {
     setDebugLevel(0);
     dev = new FastbootDevice();
-    await dev.connect();
+    await connectRetry(dev);
     const r = await dev.runCommand("oem sd-info");
     const [blocks, bs] = r.text.trim().split(/\s+/).map(Number);
     sd = blocks && bs ? { blocks, bs, bytes: blocks * bs } : null;
@@ -430,7 +444,7 @@ async function captureLogs() {
   try {
     setDebugLevel(0);
     dev = new FastbootDevice();
-    await dev.connect();
+    await connectRetry(dev);
     const product = await dev.getVariable("product").catch(() => "");
     log(`Phone caught in the bootloader${product ? " (" + product + ")" : ""}.`);
     if ($("#auto-install").checked) {
