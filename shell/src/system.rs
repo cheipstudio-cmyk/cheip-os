@@ -48,6 +48,24 @@ pub fn battery() -> Option<(i32, bool)> {
     Some((smooth_soc(target, charging, plugged), plugged))
 }
 
+/// Is a charger cable connected? Cheap sysfs read, for the fast cable watcher
+pub fn charger_online() -> Option<bool> {
+    let dirs = class_dirs("power_supply");
+    let mut seen = false;
+    for d in &dirs {
+        if read_trim(d.join("type")).as_deref() == Some("Battery") {
+            continue;
+        }
+        if let Some(v) = read_trim(d.join("online")) {
+            seen = true;
+            if v == "1" {
+                return Some(true);
+            }
+        }
+    }
+    seen.then_some(false)
+}
+
 /// Nokia BV-T5A profile (BATTERY.PROVISION on the Lumia 735, OCV vs SOC at
 /// 23 C): resting voltage in mV for each charge level
 pub fn soc_from_ocv(mv: i32) -> i32 {
@@ -72,9 +90,9 @@ pub fn soc_from_ocv(mv: i32) -> i32 {
 /// never up while discharging and never down while charging
 fn smooth_soc(target: i32, charging: bool, plugged: bool) -> i32 {
     use std::sync::Mutex;
-    static LAST: Mutex<Option<(i32, std::time::Instant)>> = Mutex::new(None);
+    static LAST: Mutex<Option<(i32, web_time::Instant)>> = Mutex::new(None);
     let mut g = LAST.lock().unwrap_or_else(|e| e.into_inner());
-    let now = std::time::Instant::now();
+    let now = web_time::Instant::now();
     let Some((shown, t)) = *g else {
         *g = Some((target, now));
         return target;
@@ -327,7 +345,7 @@ fn usb_diag() -> String {
 /// CPU use per thread of this process since the last call: "name:tid 45%, ..."
 pub fn thread_cpu() -> String {
     use std::collections::HashMap;
-    static PREV: std::sync::Mutex<Option<(std::time::Instant, HashMap<String, u64>)>> = std::sync::Mutex::new(None);
+    static PREV: std::sync::Mutex<Option<(web_time::Instant, HashMap<String, u64>)>> = std::sync::Mutex::new(None);
     let mut now_map = HashMap::new();
     if let Ok(rd) = fs::read_dir("/proc/self/task") {
         for e in rd.flatten() {
@@ -340,7 +358,7 @@ pub fn thread_cpu() -> String {
             now_map.insert(format!("{name}:{tid}"), t);
         }
     }
-    let now = std::time::Instant::now();
+    let now = web_time::Instant::now();
     let mut prev = PREV.lock().unwrap_or_else(|e| e.into_inner());
     let out = match prev.as_ref() {
         Some((t0, old)) => {

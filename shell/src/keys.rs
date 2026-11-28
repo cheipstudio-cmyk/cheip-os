@@ -15,8 +15,8 @@ pub static LAST_ACTIVITY: std::sync::atomic::AtomicU64 = std::sync::atomic::Atom
 /// Seconds since the shell started, on a monotonic clock: setting the date or
 /// time must not look like hours of inactivity and turn the screen off
 pub fn mono_secs() -> u64 {
-    static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
-    START.get_or_init(std::time::Instant::now).elapsed().as_secs() + 1
+    static START: std::sync::OnceLock<web_time::Instant> = std::sync::OnceLock::new();
+    START.get_or_init(web_time::Instant::now).elapsed().as_secs() + 1
 }
 
 pub fn touch_activity() {

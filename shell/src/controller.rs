@@ -601,12 +601,12 @@ fn smooth_battery(raw: Option<(i32, bool)>) -> Option<(i32, bool)> {
     // current flows in and sags under load. A real 2220 mAh battery cannot gain
     // more than ~1% per minute at 1 A, so the shown level moves at most that fast,
     // and plugging or unplugging the cable never makes it jump.
-    static LAST: std::sync::Mutex<Option<(f32, std::time::Instant)>> = std::sync::Mutex::new(None);
+    static LAST: std::sync::Mutex<Option<(f32, web_time::Instant)>> = std::sync::Mutex::new(None);
     let (pct, ch) = raw?;
     if pct < 0 {
         return Some((pct, ch));
     }
-    let now = std::time::Instant::now();
+    let now = web_time::Instant::now();
     let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
     let v = match *last {
         Some((prev, t)) => {
@@ -767,10 +767,41 @@ thread_local! {
     pub static HAS_AUDIO: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
 }
 
-fn push_hw(ui: &AppWindow) {
-    let Some(hw) = hw_snapshot() else { return };
+/// Charger cable state from a fast watcher (0 unknown, 1 unplugged, 2 plugged):
+/// the battery reading comes every 5 s, the cable must react at once
+static PLUGGED: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
+fn plugged_now() -> Option<bool> {
+    match PLUGGED.load(std::sync::atomic::Ordering::Relaxed) {
+        1 => Some(false),
+        2 => Some(true),
+        _ => None,
+    }
+}
+
+pub fn start_plug_watch() {
+    let _ = std::thread::Builder::new().name("plug-watch".into()).spawn(|| loop {
+        if let Some(on) = sys::charger_online() {
+            PLUGGED.store(if on { 2 } else { 1 }, std::sync::atomic::Ordering::Relaxed);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    });
+}
+
+/// Every 250 ms on the UI thread: the cable was just plugged in or out
+fn check_plug(ui: &AppWindow) {
+    let Some(ch) = plugged_now() else { return };
+    if PREV_CHARGING.with(|p| p.get()) == Some(ch) {
+        return;
+    }
     let s = ui.global::<Sys>();
-    if let Some((_, ch)) = hw.battery {
+    s.set_charging(ch);
+    plug_changed(ui, ch);
+}
+
+fn plug_changed(ui: &AppWindow, ch: bool) {
+    let s = ui.global::<Sys>();
+    {
         // Charger plugged in: short rising sound
         if PREV_CHARGING.with(|p| p.replace(Some(ch))) == Some(false) && ch {
             if s.get_snd_charge() && s.get_ringer() == 0 {
@@ -797,6 +828,18 @@ fn push_hw(ui: &AppWindow) {
             });
             CHARGE_TIMER.with(|c| *c.borrow_mut() = Some(t));
         }
+    }
+}
+
+fn push_hw(ui: &AppWindow) {
+    let Some(mut hw) = hw_snapshot() else { return };
+    let s = ui.global::<Sys>();
+    // The fast cable watcher wins over the slower battery reading
+    if let (Some(b), Some(fast)) = (hw.battery.as_mut(), plugged_now()) {
+        b.1 = fast;
+    }
+    if let Some((_, ch)) = hw.battery {
+        plug_changed(ui, ch);
     }
     if let Some((level, ch)) = hw.battery.filter(|b| b.0 >= 0) {
         if ch || level > 20 {
@@ -1719,14 +1762,24 @@ pub fn start_timers(ui: &AppWindow, st: &Shared) -> Vec<slint::Timer> {
     // UI stall meter: a 100 ms tick that fires late means the UI thread was busy
     // (drawing or handling input) for that long. Shown in the Log app.
     let meter = slint::Timer::default();
-    let last = std::cell::Cell::new(std::time::Instant::now());
+    let last = std::cell::Cell::new(web_time::Instant::now());
     meter.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(100), move || {
-        let now = std::time::Instant::now();
+        let now = web_time::Instant::now();
         let late = now.duration_since(last.replace(now)).as_millis().saturating_sub(100) as u64;
         UI_MAX_STALL.fetch_max(late, std::sync::atomic::Ordering::Relaxed);
         if late > 50 { UI_STALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed); }
     });
-    let mut v = vec![clock, hw, meter];
+    let plug = slint::Timer::default();
+    if live {
+        start_plug_watch();
+        let w = ui.as_weak();
+        plug.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(250), move || {
+            if let Some(ui) = w.upgrade() {
+                check_plug(&ui);
+            }
+        });
+    }
+    let mut v = vec![clock, hw, meter, plug];
     v.extend(crate::ctl_comm::timers(ui, st));
     v.push(crate::ctl_files::timer(ui, st));
     v
