@@ -100,9 +100,17 @@ jobs:
           key: ccache-${{ github.run_id }}
           restore-keys: ccache-
 
+      # Rust compiler cache (pmbootstrap builds the shell through sccache)
+      - name: Cache sccache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.WORK }}/cache_sccache
+          key: sccache-${{ github.run_id }}
+          restore-keys: sccache-
+
       - name: Permessi ccache
         run: |
-          for d in "$WORK"/cache_ccache_x86_64 "$WORK"/cache_ccache_armv7; do
+          for d in "$WORK"/cache_ccache_x86_64 "$WORK"/cache_ccache_armv7 "$WORK"/cache_sccache; do
             [ -d "$d" ] && sudo chown -R 12345:12345 "$d" && echo "::notice::ccache restored: $(sudo du -sh "$d" | cut -f1) in $(basename "$d")"
           done
           true
@@ -303,7 +311,7 @@ jobs:
 
       - name: ccache leggibile per il salvataggio
         if: always()
-        run: sudo chmod -R a+rX "$WORK"/cache_ccache_* 2>/dev/null; sudo du -sh "$WORK"/cache_ccache_* 2>/dev/null || true
+        run: sudo chmod -R a+rX "$WORK"/cache_ccache_* "$WORK"/cache_sccache 2>/dev/null; sudo du -sh "$WORK"/cache_* 2>/dev/null || true
 
       - name: Release GitHub
         # GitHub refuses this token the release update lately; the site takes the
