@@ -357,8 +357,15 @@ async function installOs(auto) {
     setConnected(true, "Installed");
     markStep(4);
     log("Restarting into Cheip OS…");
-    phone("busy", "Cheip OS is starting", "The phone restarts by itself. Wait a couple of minutes and look at its screen.");
-    await dev.reboot().catch(() => {});
+    phone("busy", "Cheip OS is starting", "Cheip OS starts by itself. Wait a couple of minutes and look at its screen.");
+    // "continue" boots Cheip OS straight from the bootloader. A reset instead
+    // goes back through the Nokia UEFI, which on the Lumia stops and waits for
+    // Power + Volume down.
+    try {
+      await dev.runCommand("continue");
+    } catch {
+      await dev.reboot().catch(() => {});
+    }
     setConnected(false, "Restarting");
   } catch (e) {
     busy = false;

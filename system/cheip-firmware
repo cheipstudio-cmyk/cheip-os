@@ -57,3 +57,20 @@ done
 dmesg | grep -iE "wcnss|pronto|wcn36xx|remoteproc|scm" | tail -n 15
 ip -o link | cut -d: -f2 | tr '\n' ' '
 echo
+# Where the Wi-Fi firmware wants to live in RAM (ELF program headers):
+# compared with the memory Linux reserves for it (0x0d200000, 10 MB)
+elf_u32() { od -A n -t u4 -j "$2" -N 4 "$1" | tr -d ' '; }
+elf_u16() { od -A n -t u2 -j "$2" -N 2 "$1" | tr -d ' '; }
+if [ -s "$FW/wcnss.mbn" ]; then
+	f="$FW/wcnss.mbn"
+	phoff=$(elf_u32 "$f" 28); phnum=$(elf_u16 "$f" 44)
+	out="wcnss.mbn $(stat -c %s "$f") bytes, $phnum segments:"
+	i=0
+	while [ "$i" -lt "${phnum:-0}" ] && [ "$i" -lt 12 ]; do
+		o=$((phoff + i * 32))
+		t=$(elf_u32 "$f" "$o"); pa=$(elf_u32 "$f" $((o + 12))); ms=$(elf_u32 "$f" $((o + 20))); fl=$(elf_u32 "$f" $((o + 24)))
+		[ "$t" = 1 ] && out="$out $(printf '%x+%x/%x' "$pa" "$ms" "$fl")"
+		i=$((i + 1))
+	done
+	echo "$out"
+fi
