@@ -45,7 +45,7 @@ package() {
 	install -Dm755 system/cheip-usb.initd "$pkgdir"/etc/init.d/cheip-usb
 	install -Dm755 system/cheip-gpu "$pkgdir"/usr/libexec/cheip/cheip-gpu
 	install -Dm644 system/www/index.html "$pkgdir"/usr/share/cheip/www/index.html
-	install -Dm755 system/www/cgi-bin/log "$pkgdir"/usr/share/cheip/www/cgi-bin/log
+	install -Dm755 system/cheip-report "$pkgdir"/usr/libexec/cheip/cheip-report
 	install -Dm644 system/cheip-gpu.modprobe "$pkgdir"/etc/modprobe.d/cheip-gpu.conf
 	# Adreno 305B microcode (the A305B uses the A330 one). In firmware/updates so
 	# it never clashes with a linux-firmware package in the image

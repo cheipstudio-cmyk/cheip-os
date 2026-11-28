@@ -1,0 +1,18 @@
+#!/bin/sh
+# Cheip OS: phone report for the PC (http://172.16.42.1/log.txt), rebuilt
+# every 20 seconds. Every command has a time limit.
+OUT=/run/cheip-www/log.txt
+mountpoint -q /sys/kernel/debug || mount -t debugfs none /sys/kernel/debug 2>/dev/null
+while :; do
+	{
+		echo "== $(grep -m1 '^cheip-shell' /lib/apk/db/installed 2>/dev/null) $(uname -r) $(date)"
+		for f in /var/log/cheip-*.txt; do echo; echo "== $f"; timeout 3 cat "$f"; done
+		echo; echo "== power_supply"
+		for d in /sys/class/power_supply/*; do echo "$(basename "$d"): $(timeout 3 cat "$d"/uevent 2>/dev/null | tr '\n' ' ')"; done
+		echo; echo "== deferred probes"; timeout 3 cat /sys/kernel/debug/devices_deferred 2>/dev/null
+		echo; echo "== lsmod"; timeout 3 lsmod
+		echo; echo "== dmesg"; timeout 5 dmesg
+	} > "$OUT.tmp" 2>&1
+	mv -f "$OUT.tmp" "$OUT"
+	sleep 20
+done

@@ -102,14 +102,18 @@ start_pre() {
 		( sleep 15; /usr/libexec/cheip/cheip-gpu ) >/dev/null 2>&1 &
 	fi
 	# Log page for the PC over the USB network: http://172.16.42.1
+	# Plain files only (no CGI): a report rebuilt every 20 s in the background,
+	# so a slow command can never leave the browser waiting
 	if [ ! -e /run/cheip-httpd-started ]; then
 		touch /run/cheip-httpd-started
-		( for i in $(seq 1 60); do
+		mkdir -p /run/cheip-www
+		cp /usr/share/cheip/www/index.html /run/cheip-www/
+		( /usr/libexec/cheip/cheip-report >/dev/null 2>&1 & 
+		for i in $(seq 1 60); do
 			ip -4 addr show 2>/dev/null | grep -q "172.16.42.1/" && break
 			sleep 2
 		done
-		mountpoint -q /sys/kernel/debug || mount -t debugfs none /sys/kernel/debug 2>/dev/null
-		httpd -p 172.16.42.1:80 -h /usr/share/cheip/www ) >/dev/null 2>&1 &
+		httpd -p 172.16.42.1:80 -h /run/cheip-www ) >/dev/null 2>&1 &
 	fi
 	uid=$(id -u "$cheip_user")
 	mkdir -p "/run/user/$uid"
