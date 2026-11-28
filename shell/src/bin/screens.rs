@@ -483,8 +483,13 @@ fn main() {
     ctx.advance(600);
     {
         let sys = ui.global::<cheip_shell::Sys>();
-        let lines: Vec<slint::SharedString> = ["usb udc[ci_hdrc.0=configured] gadget[g1:ci_hdrc.0] vbus 1", "sound [no ALSA]", "cpu 0 787/787 MHz performance", "load 0.80 0.60 0.40 | shell 30%", "linuxkms-software", "power [bif:Charging,dcin:on0,usbin:on1] vbat 3812mV", "net [lo,usb0,wlan0]", "wifi: copied /mnt/wp/Windows/System32/.../wcnss.mbn"].iter().map(|l| (*l).into()).collect();
-        sys.set_log_lines(slint::ModelRc::new(slint::VecModel::from(lines)));
+        let secs: Vec<cheip_shell::LogSection> = [
+            ("Battery & charging", "64% plugged in\npower [bif:Charging,dcin:on0,usbin:on1] vbat 3912mV\nsmbb-bif: max 1000000 status Charging health Good"),
+            ("Performance", "cpu 0-3 787/787 MHz performance\nload 0.42 0.30 0.21\nlongest UI stall 34 ms"),
+            ("Wi-Fi", "net [lo,usb0,wlan0]\ncopied wcnss.mbn"),
+            ("USB", "usb udc[ci_hdrc.0=configured]"),
+        ].iter().map(|(t, b)| cheip_shell::LogSection { title: (*t).into(), body: (*b).into() }).collect();
+        sys.set_log_sections(slint::ModelRc::new(slint::VecModel::from(secs)));
     }
     open("log");
     ctx.advance(700);

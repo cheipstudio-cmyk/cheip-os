@@ -56,15 +56,19 @@ pub fn battery() -> Option<(i32, bool)> {
 pub fn vbat_mv() -> Option<i32> {
     for d in fs::read_dir("/sys/bus/iio/devices").ok()?.flatten() {
         let vadc = read_trim(d.path().join("name")).map(|n| n.contains("vadc") || n.contains("adc@3100")).unwrap_or(false);
-        // Channels with a label file (spmi-vadc): in_voltage7_label = "vph_pwr"
-        for f in fs::read_dir(d.path()).ok()?.flatten() {
-            let n = f.file_name().to_string_lossy().to_string();
-            if let Some(ch) = n.strip_suffix("_label") {
-                let label = read_trim(f.path()).unwrap_or_default();
-                if label.contains("vph") || label.contains("vbat") {
-                    if let Some(raw) = read_trim(d.path().join(format!("{ch}_input"))).and_then(|v| v.parse::<i64>().ok()) {
-                        let mv = if raw > 100_000 { raw / 1000 } else { raw };
-                        if (2500..5000).contains(&mv) { return Some(mv as i32); }
+        // Channels with a label file (spmi-vadc). The battery's own sense line
+        // (vbat_sns, added by Cheip OS to the device tree) first: vph_pwr is the
+        // system rail and on the charger it shows the charger, not the battery.
+        for want in ["vbat", "vph"] {
+            for f in fs::read_dir(d.path()).ok()?.flatten() {
+                let n = f.file_name().to_string_lossy().to_string();
+                if let Some(ch) = n.strip_suffix("_label") {
+                    let label = read_trim(f.path()).unwrap_or_default();
+                    if label.contains(want) {
+                        if let Some(raw) = read_trim(d.path().join(format!("{ch}_input"))).and_then(|v| v.parse::<i64>().ok()) {
+                            let mv = if raw > 100_000 { raw / 1000 } else { raw };
+                            if (2500..5000).contains(&mv) { return Some(mv as i32); }
+                        }
                     }
                 }
             }

@@ -1,5 +1,5 @@
 import { Theme } from "theme.slint";
-import { Setup, Calc, Style, Clock, Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow, CatRow, AlarmRow, CityRow, LapRow, SRow, Swatch } from "data.slint";
+import { Setup, Calc, Style, Clock, Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, LogSection, FileRow, WifiRow, CatRow, AlarmRow, CityRow, LapRow, SRow, Swatch } from "data.slint";
 import { LockScreen, HomeScreen, ControlsPanel, SwitcherScreen } from "screens.slint";
 import { CalendarApp, NotesApp, CameraApp } from "apps.slint";
 import { PhoneApp, CallOverlay } from "phone.slint";
@@ -19,26 +19,29 @@ export { Setup, Calc, Kbd, Theme, Icons, Style, Clock, Sys, Shell, Cal, Notes, C
 // System log: what the phone is doing (cores, clock, charger, USB, network, input)
 component LogApp inherits Rectangle {
     background: Theme.surface;
-    // Read directly while the app is open, independent of the background reader
-    Timer { interval: 3s; running: true; triggered => { Sys.refresh-log(); } }
+    // Read only while the app is open; sections keep their place
+    Timer { interval: 4s; running: true; triggered => { Sys.refresh-log(); } }
     init => { Sys.refresh-log(); }
     StatusBar { y: 0; width: parent.width; }
-    Text { x: 24px; y: 44px; text: "Log"; color: Theme.on-surface; font-family: Theme.display; font-size: 34px; font-weight: 500; }
-    Text { x: 24px; y: 90px; width: parent.width - 48px; text: "Refreshed every 3 seconds"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 13px; }
+    Text { x: 24px; y: 40px; text: "Log"; color: Theme.on-surface; font-family: Theme.display; font-size: 30px; font-weight: 500; }
+    Text { x: 24px; y: 80px; width: parent.width - 48px; text: "What the phone is doing, updated every few seconds"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 13px; }
     Flickable {
-        x: 12px; y: 120px; width: parent.width - 24px; height: parent.height - 132px;
-        viewport-height: col.preferred-height;
+        x: 16px; y: 112px; width: parent.width - 32px; height: parent.height - 120px;
+        viewport-height: col.preferred-height + 24px;
         col := VerticalLayout {
             width: parent.width;
-            spacing: 4px;
-            if Sys.log-lines.length == 0: Text { text: "Waiting for the first reading…"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; }
-            for l[i] in Sys.log-lines: Rectangle {
-                border-radius: i == 0 ? 20px : (i == Sys.log-lines.length - 1 ? 20px : 6px);
-                background: Theme.container;
-                height: t.preferred-height + 24px;
-                t := Text {
-                    x: 16px; width: parent.width - 32px;
-                    text: l; wrap: word-wrap;
+            spacing: 10px;
+            for sec in Sys.log-sections: Rectangle {
+                border-radius: 24px;
+                background: Theme.container-high;
+                height: body.preferred-height + 56px;
+                Text {
+                    x: 18px; y: 14px; text: sec.title;
+                    color: Theme.primary; font-family: Theme.body; font-size: 14px; font-weight: 700;
+                }
+                body := Text {
+                    x: 18px; y: 40px; width: parent.width - 36px;
+                    text: sec.body; wrap: word-wrap;
                     color: Theme.on-surface; font-family: Theme.body; font-size: 13px;
                 }
             }

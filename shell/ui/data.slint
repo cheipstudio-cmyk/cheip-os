@@ -12,6 +12,7 @@ export struct ContactRow { name: string, number: string, initial: string }
 export struct ThreadRow { number: string, name: string, last: string, when: string, unread: int, initial: string }
 export struct Bubble { text: string, when: string, out: bool }
 export struct WebBlock { kind: int, text: string, href: string }
+export struct LogSection { title: string, body: string }
 export struct TabRow { title: string, url: string, initial: string }
 export struct FileRow { name: string, info: string, kind: int, thumb: image, has-thumb: bool }
 export struct CatRow { id: string, label: string, glyph: string, detail: string }
@@ -76,7 +77,7 @@ export global Sys {
     // Diagnostic line on the lock screen (empty = hidden)
     in property <string> diag: "";
     // Log app: one entry per line of the diagnostics, newest kernel lines too
-    in property <[string]> log-lines;
+    in property <[LogSection]> log-sections;
     callback refresh-log();
     in property <int> mem-used: 612;
     in property <int> mem-total: 1024;

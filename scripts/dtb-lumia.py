@@ -114,6 +114,23 @@ def main():
 
     dts, _ = edit_node(dts, r"^\t\tremoteproc@fb204000 \{", pronto)
 
+    # --- 2b. Charger: the same settings as the other MSM8226 phones upstream --
+    # Without them the PMIC keeps what Windows left, including a minimum input
+    # voltage that makes it throttle the charger current to almost nothing.
+    def charger(body):
+        body = set_prop(body, "qcom,minimum-input-voltage", "<4300000>")
+        body = set_prop(body, "qcom,fast-charge-current-limit", "<1000000>")
+        return set_prop(body, "usb-charge-current-limit", "<1000000>")
+    dts, _ = edit_node(dts, r"^\t+charger@1000 \{", charger)
+
+    # --- 3. Real battery voltage (VBAT_SNS) for the battery level -----------
+    # Upstream only lists vph_pwr, the system rail: on the charger it reads the
+    # charger output instead of the battery, so the level was guesswork.
+    if "vbat_sns" not in dts:
+        def vadc(body):
+            return body[:-3] + "\n\t\t\t\t\tchannel@6 {\n\t\t\t\t\t\treg = <0x06>;\n\t\t\t\t\t\tqcom,pre-scaling = <0x01 0x03>;\n\t\t\t\t\t\tlabel = \"vbat_sns\";\n\t\t\t\t\t};\n\t\t\t\t};\n"
+        dts, _ = edit_node(dts, r"^\t+adc@3100 \{", vadc)
+
     out = subprocess.run(["dtc", "-q", "-I", "dts", "-O", "dtb", "-o", dst, "-"], input=dts, text=True, capture_output=True)
     if out.returncode:
         raise SystemExit(out.stderr)

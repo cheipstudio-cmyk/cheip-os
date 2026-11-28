@@ -419,39 +419,71 @@ thread_local! {
 }
 
 static HW_STAMP: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static VBAT_HIST: std::sync::Mutex<std::collections::VecDeque<(u64, i32)>> = std::sync::Mutex::new(std::collections::VecDeque::new());
 static UI_MAX_STALL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static UI_STALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// Everything the Log app shows, read now (cheap sysfs and log files)
-fn log_lines() -> Vec<SharedString> {
-    let now = crate::keys::mono_secs();
-    let stamp = HW_STAMP.load(std::sync::atomic::Ordering::Relaxed);
-    let mut lines: Vec<SharedString> = vec![if stamp == 0 {
-        "background reader: no reading yet".into()
-    } else {
-        format!("background reader: last reading {}s ago", now.saturating_sub(stamp)).into()
-    }];
-    let stall = UI_MAX_STALL.swap(0, std::sync::atomic::Ordering::Relaxed);
-    let stalls = UI_STALLS.swap(0, std::sync::atomic::Ordering::Relaxed);
-    lines.push(format!("ui thread: longest stall {stall} ms, {stalls} stalls over 50 ms since last refresh").into());
-    lines.push(format!("threads: {}", sys::thread_cpu()).into());
+/// The Log app: a few fixed sections, each one card, so nothing jumps around
+fn log_lines() -> Vec<LogSection> {
+    let mut perf: Vec<String> = Vec::new();
+    let mut battery: Vec<String> = Vec::new();
+    let mut usb: Vec<String> = Vec::new();
+    let mut wifi: Vec<String> = Vec::new();
+    let mut other: Vec<String> = Vec::new();
     let diag = std::panic::catch_unwind(|| sys::diag_line(None)).unwrap_or_else(|_| "diagnostics failed".into());
-    lines.extend(diag.split(" | ").map(|l| SharedString::from(l)));
-    match sys::battery() {
-        Some((b, ch)) => lines.push(format!("battery: {} {}", if b >= 0 { format!("{b}%") } else { "level unknown".into() }, if ch { "charging" } else { "not charging" }).into()),
-        None => lines.push("battery: no reading".into()),
-    }
-    for (name, path, n) in [("charger", "/var/log/cheip-charger.txt", 4), ("usb", "/var/log/cheip-usb.txt", 25), ("wifi", "/var/log/cheip-firmware.txt", 30), ("kernel", "/var/log/cheip-smp.txt", 3), ("storage grow", "/var/log/cheip-grow.txt", 3), ("shell", "/var/log/cheip-shell.log", 3)] {
-        if let Ok(f) = std::fs::read_to_string(path) {
-            let v: Vec<&str> = f.lines().filter(|l| !l.trim().is_empty()).collect();
-            for l in v.iter().skip(v.len().saturating_sub(n)) {
-                lines.push(format!("{name}: {l}").into());
-            }
-        } else {
-            lines.push(format!("{name}: no log file").into());
+    for item in diag.split(" | ") {
+        let item = item.trim().to_string();
+        if item.starts_with("cpu") || item.starts_with("load") || item.starts_with("shell") || item.starts_with("linuxkms") {
+            perf.push(item);
+        } else if item.starts_with("power") {
+            battery.push(item);
+        } else if item.starts_with("usb") {
+            usb.push(item);
+        } else if item.starts_with("net") || item.starts_with("rproc") {
+            wifi.push(item);
+        } else if !item.is_empty() {
+            other.push(item);
         }
     }
-    lines
+    let stall = UI_MAX_STALL.swap(0, std::sync::atomic::Ordering::Relaxed);
+    perf.push(format!("longest UI stall {stall} ms"));
+    perf.push(format!("threads {}", sys::thread_cpu()));
+    match sys::battery() {
+        Some((b, ch)) => battery.insert(0, format!("{} {}", if b >= 0 { format!("{b}%") } else { "level unknown".into() }, if ch { "plugged in" } else { "on battery" })),
+        None => battery.insert(0, "no reading".into()),
+    }
+    let tail = |path: &str, n: usize, out: &mut Vec<String>| {
+        if let Ok(f) = std::fs::read_to_string(path) {
+            let v: Vec<&str> = f.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
+            out.extend(v.iter().skip(v.len().saturating_sub(n)).map(|l| l.to_string()));
+        }
+    };
+    {
+        // Is it really charging? The battery voltage over the last minutes says it
+        let h = VBAT_HIST.lock().unwrap_or_else(|e| e.into_inner());
+        if let (Some(a), Some(b)) = (h.iter().rev().nth(5.min(h.len().saturating_sub(1))), h.back()) {
+            let mins = (b.0.saturating_sub(a.0) as f32 / 60.0).max(0.0);
+            let d = b.1 - a.1;
+            battery.push(format!(
+                "battery voltage {} mV, {}{} mV in {:.0} min: {}",
+                b.1, if d >= 0 { "+" } else { "" }, d, mins,
+                if mins < 1.0 { "measuring" } else if d >= 4 { "charging" } else if d <= -4 { "draining" } else { "steady" }
+            ));
+        } else {
+            battery.push("battery voltage: first reading in a minute".into());
+        }
+    }
+    tail("/var/log/cheip-charger.txt", 4, &mut battery);
+    tail("/var/log/cheip-usb.txt", 12, &mut usb);
+    tail("/var/log/cheip-firmware.txt", 14, &mut wifi);
+    let mut kernel = Vec::new();
+    tail("/var/log/cheip-smp.txt", 4, &mut kernel);
+    tail("/var/log/cheip-grow.txt", 2, &mut other);
+    [("Battery & charging", battery), ("Performance", perf), ("Wi-Fi", wifi), ("USB", usb), ("Kernel", kernel), ("Other", other)]
+        .into_iter()
+        .map(|(t, v)| LogSection { title: t.into(), body: (if v.is_empty() { "nothing yet".to_string() } else { v.join("\n") }).into() })
+        .collect()
 }
 
 /// First weekday of the month (0 = Monday) and number of days
@@ -462,18 +494,18 @@ fn month_shape(y: i32, m: u32) -> (i32, i32) {
 }
 
 thread_local! {
-    static LOG_MODEL: std::cell::RefCell<Option<std::rc::Rc<VecModel<SharedString>>>> = const { std::cell::RefCell::new(None) };
+    static LOG_MODEL: std::cell::RefCell<Option<std::rc::Rc<VecModel<LogSection>>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Updates the Log app in place: only the lines that changed are redrawn,
 /// instead of rebuilding (and re-laying out) the whole list every few seconds
-fn set_log(ui: &AppWindow, lines: Vec<SharedString>) {
+fn set_log(ui: &AppWindow, lines: Vec<LogSection>) {
     use slint::Model;
     LOG_MODEL.with(|m| {
         let mut m = m.borrow_mut();
         let vm = m.get_or_insert_with(|| {
-            let vm = std::rc::Rc::new(VecModel::<SharedString>::default());
-            ui.global::<Sys>().set_log_lines(ModelRc::from(vm.clone()));
+            let vm = std::rc::Rc::new(VecModel::<LogSection>::default());
+            ui.global::<Sys>().set_log_sections(ModelRc::from(vm.clone()));
             vm
         });
         for (i, l) in lines.iter().enumerate() {
@@ -701,6 +733,14 @@ pub fn start_hw_thread() {
                 std::thread::sleep(std::time::Duration::from_secs(5));
                 continue;
             };
+            // Battery voltage history: one sample a minute, for the charging trend in the Log
+            if n % 12 == 0 {
+                if let Some(mv) = sys::vbat_mv() {
+                    let mut h = VBAT_HIST.lock().unwrap_or_else(|e| e.into_inner());
+                    h.push_back((crate::keys::mono_secs(), mv));
+                    while h.len() > 30 { h.pop_front(); }
+                }
+            }
             // Weather every 30 minutes (every 360 rounds of 5 s), or right after a city change
             let city = WEATHER_CITY.lock().map(|c| c.clone()).unwrap_or_default();
             let force = n % 360 == 0 || hw.weather.is_none() && n % 12 == 0;
@@ -811,7 +851,6 @@ fn push_hw(ui: &AppWindow) {
             lines.push(format!("storage grow: {l}").into());
         }
     }
-    set_log(ui, lines);
     s.set_mem_used(hw.mem.0);
     s.set_mem_total(hw.mem.1);
     s.set_mem_android(hw.mem_android);

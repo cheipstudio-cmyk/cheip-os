@@ -57,7 +57,9 @@ start_pre() {
 	# late, so try again in the background for a minute
 	( for i in 1 2 3 4 5 6; do
 		for f in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
-			[ -w "$f" ] && echo performance > "$f"
+			# schedutil: full speed while drawing or loading, low clock when idle,
+			# so the charger is not eaten by four cores pinned at maximum
+			[ -w "$f" ] && { echo schedutil > "$f" 2>/dev/null || echo ondemand > "$f"; }
 		done
 		# 787 MHz: the highest speed with a known-safe voltage on this chip
 		max=787200; rm -f /etc/cheip/boost 2>/dev/null
