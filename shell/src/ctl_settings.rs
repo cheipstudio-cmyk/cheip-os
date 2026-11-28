@@ -270,8 +270,64 @@ pub fn push_page(ui: &AppWindow, st: &State, page: &str) {
     show(ui, st);
 }
 
+/// Pages made of generated rows: their rows are searched one by one
+const GEN_PAGES: [&str; 13] = ["network", "devices", "apps", "notifications", "display", "security", "location", "system", "gestures", "datetime", "reset", "developer", "about"];
+/// Hand-made pages: searched by title and these words
+const CUSTOM_INDEX: [(&str, &str, &str); 10] = [
+    ("wifi", "Wi-Fi", "internet wireless network password connect"),
+    ("sound", "Sound & vibration", "volume ringtone ringer vibrate vibration silent mute sounds"),
+    ("battery", "Battery", "charge charging level power percentage saver"),
+    ("storage", "Storage", "disk space files memory free"),
+    ("android", "Android apps", "waydroid android apk"),
+    ("update", "System update", "ota version update upgrade"),
+    ("style", "Wallpaper & style", "theme dark light colors colour icons wallpaper grid background"),
+    ("display", "Display & touch", "brightness screen timeout navigation buttons sleep"),
+    ("datetime", "Date & time", "clock time zone date hour"),
+    ("keyboard", "Keyboard", "typing vibration popup keys input"),
+];
+
+fn search(ui: &AppWindow, st: &State, q: &str) -> Vec<SRow> {
+    let q = q.trim().to_lowercase();
+    if q.is_empty() {
+        return vec![];
+    }
+    let i = ui.global::<Icons>();
+    let has = |s: &str| s.to_lowercase().contains(&q);
+    let mut out: Vec<SRow> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for (page, title, words) in CUSTOM_INDEX {
+        if has(title) || words.split(' ').any(|w| w.starts_with(&q) || has(w)) {
+            if seen.insert(title.to_string()) {
+                out.push(nav(&format!("nav:{page}"), title, "Settings", i.get_search()));
+            }
+        }
+    }
+    for page in GEN_PAGES {
+        let (ptitle, rows) = build(ui, st, page);
+        if has(&ptitle) && seen.insert(ptitle.clone()) {
+            out.push(nav(&format!("nav:{page}"), &ptitle, "Settings", i.get_search()));
+        }
+        for r in rows.iter().filter(|r| r.kind != 0 && !r.title.is_empty()) {
+            if (has(&r.title) || has(&r.subtitle)) && seen.insert(format!("{page}/{}", r.title)) {
+                // A sub page link opens that page, anything else opens the page holding it
+                let key = if r.key.starts_with("nav:") { r.key.to_string() } else { format!("nav:{page}") };
+                out.push(nav(&key, &r.title, &ptitle, i.get_search()));
+            }
+        }
+        if out.len() >= 30 {
+            break;
+        }
+    }
+    out.truncate(30);
+    out
+}
+
 pub fn wire(ui: &AppWindow, st: &Shared) {
     let s = ui.global::<Settings>();
+    s.on_search(with!(ui, st, |ui, s, q| {
+        let hits = search(&ui, &s, &q);
+        ui.global::<Settings>().set_hits(model(hits));
+    }));
     s.set_timezone(if st.borrow().live { sys::timezone() } else { "Europe/Rome".into() }.into());
 
     s.on_open_page(with!(ui, st, |ui, s, page| {

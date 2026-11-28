@@ -273,6 +273,14 @@ fn main() {
         open("settings");
         ctx.advance(800);
         ctx.shot("m3-settings");
+        // Settings search: results from every page
+        set.set_query("bright".into());
+        set.invoke_search("bright".into());
+        ctx.advance(500);
+        ctx.shot("m3-settings-search");
+        set.set_query("".into());
+        set.invoke_search("".into());
+        ctx.advance(300);
         set.invoke_open_page("style".into());
         ctx.advance(700);
         ctx.shot("m3-style");

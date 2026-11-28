@@ -328,6 +328,9 @@ export global Settings {
     in property <[SRow]> rows;
     in property <string> title: "Settings";
     in property <int> depth: 0;
+    in-out property <string> query: "";
+    in property <[SRow]> hits;
+    callback search(string);
     callback open-page(string);
     callback back();
     callback row-clicked(string);

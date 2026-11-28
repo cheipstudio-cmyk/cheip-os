@@ -162,33 +162,61 @@ export component SettingsApp inherits Rectangle {
             list := VerticalLayout {
                 padding-left: 12px; padding-right: 12px; alignment: start; spacing: 2px;
                 Text { height: 96px; text: "Settings"; color: Theme.on-surface; font-family: Theme.display; font-weight: 500; font-size: 40px; vertical-alignment: center; horizontal-alignment: center; }
+                // Search: every setting, also inside the sub pages (results from Rust)
                 Rectangle {
                     height: 56px; border-radius: 28px; background: Theme.container-high;
                     Icon { x: 18px; d: Icons.search; size: 24px; tint: Theme.on-surface-variant; }
-                    Text { x: 56px; height: parent.height; text: "Search settings"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 16px; vertical-alignment: center; }
+                    sf := Field {
+                        x: 44px; width: parent.width - 44px - (Settings.query != "" ? 48px : 8px); height: parent.height;
+                        background: transparent; border-width: 0px;
+                        placeholder: "Search settings";
+                        text <=> Settings.query;
+                        changed text => { Settings.search(self.text); }
+                    }
+                    if Settings.query != "": Rectangle {
+                        x: parent.width - 52px; width: 44px; height: 44px; border-radius: 22px;
+                        background: cta.pressed ? Theme.state-pressed : transparent;
+                        Icon { d: Icons.close; size: 22px; tint: Theme.on-surface-variant; }
+                        cta := TouchArea { clicked => { Settings.query = ""; Settings.search(""); } }
+                    }
                 }
-                Rectangle { height: 14px; }
-                MainRow { first: true; icon: Icons.wifi-f; hue: 0; label: "Network & internet"; detail: !Sys.has-wifi ? "No Wi-Fi hardware found" : (Sys.wifi-on ? "Wi-Fi, mobile data" : "Wi-Fi off"); clicked => { Settings.open-page("network"); } }
-                MainRow { last: true; icon: Icons.devices; hue: 0; label: "Connected devices"; detail: "Bluetooth"; clicked => { Settings.open-page("devices"); } }
-                Rectangle { height: 14px; }
-                MainRow { first: true; icon: Icons.apps; hue: 1; label: "Apps"; detail: "Recent apps, default apps"; clicked => { Settings.open-page("apps"); } }
-                MainRow { icon: Icons.bell-f; hue: 1; label: "Notifications"; detail: "Do Not Disturb"; clicked => { Settings.open-page("notifications"); } }
-                MainRow { icon: Icons.battery-f; hue: 1; label: "Battery"; detail: !Sys.has-battery ? "Level not available" : Sys.battery + "%" + (Sys.charging ? " · Charging" : ""); clicked => { Settings.open-page("battery"); } }
-                MainRow { last: true; icon: Icons.storage; hue: 1; label: "Storage"; detail: Settings.storage-used + " used of " + Settings.storage-total; clicked => { Settings.open-page("storage"); } }
-                Rectangle { height: 14px; }
-                MainRow { first: true; icon: Sys.ringer == 0 ? Icons.speaker-f : (Sys.ringer == 1 ? Icons.vibrate-f : Icons.bell-off-f); hue: 2; label: "Sound & vibration"; detail: (Sys.ringer == 0 ? "Ring" : (Sys.ringer == 1 ? "Vibrate" : "Silent")) + " · Volume " + round(Sys.volume * 100) + "%"; clicked => { Settings.open-page("sound"); } }
-                MainRow { icon: Icons.brightness; hue: 2; label: "Display & touch"; detail: "Brightness, navigation, screen timeout"; clicked => { Settings.open-page("display"); } }
-                MainRow { icon: Icons.palette-f; hue: 2; label: "Wallpaper & style"; detail: "Colors, themed icons, app grid"; clicked => { Settings.open-page("style"); } }
-                MainRow { last: true; icon: Icons.a11y; hue: 2; label: "Accessibility"; detail: "Remove animations"; clicked => { Settings.open-page("a11y"); } }
-                Rectangle { height: 14px; }
-                MainRow { first: true; icon: Icons.android-f; hue: 1; label: "Android apps"; detail: Sys.android-running ? "Running" : "Suspended"; clicked => { Settings.open-page("android"); } }
-                MainRow { icon: Icons.phone-device; hue: 1; label: "System"; detail: "Languages, time, reset"; clicked => { Settings.open-page("system"); } }
-                MainRow { icon: Icons.update-f; hue: 1; label: "System update"; detail: Sys.update-available ? "Update available: " + Sys.update-version : "Cheip OS " + Sys.version; clicked => { Settings.open-page("update"); } }
-                MainRow { last: true; icon: Icons.info-f; hue: 1; label: "About phone"; detail: Sys.model; clicked => { Settings.open-page("about"); } }
-                if Sys.demo: Header { text: "   Try it (demo only)"; }
-                if Sys.demo: MainRow { first: true; icon: Icons.phone-f; hue: 2; label: "Simulate incoming call"; detail: "Rings in 2 seconds"; clicked => { Shell.demo-call(); } }
-                if Sys.demo: MainRow { icon: Icons.message-f; hue: 2; label: "Simulate new message"; detail: "Arrives in 2 seconds"; clicked => { Shell.demo-message(); } }
-                if Sys.demo: MainRow { last: true; icon: Icons.speaker-f; hue: 2; label: "Show volume panel"; detail: "Like pressing a volume key"; clicked => { Shell.volume-step(1); } }
+                if Settings.query != "": VerticalLayout {
+                    spacing: 2px; padding-top: 14px;
+                    for r[i] in Settings.hits: GenRow {
+                        item: r; first: i == 0; last: i == Settings.hits.length - 1;
+                        picked => { Settings.row-clicked(r.key); }
+                    }
+                    if Settings.hits.length == 0: Text {
+                        height: 120px; text: "No settings match \"" + Settings.query + "\"";
+                        color: Theme.on-surface-variant; font-family: Theme.body; font-size: 16px;
+                        horizontal-alignment: center; vertical-alignment: center;
+                    }
+                }
+                if Settings.query == "": VerticalLayout {
+                    spacing: 2px;
+                    Rectangle { height: 14px; }
+                    MainRow { first: true; icon: Icons.wifi-f; hue: 0; label: "Network & internet"; detail: !Sys.has-wifi ? "No Wi-Fi hardware found" : (Sys.wifi-on ? "Wi-Fi, mobile data" : "Wi-Fi off"); clicked => { Settings.open-page("network"); } }
+                    MainRow { last: true; icon: Icons.devices; hue: 0; label: "Connected devices"; detail: "Bluetooth"; clicked => { Settings.open-page("devices"); } }
+                    Rectangle { height: 14px; }
+                    MainRow { first: true; icon: Icons.apps; hue: 1; label: "Apps"; detail: "Recent apps, default apps"; clicked => { Settings.open-page("apps"); } }
+                    MainRow { icon: Icons.bell-f; hue: 1; label: "Notifications"; detail: "Do Not Disturb"; clicked => { Settings.open-page("notifications"); } }
+                    MainRow { icon: Icons.battery-f; hue: 1; label: "Battery"; detail: !Sys.has-battery ? "Level not available" : Sys.battery + "%" + (Sys.charging ? " · Charging" : ""); clicked => { Settings.open-page("battery"); } }
+                    MainRow { last: true; icon: Icons.storage; hue: 1; label: "Storage"; detail: Settings.storage-used + " used of " + Settings.storage-total; clicked => { Settings.open-page("storage"); } }
+                    Rectangle { height: 14px; }
+                    MainRow { first: true; icon: Sys.ringer == 0 ? Icons.speaker-f : (Sys.ringer == 1 ? Icons.vibrate-f : Icons.bell-off-f); hue: 2; label: "Sound & vibration"; detail: (Sys.ringer == 0 ? "Ring" : (Sys.ringer == 1 ? "Vibrate" : "Silent")) + " · Volume " + round(Sys.volume * 100) + "%"; clicked => { Settings.open-page("sound"); } }
+                    MainRow { icon: Icons.brightness; hue: 2; label: "Display & touch"; detail: "Brightness, navigation, screen timeout"; clicked => { Settings.open-page("display"); } }
+                    MainRow { icon: Icons.palette-f; hue: 2; label: "Wallpaper & style"; detail: "Colors, themed icons, app grid"; clicked => { Settings.open-page("style"); } }
+                    MainRow { last: true; icon: Icons.a11y; hue: 2; label: "Accessibility"; detail: "Remove animations"; clicked => { Settings.open-page("a11y"); } }
+                    Rectangle { height: 14px; }
+                    MainRow { first: true; icon: Icons.android-f; hue: 1; label: "Android apps"; detail: Sys.android-running ? "Running" : "Suspended"; clicked => { Settings.open-page("android"); } }
+                    MainRow { icon: Icons.phone-device; hue: 1; label: "System"; detail: "Languages, time, reset"; clicked => { Settings.open-page("system"); } }
+                    MainRow { icon: Icons.update-f; hue: 1; label: "System update"; detail: Sys.update-available ? "Update available: " + Sys.update-version : "Cheip OS " + Sys.version; clicked => { Settings.open-page("update"); } }
+                    MainRow { last: true; icon: Icons.info-f; hue: 1; label: "About phone"; detail: Sys.model; clicked => { Settings.open-page("about"); } }
+                }
+                if Sys.demo && Settings.query == "": Header { text: "   Try it (demo only)"; }
+                if Sys.demo && Settings.query == "": MainRow { first: true; icon: Icons.phone-f; hue: 2; label: "Simulate incoming call"; detail: "Rings in 2 seconds"; clicked => { Shell.demo-call(); } }
+                if Sys.demo && Settings.query == "": MainRow { icon: Icons.message-f; hue: 2; label: "Simulate new message"; detail: "Arrives in 2 seconds"; clicked => { Shell.demo-message(); } }
+                if Sys.demo && Settings.query == "": MainRow { last: true; icon: Icons.speaker-f; hue: 2; label: "Show volume panel"; detail: "Like pressing a volume key"; clicked => { Shell.volume-step(1); } }
             }
         }
     }
