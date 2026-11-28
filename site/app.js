@@ -239,7 +239,7 @@ function phone(kind, title, hint) {
 function setConnected(ok, label) {
   $("#usb-dot").classList.toggle("on", ok);
   $("#usb-state").textContent = label;
-  for (const id of ["#usb-boot", "#usb-info", "#usb-reboot", "#usb-log", "#usb-klog"]) $(id).disabled = !ok || busy;
+  for (const id of ["#usb-boot", "#usb-info", "#usb-reboot", "#usb-log", "#usb-klog", "#usb-windows"]) $(id).disabled = !ok || busy;
   $("#usb-install").disabled = busy;
 }
 
@@ -392,6 +392,55 @@ $("#usb-klog").addEventListener("click", async () => {
   } catch (e) {
     log("Linux log failed: " + (e.message || e));
   }
+});
+
+// Windows partitions on the internal memory, read raw with lk2nd's "fetch:".
+// Panel, audio and battery data live there (UEFI ACPI tables, PLAT, DPP).
+// Read only: nothing on the phone is changed.
+async function fetchPartition(d, name) {
+  const enc = new TextEncoder();
+  await d.device.transferOut(d.epOut, enc.encode("fetch:" + name));
+  let head = "";
+  for (;;) {
+    const r = await d.device.transferIn(d.epIn, 64);
+    head = new TextDecoder().decode(r.data);
+    if (head.startsWith("INFO")) continue;
+    break;
+  }
+  if (head.startsWith("FAIL")) return null;
+  if (!head.startsWith("DATA")) throw new Error("unexpected reply " + head);
+  const size = parseInt(head.slice(4, 12), 16);
+  const out = new Uint8Array(size);
+  let got = 0;
+  while (got < size) {
+    const r = await d.device.transferIn(d.epIn, Math.min(1 << 20, size - got));
+    out.set(new Uint8Array(r.data.buffer, r.data.byteOffset, r.data.byteLength), got);
+    got += r.data.byteLength;
+    progress(got / size);
+  }
+  await d.device.transferIn(d.epIn, 64); // OKAY
+  return out;
+}
+$("#usb-windows").addEventListener("click", async () => {
+  if (!dev || busy) return;
+  busy = true;
+  setConnected(true, "Reading Windows data");
+  let n = 0;
+  for (const name of ["UEFI", "PLAT", "DPP", "EFIESP", "UEFI_BS_NV", "UEFI_NV"]) {
+    try {
+      log(`Reading ${name}…`);
+      const data = await fetchPartition(dev, name);
+      if (!data) { log(`${name}: not on this phone`); continue; }
+      saveCopy(`lumia-${name}.bin`, data);
+      log(`${name}: ${human(data.length)} saved`);
+      n++;
+    } catch (e) {
+      log(`${name} failed: ${e.message || e}`);
+      break;
+    }
+  }
+  busy = false;
+  setConnected(true, n ? `${n} Windows partitions saved` : "No Windows partition read");
 });
 
 $("#usb-boot").addEventListener("click", () => $("#boot-file").click());
