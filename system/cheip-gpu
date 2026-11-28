@@ -9,6 +9,23 @@ LOG=/var/log/cheip-gpu.txt
 DIR=/var/lib/cheip
 MARK=$DIR/gpu-trying
 mkdir -p "$DIR"
+# Which panel this phone has: the UEFI left the DSI controller running, its
+# lane setup and video timings identify the panel among the Nokia UEFI's list
+dsi_dump() {
+	echo "DSI registers (0xfd922800):"
+	dd if=/dev/mem bs=4 skip=$((0xfd922800 / 4)) count=24 2>/dev/null | od -A x -t x4 | head -n 6
+}
+# Reading registers of a block whose clock is off can freeze the phone: the
+# marker makes the next boot skip it if that happens
+mkdir -p "$DIR"
+if [ -e "$DIR/dsi-trying" ]; then
+	echo "DSI read skipped: the last one never finished" > /var/log/cheip-dsi.txt
+else
+	touch "$DIR/dsi-trying"; sync
+	dsi_dump > /var/log/cheip-dsi.txt 2>&1
+	rm -f "$DIR/dsi-trying"; sync
+fi
+chmod 644 /var/log/cheip-dsi.txt
 if [ -e "$MARK" ]; then
 	echo "skipped: the last attempt to start the GPU never finished" > "$LOG"
 	echo "to retry: rm $MARK and reboot" >> "$LOG"

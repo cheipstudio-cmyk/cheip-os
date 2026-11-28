@@ -117,7 +117,15 @@ def main():
     # --- 2b. Charger: the same settings as the other MSM8226 phones upstream --
     # Without them the PMIC keeps what Windows left, including a minimum input
     # voltage that makes it throttle the charger current to almost nothing.
+    # Values from Nokia's own charging profile for the BV-T5A (EFIESP
+    # battery.json / BATTERY.PROVISION): VBAT max 4350 mV, IBAT max 1100 mA,
+    # 1050 mA between 10 and 45 C, input collapse limit 4300 mV. The stop
+    # voltage is kept at 4300 mV (about 98%) in case the battery is not original.
     def charger(body):
+        body = set_prop(body, "qcom,fast-charge-safe-voltage", "<4350000>")
+        body = set_prop(body, "qcom,fast-charge-high-threshold-voltage", "<4300000>")
+        body = set_prop(body, "qcom,fast-charge-safe-current", "<1050000>")
+        body = set_prop(body, "qcom,auto-recharge-threshold-voltage", "<4200000>")
         body = set_prop(body, "qcom,minimum-input-voltage", "<4300000>")
         body = set_prop(body, "qcom,fast-charge-current-limit", "<1000000>")
         return set_prop(body, "usb-charge-current-limit", "<1000000>")

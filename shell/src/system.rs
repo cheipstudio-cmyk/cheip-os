@@ -29,26 +29,68 @@ pub fn battery() -> Option<(i32, bool)> {
         }
     }
     // No fuel gauge (Lumia: pm8226 has no BMS driver): estimate from the
-    // battery voltage read by the PMIC ADC, charging state from the charger
-    let charging = class_dirs("power_supply").iter().any(|d| {
+    // battery voltage read by the PMIC ADC, with Nokia's own table
+    let plugged = class_dirs("power_supply").iter().any(|d| {
         read_trim(d.join("status")).as_deref() == Some("Charging")
             || (read_trim(d.join("online")).as_deref() == Some("1") && read_trim(d.join("type")).as_deref() != Some("Battery"))
     });
+    // Really charging (current going into the battery), not only plugged in
+    let charging = class_dirs("power_supply").iter().any(|d| read_trim(d.join("status")).as_deref() == Some("Charging"));
     // No voltage reading: the charging state is still real (level -1 = unknown)
     let Some(mv) = vbat_mv() else {
         let has_charger = class_dirs("power_supply").iter().any(|d| d.join("status").exists() || d.join("online").exists());
-        return has_charger.then_some((-1, charging));
+        return has_charger.then_some((-1, plugged));
     };
-    // Li-ion curve, resting voltage; while charging the voltage reads higher
-    let v = if charging { mv - 120 } else { mv };
-    let pts = [(3300, 0), (3600, 5), (3700, 15), (3750, 30), (3800, 45), (3850, 55), (3900, 65), (4000, 80), (4100, 92), (4200, 100)];
-    let mut pct = 100;
-    for w in pts.windows(2) {
-        let ((v0, p0), (v1, p1)) = (w[0], w[1]);
-        if v < v0 { pct = if v0 == 3300 { 0 } else { p0 }; break; }
-        if v <= v1 { pct = p0 + (p1 - p0) * (v - v0) / (v1 - v0); break; }
+    // While current flows into the battery its terminals read higher than the
+    // resting voltage: about 1 A through ~0.1 ohm (Nokia RBAT at 23 C)
+    let ocv = if charging { mv - 90 } else { mv };
+    let target = soc_from_ocv(ocv);
+    Some((smooth_soc(target, charging, plugged), plugged))
+}
+
+/// Nokia BV-T5A profile (BATTERY.PROVISION on the Lumia 735, OCV vs SOC at
+/// 23 C): resting voltage in mV for each charge level
+pub fn soc_from_ocv(mv: i32) -> i32 {
+    const T: [(i32, i32); 30] = [
+        (3100, 0), (3408, 1), (3519, 2), (3589, 3), (3644, 4), (3675, 5), (3682, 6), (3685, 7), (3686, 8), (3687, 9),
+        (3688, 10), (3715, 15), (3745, 20), (3763, 25), (3773, 30), (3782, 35), (3794, 40), (3810, 45), (3831, 50), (3872, 55),
+        (3917, 60), (3953, 65), (3977, 70), (4040, 75), (4083, 80), (4137, 85), (4191, 90), (4249, 95), (4317, 100), (9999, 100),
+    ];
+    if mv <= T[0].0 {
+        return 0;
     }
-    Some((pct, charging))
+    for w in T.windows(2) {
+        let ((v0, p0), (v1, p1)) = (w[0], w[1]);
+        if mv <= v1 {
+            return (p0 + (p1 - p0) * (mv - v0) / (v1 - v0).max(1)).clamp(0, 100);
+        }
+    }
+    100
+}
+
+/// The shown level never jumps: one point at a time toward the measured one,
+/// never up while discharging and never down while charging
+fn smooth_soc(target: i32, charging: bool, plugged: bool) -> i32 {
+    use std::sync::Mutex;
+    static LAST: Mutex<Option<(i32, std::time::Instant)>> = Mutex::new(None);
+    let mut g = LAST.lock().unwrap_or_else(|e| e.into_inner());
+    let now = std::time::Instant::now();
+    let Some((shown, t)) = *g else {
+        *g = Some((target, now));
+        return target;
+    };
+    if now.duration_since(t).as_secs() < 20 || target == shown {
+        return shown;
+    }
+    let next = if target > shown && (charging || plugged) {
+        shown + 1
+    } else if target < shown && !charging {
+        shown - 1
+    } else {
+        shown
+    };
+    *g = Some((next, now));
+    next
 }
 
 /// Battery voltage in mV from the PMIC ADC: vbat if present, else VPH_PWR
@@ -492,6 +534,16 @@ pub fn timezone() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nokia_soc_table() {
+        assert_eq!(soc_from_ocv(3000), 0);
+        assert_eq!(soc_from_ocv(3831), 50);
+        assert_eq!(soc_from_ocv(4191), 90);
+        assert_eq!(soc_from_ocv(4317), 100);
+        assert_eq!(soc_from_ocv(4400), 100);
+        assert!((soc_from_ocv(4000) - 72).abs() <= 1);
+    }
 
     #[test]
     fn wifi_parse() {

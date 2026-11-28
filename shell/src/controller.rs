@@ -474,12 +474,13 @@ fn log_lines() -> Vec<LogSection> {
             battery.push("battery voltage: first reading in a minute".into());
         }
     }
-    tail("/var/log/cheip-charger.txt", 4, &mut battery);
+    tail("/var/log/cheip-charger.txt", 8, &mut battery);
     tail("/var/log/cheip-usb.txt", 12, &mut usb);
     tail("/var/log/cheip-firmware.txt", 14, &mut wifi);
     let mut kernel = Vec::new();
     tail("/var/log/cheip-smp.txt", 4, &mut kernel);
     let mut gpu = Vec::new();
+    tail("/var/log/cheip-dsi.txt", 7, &mut gpu);
     tail("/var/log/cheip-gpu.txt", 40, &mut gpu);
     tail("/var/log/cheip-grow.txt", 2, &mut other);
     [("Battery & charging", battery), ("Performance", perf), ("GPU", gpu), ("Wi-Fi", wifi), ("USB", usb), ("Kernel", kernel), ("Other", other)]
