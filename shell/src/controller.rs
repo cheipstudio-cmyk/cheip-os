@@ -479,8 +479,10 @@ fn log_lines() -> Vec<LogSection> {
     tail("/var/log/cheip-firmware.txt", 14, &mut wifi);
     let mut kernel = Vec::new();
     tail("/var/log/cheip-smp.txt", 4, &mut kernel);
+    let mut gpu = Vec::new();
+    tail("/var/log/cheip-gpu.txt", 40, &mut gpu);
     tail("/var/log/cheip-grow.txt", 2, &mut other);
-    [("Battery & charging", battery), ("Performance", perf), ("Wi-Fi", wifi), ("USB", usb), ("Kernel", kernel), ("Other", other)]
+    [("Battery & charging", battery), ("Performance", perf), ("GPU", gpu), ("Wi-Fi", wifi), ("USB", usb), ("Kernel", kernel), ("Other", other)]
         .into_iter()
         .map(|(t, v)| LogSection { title: t.into(), body: (if v.is_empty() { "nothing yet".to_string() } else { v.join("\n") }).into() })
         .collect()

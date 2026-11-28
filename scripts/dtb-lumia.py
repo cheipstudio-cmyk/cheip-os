@@ -131,10 +131,15 @@ def main():
             return body[:-3] + "\n\t\t\t\t\tchannel@6 {\n\t\t\t\t\t\treg = <0x06>;\n\t\t\t\t\t\tqcom,pre-scaling = <0x01 0x03>;\n\t\t\t\t\t\tlabel = \"vbat_sns\";\n\t\t\t\t\t};\n\t\t\t\t};\n"
         dts, _ = edit_node(dts, r"^\t+adc@3100 \{", vadc)
 
+    # --- 4. GPU: Adreno 305B, render only -------------------------------------
+    # MDSS stays off (the screen is the UEFI framebuffer); the kernel patch
+    # 0002 registers the GPU as a headless msm device
+    dts, _ = edit_node(dts, r"^\t\tgpu@fdb00000 \{", lambda b: set_prop(b, "status", '"okay"'))
+
     out = subprocess.run(["dtc", "-q", "-I", "dts", "-O", "dtb", "-o", dst, "-"], input=dts, text=True, capture_output=True)
     if out.returncode:
         raise SystemExit(out.stderr)
-    print(f"DTB patched: SMP parking protocol, Wi-Fi pronto enabled (supplies {ph})")
+    print(f"DTB patched: SMP parking protocol, GPU, Wi-Fi pronto enabled (supplies {ph})")
 
 
 if __name__ == "__main__":

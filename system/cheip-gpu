@@ -1,0 +1,33 @@
+#!/bin/sh
+# Cheip OS: brings up the Adreno 305B as a render-only GPU (/dev/dri/renderD128)
+# next to the UEFI framebuffer. The screen stays on simpledrm, so a GPU failure
+# can never black out the display.
+# Runs once per boot, after the shell is up. If a previous attempt never
+# finished (the phone froze or rebooted while loading the driver), the marker is
+# still there and the GPU is skipped: delete it to try again.
+LOG=/var/log/cheip-gpu.txt
+DIR=/var/lib/cheip
+MARK=$DIR/gpu-trying
+mkdir -p "$DIR"
+if [ -e "$MARK" ]; then
+	echo "skipped: the last attempt to start the GPU never finished" > "$LOG"
+	echo "to retry: rm $MARK and reboot" >> "$LOG"
+	chmod 644 "$LOG"; exit 0
+fi
+touch "$MARK"; sync
+{
+	echo "loading msm (Adreno 305B, VRAM carveout, no display)"
+	modprobe msm 2>&1 || echo "modprobe msm failed"
+	sleep 3
+	for n in /dev/dri/*; do echo "device $n"; done
+	dmesg 2>/dev/null | grep -iE "adreno|msm|a3xx|ocmem|carveout|vram|a330_p|headless" | tail -n 20 | cut -c1-110
+	chmod 666 /dev/dri/renderD* 2>/dev/null
+	if [ -e /dev/dri/renderD128 ]; then
+		echo "EGL test (surfaceless):"
+		EGL_PLATFORM=surfaceless timeout 20 eglinfo -B 2>&1 | grep -iE "vendor|renderer|version|error|fail|EGL API" | head -n 12 | cut -c1-110
+	else
+		echo "no render node: the GPU did not start"
+	fi
+} > "$LOG" 2>&1
+chmod 644 "$LOG"
+rm -f "$MARK"; sync

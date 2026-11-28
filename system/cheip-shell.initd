@@ -80,6 +80,12 @@ start_pre() {
 		  growpart "$disk" "$part" && resize2fs "$root" && mkdir -p /var/lib/cheip && touch /var/lib/cheip/grown
 		) > /var/log/cheip-grow.txt 2>&1 &
 	fi
+	# GPU (render only, the screen stays on simpledrm): once per boot, after the
+	# shell has had time to start
+	if [ ! -e /run/cheip-gpu-started ]; then
+		touch /run/cheip-gpu-started
+		( sleep 15; /usr/libexec/cheip/cheip-gpu ) >/dev/null 2>&1 &
+	fi
 	uid=$(id -u "$cheip_user")
 	mkdir -p "/run/user/$uid"
 	chown "$cheip_user" "/run/user/$uid"

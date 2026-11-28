@@ -1,0 +1,47 @@
+--- a/drivers/gpu/drm/msm/adreno/adreno_device.c	2026-11-28 13:28:52.561524304 +0100
++++ b/drivers/gpu/drm/msm/adreno/adreno_device.c	2026-11-28 13:28:52.563229306 +0100
+@@ -282,6 +282,31 @@
+ 	platform_device_register_full(&dummy_info);
+ }
+ 
++/*
++ * Cheip OS (Lumia MSM8x26): the screen is the UEFI framebuffer (simpledrm) and
++ * MDSS stays disabled, so nothing creates the msm master device. Without an
++ * enabled display controller, register the headless one, as on imx5: the GPU
++ * then shows up as a render-only DRM device next to simpledrm.
++ */
++static bool adreno_display_enabled(void)
++{
++	static const char * const compat[] = {
++		"qcom,mdss", "qcom,mdp5", "qcom,mdp4", "qcom,sdm845-mdss",
++	};
++	struct device_node *np;
++	int i;
++
++	for (i = 0; i < ARRAY_SIZE(compat); i++) {
++		for_each_compatible_node(np, NULL, compat[i]) {
++			if (of_device_is_available(np)) {
++				of_node_put(np);
++				return true;
++			}
++		}
++	}
++	return false;
++}
++
+ static int adreno_probe(struct platform_device *pdev)
+ {
+ 
+@@ -291,8 +316,11 @@
+ 	if (ret)
+ 		return ret;
+ 
+-	if (of_device_is_compatible(pdev->dev.of_node, "amd,imageon"))
++	if (of_device_is_compatible(pdev->dev.of_node, "amd,imageon") ||
++	    !adreno_display_enabled()) {
++		dev_info(&pdev->dev, "no display controller enabled: headless GPU\n");
+ 		adreno_device_register_headless();
++	}
+ 
+ 	return 0;
+ }

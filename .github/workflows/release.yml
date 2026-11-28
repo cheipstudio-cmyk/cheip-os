@@ -153,18 +153,20 @@ jobs:
           KDIR="$(dirname "$KAPK")"
           # Patch made against msm8226-mainline/linux v6.16.12-msm8226-u2 (the tree this
           # APKBUILD builds): appends the parking protocol code to platsmp.c
-          cp kernel/0001-ARM-qcom-Lumia-parking-protocol.patch "$KDIR/"
-          python3 - "$KAPK" "$KDIR/0001-ARM-qcom-Lumia-parking-protocol.patch" <<'PY'
+          # 0001: SMP parking protocol. 0002: Adreno GPU as a render-only device
+          cp kernel/0*.patch "$KDIR/"
+          python3 - "$KAPK" "$KDIR"/0*.patch <<'PY'
           import re, sys, hashlib, os
-          p, src = sys.argv[1], sys.argv[2]
-          name = os.path.basename(src)
+          p, srcs = sys.argv[1], sys.argv[2:]
           s = open(p).read()
-          s = re.sub(r'^source="', 'source="\n\t' + name + '\n\t', s, count=1, flags=re.M)
+          names = [os.path.basename(x) for x in srcs]
+          s = re.sub(r'^source="', 'source="\n' + ''.join('\t' + n + '\n' for n in names) + '\t', s, count=1, flags=re.M)
           s = re.sub(r'^pkgrel=(\d+)', lambda m: 'pkgrel=%d' % (int(m.group(1)) + 100), s, count=1, flags=re.M)
-          # Apply it explicitly too, and stop the build if the SMP code is not there:
+          # Apply them explicitly too, and stop the build if the SMP code is not there:
           # a kernel without it must never be called "the SMP kernel" again
-          hook = ('\tpatch -N -p1 -i "$srcdir"/' + name + ' || true\n'
-                  '\tgrep -q park_boot_secondary arch/arm/mach-qcom/platsmp.c || { echo "SMP patch missing"; return 1; }\n')
+          hook = ''.join('\tpatch -N -p1 -i "$srcdir"/' + n + ' || true\n' for n in names) + (
+                  '\tgrep -q park_boot_secondary arch/arm/mach-qcom/platsmp.c || { echo "SMP patch missing"; return 1; }\n'
+                  '\tgrep -q adreno_display_enabled drivers/gpu/drm/msm/adreno/adreno_device.c || { echo "GPU patch missing"; return 1; }\n')
           s, n = re.subn(r'(^\s*default_prepare\s*\n)', lambda m: m.group(1) + hook, s, count=1, flags=re.M)
           if n == 0:
               raise SystemExit("no default_prepare in the kernel APKBUILD")
@@ -172,8 +174,8 @@ jobs:
           s, n = re.subn(r'(\nbuild\(\) \{.*?\n)(\})', lambda m: m.group(1) + '\tif grep -q "parking mailbox" vmlinux; then echo "CHEIP-SMP-OK vmlinux"; else echo "CHEIP-SMP-MISSING vmlinux"; return 1; fi\n' + m.group(2), s, count=1, flags=re.S)
           if n == 0:
               raise SystemExit("no build() in the kernel APKBUILD")
-          h = hashlib.sha512(open(src, 'rb').read()).hexdigest()
-          s, n = re.subn(r'^sha512sums="', 'sha512sums="\n' + h + '  ' + name, s, count=1, flags=re.M)
+          sums = ''.join(hashlib.sha512(open(x, 'rb').read()).hexdigest() + '  ' + os.path.basename(x) + '\n' for x in srcs)
+          s, n = re.subn(r'^sha512sums="', 'sha512sums="\n' + sums.rstrip('\n'), s, count=1, flags=re.M)
           if n == 0:
               raise SystemExit("no sha512sums in the kernel APKBUILD")
           open(p, 'w').write(s)
@@ -200,7 +202,7 @@ jobs:
             # The real error, readable without a login
             grep -vE "^\s*$" "$WORK/log.txt" | grep -v "^(.*) \[" | tail -n 25 | while IFS= read -r l; do echo "::error::kernel: ${l:0:300}"; done
             # Back to the stock kernel package, or pmbootstrap install would try to rebuild it
-            git -C "$KDIR" checkout -- . && rm -f "$KDIR"/0001-*.patch
+            git -C "$KDIR" checkout -- . && rm -f "$KDIR"/0*.patch
             exit 3
           fi
           # Proof that the SMP code is really inside the kernel that goes in the image

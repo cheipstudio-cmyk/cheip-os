@@ -1,0 +1,5 @@
+# Cheip OS: the GPU driver is loaded by /usr/libexec/cheip/cheip-gpu once the
+# shell is up, never during boot (a GPU problem must not stop the phone booting)
+blacklist msm
+# MSM8x26 has no GPU IOMMU upstream: the GPU uses a 64 MB contiguous carveout
+options msm allow_vram_carveout=1 vram=64m

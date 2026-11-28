@@ -6,9 +6,9 @@ pkgdesc="Shell di Cheip OS: home, controlli, app di sistema, OTA"
 url="https://cheipstudio.org"
 arch="armv7 aarch64 x86_64"
 license="GPL-3.0-or-later"
-depends="cloud-utils-growpart e2fsprogs-extra lsblk findmnt doas mesa-dri-gallium networkmanager-cli util-linux-misc modemmanager bluez alsa-utils
+depends="cloud-utils-growpart e2fsprogs-extra lsblk findmnt doas mesa-dri-gallium mesa-egl mesa-gbm mesa-utils networkmanager-cli util-linux-misc modemmanager bluez alsa-utils
 	gst-plugins-base gst-plugins-good gst-libav mupdf-tools"
-makedepends="cargo eudev-dev libinput-dev libdrm-dev mesa-dev libxkbcommon-dev fontconfig-dev libseat-dev
+makedepends="linux-firmware-qcom cargo eudev-dev libinput-dev libdrm-dev mesa-dev libxkbcommon-dev fontconfig-dev libseat-dev
 	gstreamer-dev gst-plugins-base-dev"
 install="$pkgname.post-install"
 options="net"
@@ -43,6 +43,18 @@ package() {
 	install -Dm755 system/cheip-firmware.initd "$pkgdir"/etc/init.d/cheip-firmware
 	install -Dm755 system/cheip-usb "$pkgdir"/usr/libexec/cheip/cheip-usb
 	install -Dm755 system/cheip-usb.initd "$pkgdir"/etc/init.d/cheip-usb
+	install -Dm755 system/cheip-gpu "$pkgdir"/usr/libexec/cheip/cheip-gpu
+	install -Dm644 system/cheip-gpu.modprobe "$pkgdir"/etc/modprobe.d/cheip-gpu.conf
+	# Adreno 305B microcode (the A305B uses the A330 one). In firmware/updates so
+	# it never clashes with a linux-firmware package in the image
+	for f in a330_pm4.fw a330_pfp.fw; do
+		src=$(ls /lib/firmware/qcom/$f* 2>/dev/null | head -n 1)
+		if [ -n "$src" ]; then
+			install -Dm644 "$src" "$pkgdir"/lib/firmware/updates/qcom/"$(basename "$src")"
+		else
+			echo "warning: $f not found in linux-firmware-qcom" >&2
+		fi
+	done
 	install -Dm600 system/cheip.doas.conf "$pkgdir"/etc/doas.d/cheip.conf
 	install -Dm644 system/90-cheip.rules "$pkgdir"/usr/lib/udev/rules.d/90-cheip.rules
 	install -Dm644 system/update.json "$pkgdir"/etc/cheip/update.json
