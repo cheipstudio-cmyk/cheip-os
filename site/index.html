@@ -83,6 +83,8 @@ section { margin-bottom: 80px; }
 .card h3::before { content: ""; width: 14px; height: 14px; border-radius: 50%; }
 .card.ok h3::before { background: var(--primary); box-shadow: 0 0 0 6px #82d5c733; }
 .card.wip h3::before { background: var(--tertiary); box-shadow: 0 0 0 6px #f2bd7b33; }
+.card.no h3::before { background: var(--error, #ffb4ab); box-shadow: 0 0 0 6px #ffb4ab33; }
+.cols.three { grid-template-columns: 1fr 1fr 1fr; }
 .card ul { padding-left: 20px; color: var(--on2); }
 .card li { margin: 6px 0; }
 
@@ -100,6 +102,14 @@ section { margin-bottom: 80px; }
 .chip.soon { background: var(--c3); color: var(--on2); }
 
 /* steps */
+.roadmap { list-style: none; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 8px 0 10px; padding: 0; }
+.roadmap a { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: 22px; background: var(--c1); color: var(--on); text-decoration: none; height: 100%; transition: background .2s, transform .2s; }
+.roadmap a:hover { background: var(--c2); transform: translateY(-2px); }
+.roadmap b { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--primary); color: var(--on-primary, #00201c); font-size: 15px; }
+.roadmap span { font-weight: 700; font-size: 16px; }
+.roadmap em { font-style: normal; font-size: 13px; color: var(--on2); }
+.roadmap-note { color: var(--on2); margin: 0 0 18px; }
+.step { scroll-margin-top: 190px; }
 .steps { display: flex; flex-direction: column; gap: 6px; }
 .step { background: var(--c1); padding: 30px 32px; display: grid; grid-template-columns: 56px 1fr 150px; gap: 24px; border-radius: 10px; align-items: start; }
 .step:first-child { border-radius: 36px 36px 10px 10px; }
@@ -168,7 +178,8 @@ footer p { margin-bottom: 6px; }
   .trio .back1, .trio .back2 { width: 160px; }
   .trio .front { width: 190px; margin-left: -95px; }
   header nav a:not(.keep) { display: none; }
-  .cols { grid-template-columns: 1fr; }
+  .cols, .cols.three { grid-template-columns: 1fr; }
+  .roadmap { grid-template-columns: 1fr 1fr; }
   .step { grid-template-columns: 1fr; padding: 24px; }
   .art { display: none; }
 }
@@ -214,27 +225,37 @@ footer p { margin-bottom: 6px; }
 
   <section id="status">
     <h2 class="round">What works today</h2>
-    <p class="lead">Tested on a Lumia 735 (RM-1038). This list only says what we have seen working on the phone.</p>
-    <div class="cols">
+    <p class="lead">Tested on a Lumia 735 (RM-1038), updated November 28, 2026. Only what we have seen on the real phone counts as working.</p>
+    <div class="cols three">
       <div class="card ok">
         <h3>Working</h3>
         <ul>
-          <li>Boot from the Windows Phone boot menu, dual boot</li>
-          <li>Screen and touch</li>
-          <li>Home, quick settings, settings, files, clock, notes, calendar</li>
-          <li>On-screen keyboard</li>
+          <li>Dual boot from the Windows Phone boot menu</li>
+          <li>All four CPU cores</li>
+          <li>Screen, touch, on-screen keyboard, vibration</li>
+          <li>Charging, with the battery level from Nokia's own battery profile</li>
+          <li>Home, quick settings, settings with search, files, clock, notes, calendar, calculator</li>
           <li>Install and updates from this page over USB</li>
+          <li>USB network to the PC: the phone log at <b>172.16.42.1</b></li>
         </ul>
       </div>
       <div class="card wip">
         <h3>In progress</h3>
         <ul>
-          <li>All four CPU cores (today the system runs on one)</li>
-          <li>Wi-Fi and web browsing</li>
-          <li>Install on the internal memory instead of the microSD</li>
-          <li>Battery percentage from the fuel gauge</li>
-          <li>Calls and mobile data, camera, GPS, Bluetooth</li>
+          <li>Smooth animations: the screen is drawn by the CPU, the GPU (Adreno 305) does not start yet</li>
+          <li>Wi-Fi: the firmware loads from the Windows partition, the chip does not answer yet</li>
+          <li>Switching to Windows Phone from the boot menu (the keys start the default system)</li>
+          <li>Keeping your data across updates</li>
+        </ul>
+      </div>
+      <div class="card no">
+        <h3>Not yet</h3>
+        <ul>
+          <li>Sound and microphone: the audio chip (WCD9306) has no Linux driver</li>
+          <li>Calls, SMS, mobile data</li>
+          <li>Camera, GPS, Bluetooth</li>
           <li>Android apps</li>
+          <li>Install on the internal memory</li>
         </ul>
       </div>
     </div>
@@ -254,8 +275,17 @@ footer p { margin-bottom: 6px; }
       <div class="ps-text"><div class="t" id="ps-title">Phone not detected</div><div class="h" id="ps-hint">This box always says what the phone is doing and what to do next.</div><div class="ps-bar" id="ps-bar"><i></i></div><div class="ps-pct" id="ps-pct"></div></div>
     </div>
 
+    <ol class="roadmap">
+      <li><a href="#s1"><b>1</b><span>Get ready</span><em>2 min</em></a></li>
+      <li><a href="#s2"><b>2</b><span>Unlock</span><em>once, 10 min</em></a></li>
+      <li><a href="#s3"><b>3</b><span>Boot menu</span><em>once, 2 min</em></a></li>
+      <li><a href="#s4"><b>4</b><span>Install</span><em>every update, 5 min</em></a></li>
+      <li><a href="#s5"><b>5</b><span>Use it</span><em></em></a></li>
+    </ol>
+    <p class="roadmap-note"><b>Updating?</b> Steps 2 and 3 are done once. Go straight to <a href="#s4">step 4</a>.</p>
+
     <div class="steps">
-      <div class="step" data-step="1">
+      <div class="step" data-step="1" id="s1">
         <div class="num">1</div>
         <div class="body">
           <h3>Get ready</h3>
@@ -270,7 +300,7 @@ footer p { margin-bottom: 6px; }
         <div class="art"><div class="lumia mini green"><div class="glass"><div class="screen sd"><svg viewBox="0 0 24 24"><path d="M7 2h8l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Zm3 3v4h2V5h-2Zm3 0v4h2V5h-2Zm3 1v3h2V7l-2-1Zm-9-1v4h2V5H7Z"/></svg><span>microSD 8 GB+</span></div></div></div></div>
       </div>
 
-      <div class="step" data-step="2">
+      <div class="step" data-step="2" id="s2">
         <div class="num">2</div>
         <div class="body">
           <h3>Unlock the bootloader</h3>
@@ -286,7 +316,7 @@ footer p { margin-bottom: 6px; }
         <div class="art"><div class="lumia mini orange"><div class="glass"><div class="screen pc"><svg viewBox="0 -960 960 960"><path d="M240-280q-33 0-56.5-23.5T160-360v-360q0-33 23.5-56.5T240-800h480q33 0 56.5 23.5T800-720v360q0 33-23.5 56.5T720-280H240Zm-80 160q-17 0-28.5-11.5T120-160q0-17 11.5-28.5T160-200h640q17 0 28.5 11.5T840-160q0 17-11.5 28.5T800-120H160Z"/></svg><span>WPInternals<br>on the PC</span></div></div></div></div>
       </div>
 
-      <div class="step" data-step="3">
+      <div class="step" data-step="3" id="s3">
         <div class="num">3</div>
         <div class="body">
           <h3>Add Cheip OS to the boot menu</h3>
@@ -310,7 +340,7 @@ footer p { margin-bottom: 6px; }
         <div class="art"><div class="lumia mini green"><div class="glass"><div class="screen flash"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"/></svg></div></div></div><span class="cap">Flash mode</span></div>
       </div>
 
-      <div class="step" data-step="4">
+      <div class="step" data-step="4" id="s4">
         <div class="num">4</div>
         <div class="body">
           <h3>Install Cheip OS</h3>
@@ -353,7 +383,7 @@ footer p { margin-bottom: 6px; }
         <div class="art"><div class="lumia mini white"><div class="glass"><div class="screen lk"><i></i><i></i><i class="s"></i><i></i><i class="s"></i></div></div></div><span class="cap">Cheip bootloader</span></div>
       </div>
 
-      <div class="step" data-step="5">
+      <div class="step" data-step="5" id="s5">
         <div class="num">5</div>
         <div class="body">
           <h3>Start Cheip OS</h3>
@@ -371,10 +401,14 @@ footer p { margin-bottom: 6px; }
     <h2 class="round">What you get</h2>
     <p class="lead">Rendered from the same code that runs on the phone, filled with sample data.</p>
     <div class="gallery">
-      <figure><div class="lumia green"><div class="glass"><div class="screen"><img src="img/home.webp" alt="Home" loading="lazy"></div></div></div><figcaption>Home with widget</figcaption></figure>
-      <figure><div class="lumia orange"><div class="glass"><div class="screen"><img src="img/controls.webp" alt="Quick settings" loading="lazy"></div></div></div><figcaption>Quick settings</figcaption></figure>
-      <figure><div class="lumia white"><div class="glass"><div class="screen"><img src="img/settings.webp" alt="Settings" loading="lazy"></div></div></div><figcaption>Settings</figcaption></figure>
-      <figure><div class="lumia green"><div class="glass"><div class="screen"><img src="img/calendar.webp" alt="Calendar" loading="lazy"></div></div></div><figcaption>Calendar</figcaption></figure>
+      <figure><div class="lumia green"><div class="glass"><div class="screen"><img src="img/lock.webp" alt="Lock screen" loading="lazy"></div></div></div><figcaption>Lock screen</figcaption></figure>
+      <figure><div class="lumia orange"><div class="glass"><div class="screen"><img src="img/home.webp" alt="Home" loading="lazy"></div></div></div><figcaption>Home</figcaption></figure>
+      <figure><div class="lumia white"><div class="glass"><div class="screen"><img src="img/controls.webp" alt="Quick settings" loading="lazy"></div></div></div><figcaption>Quick settings</figcaption></figure>
+      <figure><div class="lumia green"><div class="glass"><div class="screen"><img src="img/settings.webp" alt="Settings" loading="lazy"></div></div></div><figcaption>Settings</figcaption></figure>
+      <figure><div class="lumia orange"><div class="glass"><div class="screen"><img src="img/search.webp" alt="Settings search" loading="lazy"></div></div></div><figcaption>Search in settings</figcaption></figure>
+      <figure><div class="lumia white"><div class="glass"><div class="screen"><img src="img/style.webp" alt="Wallpaper and style" loading="lazy"></div></div></div><figcaption>Wallpaper &amp; style</figcaption></figure>
+      <figure><div class="lumia green"><div class="glass"><div class="screen"><img src="img/clock.webp" alt="Clock" loading="lazy"></div></div></div><figcaption>Clock</figcaption></figure>
+      <figure><div class="lumia white"><div class="glass"><div class="screen"><img src="img/light.webp" alt="Light theme" loading="lazy"></div></div></div><figcaption>Light theme</figcaption></figure>
     </div>
   </section>
 </main>
