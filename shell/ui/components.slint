@@ -185,13 +185,27 @@ export component AppIcon inherits Rectangle {
         width: root.size; height: root.size;
         commands: IconShape.path;
         viewbox-width: 100; viewbox-height: 100;
-        fill: root.pack == 1 ? @linear-gradient(170deg, root.bg.brighter(0.18) 0%, root.bg 55%, root.bg.darker(0.12) 100%) : root.bg;
+        fill: root.pack == 1 ? @linear-gradient(165deg, root.bg.brighter(0.38) 0%, root.bg 52%, root.bg.darker(0.28) 100%) : root.bg;
         stroke: root.pack == 3 ? Theme.outline : transparent;
         stroke-width: root.pack == 3 ? 1.5px : 0px;
         animate fill { duration: Theme.slow; }
     }
+    // Colorful pack: glass light on the upper half and a soft rim, like a lit object
+    if !root.app.has-picture && root.pack == 1: Path {
+        width: root.size; height: root.size;
+        commands: IconShape.path;
+        viewbox-width: 100; viewbox-height: 100;
+        fill: @linear-gradient(180deg, #ffffff40 0%, #ffffff14 38%, #ffffff00 55%);
+        stroke: #ffffff26;
+        stroke-width: 1px;
+    }
+    // Glyph with a short drop shadow so it sits on the tile
+    if !root.app.has-picture && root.app.glyph != "" && root.pack == 1: Icon {
+        y: (root.size - self.height) / 2 + root.size * 0.025;
+        d: root.app.glyph; size: root.size * 0.5; tint: #00000040;
+    }
     if !root.app.has-picture && root.app.glyph != "": Icon {
-        d: root.app.glyph; size: root.size * 0.46; tint: root.fg;
+        d: root.app.glyph; size: root.size * (root.pack == 1 ? 0.5 : 0.46); tint: root.fg;
     }
     if !root.app.has-picture && root.app.glyph == "": Text {
         text: root.app.initial;
