@@ -1,6 +1,6 @@
 import { Theme } from "theme.slint";
 import { Sys, Shell, Cal, Notes, Cam } from "data.slint";
-import { Icon, Icons, StatusBar, Badge, RoundButton, PillButton, Card, Field, Fab } from "components.slint";
+import { Icon, Icons, StatusBar, Badge, RoundButton, PillButton, Card, Field, Fab, EmptyState } from "components.slint";
 
 // ---------- Calendario ----------
 export component CalendarApp inherits Rectangle {
@@ -130,10 +130,9 @@ export component NotesApp inherits Rectangle {
             }
         }
     }
-    if Notes.notes.length == 0: VerticalLayout {
-        y: 200px; spacing: 12px; alignment: start;
-        Icon { d: Icons.notes; size: 56px; tint: Theme.outline; weight: 1.5px; }
-        Text { text: "No notes yet"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 15px; horizontal-alignment: center; }
+    if Notes.notes.length == 0: EmptyState {
+        y: 140px; height: root.height - 140px - 96px;
+        icon: Icons.notes; title: "No notes yet"; hint: "Tap Note to write one";
     }
 
     Fab {

@@ -38,16 +38,21 @@ start_pre() {
 	for m in qcom_smbb qcom_spmi_vadc pm8941_pwrkey; do modprobe "$m" 2>/dev/null; done
 	# Charging: the charger may start with the 100 mA USB default, less than the
 	# phone uses. Allow 1 A from USB/wall and 1 A into the 2220 mAh battery (0.45 C)
+	# The PMIC goes back to its low default limit every time the cable is plugged
+	# in, so the limits are applied again every 10 s, not only at boot
 	( sleep 8
-	  for p in smbb-usbin smbb-dcin; do
-		f=/sys/class/power_supply/$p/charge_control_limit
-		[ -w "$f" ] && echo 1000000 > "$f"
-	  done
-	  f=/sys/class/power_supply/smbb-bif/current_max
-	  [ -w "$f" ] && echo 1000000 > "$f"
-	  for p in /sys/class/power_supply/smbb-*; do
-		echo "$(basename "$p"): limit $(cat "$p"/charge_control_limit 2>/dev/null) max $(cat "$p"/current_max 2>/dev/null) status $(cat "$p"/status 2>/dev/null) online $(cat "$p"/online 2>/dev/null)"
-	  done > /var/log/cheip-charger.txt ) >/dev/null 2>&1 &
+	  while :; do
+		for p in smbb-usbin smbb-dcin; do
+			f=/sys/class/power_supply/$p/charge_control_limit
+			[ -w "$f" ] && [ "$(cat "$f" 2>/dev/null)" != 1000000 ] && echo 1000000 > "$f"
+		done
+		f=/sys/class/power_supply/smbb-bif/current_max
+		[ -w "$f" ] && [ "$(cat "$f" 2>/dev/null)" != 1000000 ] && echo 1000000 > "$f"
+		for p in /sys/class/power_supply/smbb-*; do
+			echo "$(basename "$p"): limit $(cat "$p"/charge_control_limit 2>/dev/null) max $(cat "$p"/current_max 2>/dev/null) status $(cat "$p"/status 2>/dev/null) health $(cat "$p"/health 2>/dev/null) type $(cat "$p"/charge_type 2>/dev/null) online $(cat "$p"/online 2>/dev/null)"
+		done > /var/log/cheip-charger.txt
+		sleep 10
+	  done ) >/dev/null 2>&1 &
 	# Fastest CPU clock available: the UI renders on the CPU. cpufreq-dt may load
 	# late, so try again in the background for a minute
 	( for i in 1 2 3 4 5 6; do

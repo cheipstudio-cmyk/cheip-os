@@ -72,7 +72,7 @@ export component SetupScreen inherits Rectangle {
     TouchArea { } // blocca i tocchi sotto
 
     // Indicatore dei passi
-    HorizontalLayout {
+    if Setup.step < 4: HorizontalLayout {
         y: 40px; height: 8px; alignment: center; spacing: 6px;
         for i in 4: Rectangle {
             width: i == Setup.step ? 28px : 8px; height: 8px; border-radius: 4px;
@@ -173,5 +173,35 @@ export component SetupScreen inherits Rectangle {
         }
         BigButton { x: 24px; y: parent.height - 96px; label: "Back"; solid: false; clicked => { Setup.step = 2; } }
         BigButton { x: parent.width - self.width - 24px; y: parent.height - 96px; label: "Done"; clicked => { Setup.finish(); } }
+    }
+
+    // 4. Pronto: forme che pulsano e ruotano mentre la home si prepara sotto
+    if Setup.step == 4: Rectangle {
+        property <float> t: mod(animation-tick() / 1ms, 1600) / 1600;
+        opacity: 1;
+        for i in 3: Rectangle {
+            property <float> ph: mod(parent.t + i / 3, 1);
+            x: (parent.width - self.width) / 2;
+            width: 72px + ph * 120px; height: self.width;
+            y: parent.height / 2 - 60px - self.height / 2;
+            border-radius: self.width * (0.30 + 0.2 * (1 - ph));
+            background: Theme.primary.with-alpha(0.55 * (1 - ph));
+        }
+        Rectangle {
+            x: (parent.width - 72px) / 2; y: parent.height / 2 - 96px;
+            width: 72px; height: 72px; border-radius: 24px;
+            background: Theme.primary;
+            Text { text: "C"; color: Theme.on-primary; font-family: Theme.display; font-size: 40px; font-weight: 700; }
+        }
+        Text {
+            x: 24px; y: parent.height / 2 + 40px; width: parent.width - 48px;
+            text: "Getting things ready";
+            color: Theme.on-surface; font-family: Theme.display; font-size: 24px; font-weight: 500; horizontal-alignment: center;
+        }
+        Text {
+            x: 24px; y: parent.height / 2 + 76px; width: parent.width - 48px;
+            text: "Your home is almost here";
+            color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; horizontal-alignment: center;
+        }
     }
 }

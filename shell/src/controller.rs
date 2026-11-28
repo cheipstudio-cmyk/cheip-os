@@ -424,7 +424,7 @@ static UI_STALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::n
 
 /// Everything the Log app shows, read now (cheap sysfs and log files)
 fn log_lines() -> Vec<SharedString> {
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let now = crate::keys::mono_secs();
     let stamp = HW_STAMP.load(std::sync::atomic::Ordering::Relaxed);
     let mut lines: Vec<SharedString> = vec![if stamp == 0 {
         "background reader: no reading yet".into()
@@ -441,7 +441,7 @@ fn log_lines() -> Vec<SharedString> {
         Some((b, ch)) => lines.push(format!("battery: {} {}", if b >= 0 { format!("{b}%") } else { "level unknown".into() }, if ch { "charging" } else { "not charging" }).into()),
         None => lines.push("battery: no reading".into()),
     }
-    for (name, path, n) in [("kernel", "/var/log/cheip-smp.txt", 3), ("wifi", "/var/log/cheip-firmware.txt", 30), ("storage grow", "/var/log/cheip-grow.txt", 3), ("charger", "/var/log/cheip-charger.txt", 4), ("usb", "/var/log/cheip-usb.txt", 25), ("shell", "/var/log/cheip-shell.log", 3)] {
+    for (name, path, n) in [("charger", "/var/log/cheip-charger.txt", 4), ("usb", "/var/log/cheip-usb.txt", 25), ("wifi", "/var/log/cheip-firmware.txt", 30), ("kernel", "/var/log/cheip-smp.txt", 3), ("storage grow", "/var/log/cheip-grow.txt", 3), ("shell", "/var/log/cheip-shell.log", 3)] {
         if let Ok(f) = std::fs::read_to_string(path) {
             let v: Vec<&str> = f.lines().filter(|l| !l.trim().is_empty()).collect();
             for l in v.iter().skip(v.len().saturating_sub(n)) {
@@ -697,7 +697,7 @@ pub fn start_hw_thread() {
                 }
             }
             *HW.lock().unwrap_or_else(|e| e.into_inner()) = Some(hw);
-            HW_STAMP.store(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0), std::sync::atomic::Ordering::Relaxed);
+            HW_STAMP.store(crate::keys::mono_secs(), std::sync::atomic::Ordering::Relaxed);
             n += 1;
             std::thread::sleep(std::time::Duration::from_secs(5));
         }
@@ -1104,7 +1104,7 @@ fn screen_timeout_tick(ui: &AppWindow) {
     if limit == 0 {
         return;
     }
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let now = crate::keys::mono_secs();
     let last = crate::keys::LAST_ACTIVITY.load(std::sync::atomic::Ordering::Relaxed);
     let busy = {
         let s = st.borrow();
@@ -1197,7 +1197,16 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
                     s.store.data.prefs.insert("setup_done".into(), "1".into());
                     s.store.save();
                 }
-                g.set_show(false);
+                // Straight to the home, behind a short "getting ready" animation
+                crate::keys::touch_activity();
+                g.set_step(4);
+                ui.global::<Shell>().set_screen(ScreenId::Home);
+                let w = ui.as_weak();
+                slint::Timer::single_shot(std::time::Duration::from_millis(1600), move || {
+                    if let Some(ui) = w.upgrade() {
+                        ui.global::<Setup>().set_show(false);
+                    }
+                });
             });
         }
         // Date & time: fill the editor with the current time, apply through the root helper

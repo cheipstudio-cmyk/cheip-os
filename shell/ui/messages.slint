@@ -1,6 +1,6 @@
 import { Theme } from "theme.slint";
 import { Msg } from "data.slint";
-import { Icon, Icons, StatusBar, RoundButton, Title, Avatar, Field, Fab } from "components.slint";
+import { Icon, Icons, StatusBar, RoundButton, Title, Avatar, Field, Fab, EmptyState } from "components.slint";
 
 export component MessagesApp inherits Rectangle {
     background: Theme.surface;
@@ -52,10 +52,9 @@ export component MessagesApp inherits Rectangle {
             icon: Icons.message; label: "Start chat";
             clicked => { root.composing = true; }
         }
-        if Msg.threads.length == 0: VerticalLayout {
-            y: 200px; alignment: start; spacing: 12px;
-            Icon { d: Icons.message; size: 56px; tint: Theme.outline; weight: 1.5px; }
-            Text { text: Msg.status != "" ? Msg.status : "No conversations yet"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 15px; horizontal-alignment: center; }
+        if Msg.threads.length == 0: EmptyState {
+            y: 96px; height: parent.height - 96px - 96px;
+            icon: Icons.message; title: "No conversations yet"; hint: Msg.status != "" ? Msg.status : "Tap Start chat to write a message";
         }
     }
 

@@ -1,6 +1,6 @@
 import { Theme } from "theme.slint";
 import { Phone, Sys } from "data.slint";
-import { Icon, Icons, StatusBar, RoundButton, Card, Title, Avatar, Field, NavBar, Fab } from "components.slint";
+import { Icon, Icons, StatusBar, RoundButton, Card, Title, Avatar, Field, NavBar, Fab, EmptyState } from "components.slint";
 
 // Tasto del tastierino: pillola tonale che si fa piu squadrata quando premuta
 component Key inherits Rectangle {
@@ -146,10 +146,8 @@ export component PhoneApp inherits Rectangle {
                 clicked => { Phone.call(c.number); }
             }
         }
-        if Phone.recents.length == 0: VerticalLayout {
-            y: 120px; spacing: 12px; alignment: start;
-            Icon { d: Icons.history; size: 56px; tint: Theme.outline; weight: 1.5px; }
-            Text { text: "No calls yet"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 15px; horizontal-alignment: center; }
+        if Phone.recents.length == 0: EmptyState {
+            icon: Icons.history; title: "No calls yet"; hint: "Calls you make and receive show up here";
         }
     }
 
@@ -200,10 +198,8 @@ export component PhoneApp inherits Rectangle {
                 clicked => { Phone.call(c.number); }
             }
         }
-        if !root.adding && Phone.contacts.length == 0: VerticalLayout {
-            y: 120px; spacing: 12px; alignment: start;
-            Icon { d: Icons.user; size: 56px; tint: Theme.outline; weight: 1.5px; }
-            Text { text: "No contacts yet"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 15px; horizontal-alignment: center; }
+        if !root.adding && Phone.contacts.length == 0: EmptyState {
+            icon: Icons.user; title: "No contacts yet"; hint: "Tap Contact to add one";
         }
         if !root.adding: Fab {
             x: parent.width - self.width - 20px; y: parent.height - self.height - 16px;

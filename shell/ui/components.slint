@@ -560,3 +560,26 @@ export component NavBar inherits Rectangle {
         }
     }
 }
+
+// Stato vuoto: icona in un riquadro tonale e testo, centrati nell'area
+export component EmptyState inherits Rectangle {
+    in property <string> icon;
+    in property <string> title;
+    in property <string> hint;
+    Rectangle {
+        x: (root.width - 96px) / 2; y: root.height / 2 - 96px;
+        width: 96px; height: 96px; border-radius: 32px;
+        background: Theme.container-high;
+        Icon { d: root.icon; size: 44px; tint: Theme.on-surface-variant; weight: 1.5px; }
+    }
+    Text {
+        x: 32px; y: root.height / 2 + 16px; width: root.width - 64px;
+        text: root.title; color: Theme.on-surface; font-family: Theme.display; font-size: 20px; font-weight: 500;
+        horizontal-alignment: center; wrap: word-wrap;
+    }
+    if root.hint != "": Text {
+        x: 32px; y: root.height / 2 + 48px; width: root.width - 64px;
+        text: root.hint; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px;
+        horizontal-alignment: center; wrap: word-wrap;
+    }
+}

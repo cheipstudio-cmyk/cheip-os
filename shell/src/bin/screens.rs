@@ -204,10 +204,26 @@ fn main() {
         return;
     }
     ctx.advance(600);
+    if std::env::var("CHEIP_EMPTY").is_ok() {
+        use cheip_shell::{Msg, Notes, Phone};
+        ui.global::<Phone>().set_recents(Default::default());
+        ui.global::<Phone>().set_contacts(Default::default());
+        ui.global::<Msg>().set_threads(Default::default());
+        ui.global::<Notes>().set_notes(Default::default());
+        for (app, tab, name) in [("phone", 1, "empty-recents"), ("phone", 2, "empty-contacts"), ("messages", 0, "empty-messages"), ("notes", 0, "empty-notes")] {
+            open(app);
+            ctx.advance(700);
+            if app == "phone" { ui.global::<Phone>().set_tab(tab); ctx.advance(200); }
+            ctx.shot(name);
+            shell.invoke_close_app();
+            ctx.advance(600);
+        }
+        return;
+    }
     if std::env::var("CHEIP_SETUP").is_ok() {
         let g = ui.global::<cheip_shell::Setup>();
         g.set_show(true);
-        for step in 0..4 {
+        for step in 0..5 {
             g.set_step(step);
             ctx.advance(500);
             ctx.shot(&format!("setup-{step}"));

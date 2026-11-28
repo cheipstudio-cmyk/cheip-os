@@ -12,9 +12,15 @@ pub enum Key {
 /// Seconds since the epoch of the last touch or key (screen timeout)
 pub static LAST_ACTIVITY: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+/// Seconds since the shell started, on a monotonic clock: setting the date or
+/// time must not look like hours of inactivity and turn the screen off
+pub fn mono_secs() -> u64 {
+    static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    START.get_or_init(std::time::Instant::now).elapsed().as_secs() + 1
+}
+
 pub fn touch_activity() {
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-    LAST_ACTIVITY.store(now, std::sync::atomic::Ordering::Relaxed);
+    LAST_ACTIVITY.store(mono_secs(), std::sync::atomic::Ordering::Relaxed);
 }
 
 #[cfg(feature = "native")]
