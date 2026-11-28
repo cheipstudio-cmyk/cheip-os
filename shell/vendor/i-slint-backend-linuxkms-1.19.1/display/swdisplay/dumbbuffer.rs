@@ -18,6 +18,12 @@ pub struct DumbBufferDisplay {
     back_buffer: RefCell<DumbBuffer>,
     /// Buffer currently on the way to the display, to become front_buffer
     in_flight_buffer: RefCell<DumbBuffer>,
+    /// Cheip OS: one buffer kept on screen, only the changed areas sent to the
+    /// display with DIRTYFB. simpledrm copies the whole 720x1280 frame on every
+    /// page flip; with dirty rectangles it copies only what changed.
+    damage: RefCell<Vec<drm::control::ClipRect>>,
+    /// The buffer is on screen and DIRTYFB works: render in place
+    single: std::cell::Cell<bool>,
 }
 
 impl DumbBufferDisplay {
@@ -60,7 +66,14 @@ impl DumbBufferDisplay {
         )?
         .into();
 
-        Ok(Arc::new(Self { drm_output, front_buffer, back_buffer, in_flight_buffer }))
+        Ok(Arc::new(Self {
+            drm_output,
+            front_buffer,
+            back_buffer,
+            in_flight_buffer,
+            damage: RefCell::new(Vec::new()),
+            single: std::cell::Cell::new(false),
+        }))
     }
 }
 
@@ -79,7 +92,7 @@ impl super::SoftwareBufferDisplay for DumbBufferDisplay {
     ) -> Result<(), PlatformError> {
         // The back buffer was on screen until the last flip landed
         self.drm_output.wait_for_page_flip();
-        let mut back_buffer = self.back_buffer.borrow_mut();
+        let mut back_buffer = if self.single.get() { self.front_buffer.borrow_mut() } else { self.back_buffer.borrow_mut() };
         let age = back_buffer.age;
         let format = back_buffer.format;
         let pitch = back_buffer.buffer_handle.pitch();
@@ -101,6 +114,16 @@ impl super::SoftwareBufferDisplay for DumbBufferDisplay {
     fn as_presenter(self: Arc<Self>) -> Arc<dyn crate::display::Presenter> {
         self
     }
+
+    fn set_damage(&self, rects: &[(i32, i32, i32, i32)]) {
+        let (w, h) = self.drm_output.size();
+        let clip = |v: i32, max: u32| v.clamp(0, max as i32) as u16;
+        *self.damage.borrow_mut() = rects
+            .iter()
+            .filter(|r| r.2 > 0 && r.3 > 0)
+            .map(|&(x, y, rw, rh)| drm::control::ClipRect::new(clip(x, w), clip(y, h), clip(x + rw, w), clip(y + rh, h)))
+            .collect();
+    }
 }
 
 fn mapped_pixel_buffer(
@@ -120,11 +143,26 @@ fn mapped_pixel_buffer(
 
 impl crate::display::Presenter for DumbBufferDisplay {
     fn present(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // Cheip OS: double buffering. Upstream rotates three buffers, so the buffer
-        // rendered next is always three frames old, which the software renderer
-        // cannot track (it knows ages 1 and 2): every frame became a full-screen
-        // redraw. With two buffers the age is 2 and only the damaged areas of the
-        // last two frames are redrawn.
+        // Single buffer on screen: tell the display which rectangles changed
+        if self.single.get() {
+            let clips = std::mem::take(&mut *self.damage.borrow_mut());
+            if clips.is_empty() {
+                return Ok(());
+            }
+            let fb = self.front_buffer.borrow().fb_handle;
+            if self.drm_output.drm_device.dirty_framebuffer(fb, &clips).is_ok() {
+                return Ok(());
+            }
+            // DIRTYFB refused: back to flipping two buffers. This frame was drawn
+            // into the front buffer: move it to the back so the flip below shows
+            // it; the other buffer is stale and starts as a full redraw.
+            self.single.set(false);
+            self.back_buffer.swap(&self.front_buffer);
+            self.front_buffer.borrow_mut().age = 0;
+        }
+
+        // Double buffering: the buffer rendered next is two frames old (age 2),
+        // so only the areas damaged in the last two frames are redrawn.
         self.drm_output.wait_for_page_flip();
 
         self.back_buffer.swap(&self.front_buffer);
@@ -140,6 +178,18 @@ impl crate::display::Presenter for DumbBufferDisplay {
             self.front_buffer.borrow().buffer_handle,
             self.front_buffer.borrow().fb_handle,
         )?;
+
+        // Once a buffer is on screen, try to keep it there and send only damage.
+        // Disabled with SLINT_DRM_FLIP=1.
+        if std::env::var_os("SLINT_DRM_FLIP").is_none() && !self.single.get() {
+            self.drm_output.wait_for_page_flip();
+            let fb = self.front_buffer.borrow().fb_handle;
+            let (w, h) = self.drm_output.size();
+            let full = [drm::control::ClipRect::new(0, 0, w as u16, h as u16)];
+            if self.drm_output.drm_device.dirty_framebuffer(fb, &full).is_ok() {
+                self.single.set(true);
+            }
+        }
         Ok(())
     }
 }

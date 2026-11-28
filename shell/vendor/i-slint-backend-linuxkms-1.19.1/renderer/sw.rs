@@ -219,7 +219,8 @@ impl crate::fullscreenwindowadapter::FullscreenRenderer for SoftwareRendererAdap
                     .into());
                 }
             };
-            render(&self.renderer, pixels, self.size);
+            let damage = render(&self.renderer, pixels, self.size);
+            self.display.set_damage(&damage);
 
             Ok(())
         })?;
@@ -237,13 +238,14 @@ fn render_to_pixels<P: TargetPixel + bytemuck::Pod>(
     renderer: &SoftwareRenderer,
     pixels: &mut [u8],
     size: PhysicalWindowSize,
-) {
+) -> Vec<(i32, i32, i32, i32)> {
     // The buffer's rows may be padded to the driver's pitch; the
     // stride in pixels comes from the mapping, not from the width.
     let height = (size.height as usize).max(1);
     let stride = (pixels.len() / height / std::mem::size_of::<P>()).max(size.width as usize);
     let buffer: &mut [P] = bytemuck::cast_slice_mut(pixels);
-    renderer.render(buffer, stride);
+    let region = renderer.render(buffer, stride);
+    region.iter().map(|(p, s)| (p.x, p.y, s.width as i32, s.height as i32)).collect()
 }
 
 #[cfg(test)]

@@ -25,6 +25,9 @@ pub trait SoftwareBufferDisplay {
     /// regular buffer and copy the result into the mapped buffer.
     fn is_write_combined_memory(&self) -> bool;
     fn as_presenter(self: Arc<Self>) -> Arc<dyn super::Presenter>;
+    /// Cheip OS: the areas the renderer changed in the last frame (x, y, w, h),
+    /// so the display only copies those
+    fn set_damage(&self, _rects: &[(i32, i32, i32, i32)]) {}
 }
 
 mod dumbbuffer;
