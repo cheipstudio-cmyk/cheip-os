@@ -126,7 +126,7 @@ pub fn when(ts: i64, now: NaiveDateTime) -> String {
 }
 
 /// App di sistema: (id, nome, nel dock)
-pub const SYSTEM_APPS: [(&str, &str, bool); 10] = [
+pub const SYSTEM_APPS: [(&str, &str, bool); 11] = [
     ("phone", "Phone", true),
     ("messages", "Messages", true),
     ("browser", "Browser", true),
@@ -135,6 +135,7 @@ pub const SYSTEM_APPS: [(&str, &str, bool); 10] = [
     ("calendar", "Calendar", false),
     ("notes", "Notes", false),
     ("clock", "Clock", false),
+    ("calculator", "Calculator", false),
     ("settings", "Settings", false),
     ("log", "Log", false),
 ];
@@ -152,6 +153,7 @@ pub fn glyph(ui: &AppWindow, id: &str) -> SharedString {
         "clock" => i.get_alarm_f(),
         "settings" | "system" => i.get_gear_f(),
         "log" => i.get_code_f(),
+        "calculator" => i.get_keypad_f(),
         "wifi" => i.get_wifi_f(),
         "dati" => i.get_data_f(),
         "bt" => i.get_bluetooth_f(),
@@ -450,6 +452,13 @@ fn log_lines() -> Vec<SharedString> {
         }
     }
     lines
+}
+
+/// First weekday of the month (0 = Monday) and number of days
+fn month_shape(y: i32, m: u32) -> (i32, i32) {
+    let first = NaiveDate::from_ymd_opt(y, m.clamp(1, 12), 1).unwrap_or_default();
+    let next = if m >= 12 { NaiveDate::from_ymd_opt(y + 1, 1, 1) } else { NaiveDate::from_ymd_opt(y, m + 1, 1) }.unwrap_or_default();
+    (first.weekday().num_days_from_monday() as i32, (next - first).num_days() as i32)
 }
 
 thread_local! {
@@ -1153,6 +1162,44 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
                 s.store.save();
             }
         });
+        // First boot: welcome, then date and time on dials
+        {
+            let now = Local::now();
+            let g = ui.global::<Setup>();
+            g.set_year(now.year().clamp(2024, 2099));
+            g.set_month(now.month() as i32);
+            g.set_day(now.day() as i32);
+            g.set_hour(now.hour() as i32);
+            g.set_minute(now.minute() as i32);
+            let (fd, nd) = month_shape(now.year(), now.month());
+            g.set_first_dow(fd);
+            g.set_days(nd);
+            let done = shared().map(|st| st.borrow().store.data.prefs.contains_key("setup_done")).unwrap_or(true);
+            g.set_show(live && !done);
+            let w = ui.as_weak();
+            g.on_month_changed(move |y, m| {
+                let Some(ui) = w.upgrade() else { return };
+                let g = ui.global::<Setup>();
+                let (fd, nd) = month_shape(y, m as u32);
+                g.set_first_dow(fd);
+                g.set_days(nd);
+                if g.get_day() > nd {
+                    g.set_day(nd);
+                }
+            });
+            let w = ui.as_weak();
+            g.on_finish(move || {
+                let Some(ui) = w.upgrade() else { return };
+                let g = ui.global::<Setup>();
+                ui.global::<Sys>().invoke_set_datetime(g.get_year(), g.get_month(), g.get_day(), g.get_hour(), g.get_minute());
+                if let Some(st) = shared() {
+                    let mut s = st.borrow_mut();
+                    s.store.data.prefs.insert("setup_done".into(), "1".into());
+                    s.store.save();
+                }
+                g.set_show(false);
+            });
+        }
         // Date & time: fill the editor with the current time, apply through the root helper
         {
             let now = Local::now();
@@ -1505,6 +1552,23 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
         s.store.save();
         push_calendar(&ui, &s);
     }));
+
+    // Calcolatrice
+    {
+        let calc = std::rc::Rc::new(std::cell::RefCell::new(crate::calc::Calc::default()));
+        let w = ui.as_weak();
+        ui.global::<Calc>().on_key(move |k| {
+            let Some(ui) = w.upgrade() else { return };
+            let mut c = calc.borrow_mut();
+            c.key(&k);
+            let g = ui.global::<Calc>();
+            g.set_expr(c.expr.clone().into());
+            g.set_result(c.result.clone().into());
+            if ui.global::<Sys>().get_kbd_vibrate() {
+                crate::feedback::vibrate(14);
+            }
+        });
+    }
 
     // Note
     let notes = ui.global::<Notes>();

@@ -1,6 +1,6 @@
 import { Theme } from "theme.slint";
 import { Sys, Shell, Cal, Notes, Cam } from "data.slint";
-import { Icon, Icons, StatusBar, Badge, RoundButton, PillButton, Card, Field } from "components.slint";
+import { Icon, Icons, StatusBar, Badge, RoundButton, PillButton, Card, Field, Fab } from "components.slint";
 
 // ---------- Calendario ----------
 export component CalendarApp inherits Rectangle {
@@ -82,7 +82,7 @@ export component CalendarApp inherits Rectangle {
 
 // ---------- Note ----------
 export component NotesApp inherits Rectangle {
-    background: Theme.bg;
+    background: Theme.surface;
     property <int> editing: -2;
     property <string> draft-title;
     property <string> draft-body;
@@ -90,35 +90,38 @@ export component NotesApp inherits Rectangle {
 
     StatusBar { y: 0; width: parent.width; }
     Text {
-        x: 16px; y: 34px;
+        x: 24px; y: 40px;
         text: "Notes";
-        color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 28px; letter-spacing: -0.5px;
+        color: Theme.on-surface; font-family: Theme.display; font-size: 30px; font-weight: 500;
     }
 
     HorizontalLayout {
-        x: 16px; y: 84px; height: 34px;
+        x: 16px; y: 92px; height: 36px;
         spacing: 8px; alignment: start;
         PillButton { label: "All"; active: Notes.filter == 0; clicked => { Notes.set-filter(0); } }
         PillButton { label: "Pinned"; active: Notes.filter == 1; clicked => { Notes.set-filter(1); } }
     }
 
     Flickable {
-        x: 16px; y: 130px; width: parent.width - 32px; height: parent.height - 130px;
-        content-height: Notes.rows * 112px + 90px;
-        for n in Notes.notes: Card {
+        x: 16px; y: 140px; width: parent.width - 32px; height: parent.height - 140px;
+        content-height: Notes.rows * 148px + 96px;
+        for n in Notes.notes: Rectangle {
             x: n.col * (root.card-w + 8px);
-            y: n.row * 112px;
-            width: root.card-w; height: 104px;
+            y: n.row * 148px;
+            width: root.card-w; height: 140px;
+            border-radius: nta.pressed ? 18px : 28px;
+            background: n.pinned ? Theme.primary-container.mix(Theme.container-high, 0.4) : Theme.container-high;
+            animate border-radius { duration: 300ms; easing: spring(0.35); }
             VerticalLayout {
-                padding: 12px; spacing: 6px; alignment: start;
+                padding: 16px; spacing: 6px; alignment: start;
                 HorizontalLayout {
                     spacing: 6px;
-                    Text { text: n.title; color: Theme.text; font-family: Theme.display; font-weight: 500; font-size: 15px; overflow: elide; }
-                    if n.pinned: Rectangle { width: 8px; height: 8px; y: 5px; border-radius: 4px; background: Theme.accent; }
+                    Text { text: n.title; color: n.pinned ? Theme.on-primary-container : Theme.on-surface; font-family: Theme.display; font-weight: 500; font-size: 17px; overflow: elide; }
+                    if n.pinned: Icon { d: Icons.pin-f; size: 16px; tint: Theme.on-primary-container; }
                 }
-                Text { text: n.body; color: Theme.muted; font-family: Theme.body; font-size: 12px; wrap: word-wrap; overflow: elide; height: 50px; }
+                Text { text: n.body; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 13px; wrap: word-wrap; overflow: elide; height: 72px; }
             }
-            TouchArea {
+            nta := TouchArea {
                 clicked => {
                     root.draft-title = n.title;
                     root.draft-body = n.body;
@@ -127,10 +130,15 @@ export component NotesApp inherits Rectangle {
             }
         }
     }
+    if Notes.notes.length == 0: VerticalLayout {
+        y: 200px; spacing: 12px; alignment: start;
+        Icon { d: Icons.notes; size: 56px; tint: Theme.outline; weight: 1.5px; }
+        Text { text: "No notes yet"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 15px; horizontal-alignment: center; }
+    }
 
-    RoundButton {
-        x: root.width - 72px; y: root.height - 80px; size: 56px;
-        icon: Icons.plus; fill: Theme.accent; tint: Theme.on-primary; outlined: false;
+    Fab {
+        x: root.width - self.width - 20px; y: root.height - self.height - 24px;
+        icon: Icons.edit; label: "Note";
         clicked => { root.draft-title = ""; root.draft-body = ""; root.editing = -1; }
     }
 
@@ -153,13 +161,13 @@ export component NotesApp inherits Rectangle {
         t := TextInput {
             x: 20px; y: 92px; width: parent.width - 40px; height: 40px;
             text: root.draft-title;
-            color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 26px;
+            color: Theme.on-surface; font-family: Theme.display; font-weight: 500; font-size: 28px;
             single-line: true;
         }
         b := TextInput {
             x: 20px; y: 140px; width: parent.width - 40px; height: parent.height - 160px;
             text: root.draft-body;
-            color: Theme.text; font-family: Theme.body; font-size: 15px;
+            color: Theme.on-surface; font-family: Theme.body; font-size: 16px;
             single-line: false; wrap: word-wrap;
         }
     }

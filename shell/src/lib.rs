@@ -1,6 +1,7 @@
 slint::include_modules!();
 
 pub mod apk;
+pub mod calc;
 pub mod calendar;
 pub mod controller;
 pub mod ctl_comm;

@@ -1,5 +1,5 @@
 import { Theme } from "theme.slint";
-import { Style, Clock, Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow, CatRow, AlarmRow, CityRow, LapRow, SRow, Swatch } from "data.slint";
+import { Setup, Calc, Style, Clock, Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow, CatRow, AlarmRow, CityRow, LapRow, SRow, Swatch } from "data.slint";
 import { LockScreen, HomeScreen, ControlsPanel, SwitcherScreen } from "screens.slint";
 import { CalendarApp, NotesApp, CameraApp } from "apps.slint";
 import { PhoneApp, CallOverlay } from "phone.slint";
@@ -8,11 +8,13 @@ import { BrowserApp } from "browser.slint";
 import { FilesApp } from "files.slint";
 import { SettingsApp } from "settings.slint";
 import { ClockApp, AlarmOverlay } from "clock.slint";
+import { CalculatorApp } from "calculator.slint";
+import { SetupScreen } from "setup.slint";
 import { Icon, Icons, StatusBar, Shapes } from "components.slint";
 import { BootSplash } from "splash.slint";
 import { Keyboard, Kbd } from "keyboard.slint";
 
-export { Kbd, Theme, Icons, Style, Clock, Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow, CatRow, AlarmRow, CityRow, LapRow, SRow, Swatch }
+export { Setup, Calc, Kbd, Theme, Icons, Style, Clock, Sys, Shell, Cal, Notes, Cam, Phone, Msg, Web, Files, Settings, ScreenId, AppEntry, NotifItem, ToggleItem, RecentItem, DayCell, EventItem, NoteItem, CallRow, ContactRow, ThreadRow, Bubble, WebBlock, TabRow, FileRow, WifiRow, CatRow, AlarmRow, CityRow, LapRow, SRow, Swatch }
 
 // System log: what the phone is doing (cores, clock, charger, USB, network, input)
 component LogApp inherits Rectangle {
@@ -79,7 +81,7 @@ export component AppWindow inherits Window {
     default-font-family: "Google Sans Flex";
 
     property <bool> unlocked: Shell.screen != ScreenId.lock;
-    property <bool> system-app: Shell.app-id == "calendar" || Shell.app-id == "notes" || Shell.app-id == "camera" || Shell.app-id == "settings" || Shell.app-id == "phone" || Shell.app-id == "messages" || Shell.app-id == "browser" || Shell.app-id == "files" || Shell.app-id == "clock" || Shell.app-id == "log";
+    property <bool> system-app: Shell.app-id == "calendar" || Shell.app-id == "notes" || Shell.app-id == "camera" || Shell.app-id == "settings" || Shell.app-id == "phone" || Shell.app-id == "messages" || Shell.app-id == "browser" || Shell.app-id == "files" || Shell.app-id == "clock" || Shell.app-id == "log" || Shell.app-id == "calculator";
 
     // Avanzamento del gesto di chiusura (0 = app intera, 1 = scheda piccola)
     property <float> drag-p: min(1, max(0, Shell.close-drag / 420px));
@@ -134,6 +136,7 @@ export component AppWindow inherits Window {
             if Shell.app-id == "settings": SettingsApp { }
             if Shell.app-id == "clock": ClockApp { }
             if Shell.app-id == "log": LogApp { }
+            if Shell.app-id == "calculator": CalculatorApp { }
             if !root.system-app: Rectangle {
                 background: Theme.surface;
                 Icon { y: 240px; d: Icons.android-f; size: 64px; tint: Theme.tertiary; }
@@ -310,6 +313,9 @@ export component AppWindow inherits Window {
         drop-shadow-blur: Theme.lite ? 0px : 10px; drop-shadow-color: #00000040;
         Text { x: 18px; width: parent.width - 36px; height: parent.height; text: Shell.toast; color: Theme.inverse-on-surface; font-family: Theme.body; font-size: 15px; vertical-alignment: center; overflow: elide; }
     }
+
+    // Prima accensione: sopra a tutto
+    if Setup.show: SetupScreen { width: root.width; height: root.height; }
 
     alarm := AlarmOverlay {
         width: root.width; height: root.height;

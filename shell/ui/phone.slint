@@ -1,70 +1,104 @@
 import { Theme } from "theme.slint";
 import { Phone, Sys } from "data.slint";
-import { Icon, Icons, StatusBar, RoundButton, Card, Title, Avatar, Field } from "components.slint";
+import { Icon, Icons, StatusBar, RoundButton, Card, Title, Avatar, Field, NavBar, Fab } from "components.slint";
 
+// Tasto del tastierino: pillola tonale che si fa piu squadrata quando premuta
 component Key inherits Rectangle {
     in property <string> digit;
     in property <string> letters;
     callback pressed-key(string);
-    width: 64px; height: 64px; border-radius: 32px;
-    background: ta.pressed ? Theme.container-highest : Theme.raised;
-    animate background { duration: 90ms; }
+    border-radius: ta.pressed ? 18px : self.height / 2;
+    background: ta.pressed ? Theme.primary-container : Theme.container-high;
+    animate border-radius { duration: 300ms; easing: spring(0.35); }
+    animate background { duration: 120ms; }
     Text {
-        y: root.letters == "" ? 0px : 8px;
-        height: root.letters == "" ? parent.height : 34px;
+        y: root.letters == "" ? 0px : root.height * 0.12;
+        height: root.letters == "" ? parent.height : parent.height * 0.6;
         width: parent.width;
-        text: root.digit; color: Theme.text;
-        font-family: Theme.display; font-weight: 500; font-size: 28px;
+        text: root.digit; color: ta.pressed ? Theme.on-primary-container : Theme.on-surface;
+        font-family: Theme.display; font-weight: 500; font-size: 30px;
         horizontal-alignment: center; vertical-alignment: center;
     }
     if root.letters != "": Text {
-        y: 40px; width: parent.width;
-        text: root.letters; color: Theme.muted; font-family: Theme.body; font-size: 9px; letter-spacing: 1px;
+        y: parent.height * 0.66; width: parent.width;
+        text: root.letters; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 10px; font-weight: 600; letter-spacing: 1.5px;
         horizontal-alignment: center;
     }
     ta := TouchArea { clicked => { root.pressed-key(root.digit); } }
 }
 
-component TabIcon inherits Rectangle {
+// Riga di elenco dentro un gruppo a schede
+component PersonRow inherits Rectangle {
+    in property <string> initial;
+    in property <string> name;
+    in property <string> detail;
+    in property <string> trailing;
+    in property <int> hue;
+    in property <bool> alert;
     in property <string> glyph;
-    in property <bool> active;
     callback clicked();
-    width: 56px; height: 44px; border-radius: 22px;
-    background: root.active ? Theme.raised : transparent;
-    animate background { duration: Theme.fast; }
-    Icon { d: root.glyph; tint: root.active ? Theme.accent : Theme.muted; size: 22px; }
-    TouchArea { clicked => { root.clicked(); } }
+    height: 68px;
+    background: ta.pressed ? Theme.container-highest : Theme.container-high;
+    animate background { duration: 120ms; }
+    Avatar { x: 16px; y: 12px; initial: root.initial; size: 44px; hue: root.hue; }
+    if root.glyph != "": Rectangle {
+        x: 44px; y: 40px; width: 20px; height: 20px; border-radius: 10px;
+        background: root.alert ? Theme.error-container : Theme.surface;
+        Icon { d: root.glyph; size: 12px; tint: root.alert ? Theme.on-error-container : Theme.on-surface-variant; }
+    }
+    VerticalLayout {
+        x: 74px; width: parent.width - 74px - 72px; alignment: center; spacing: 2px;
+        Text { text: root.name; color: root.alert ? Theme.error : Theme.on-surface; font-family: Theme.body; font-size: 16px; font-weight: 500; overflow: elide; }
+        Text { text: root.detail; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 13px; overflow: elide; }
+    }
+    Text {
+        x: parent.width - self.width - 16px; height: parent.height;
+        text: root.trailing; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 12px; vertical-alignment: center;
+    }
+    ta := TouchArea { clicked => { root.clicked(); } }
 }
 
 export component PhoneApp inherits Rectangle {
-    background: Theme.bg;
+    background: Theme.surface;
     property <bool> adding: false;
-    property <length> col-w: (root.width - 48px) / 3;
+    property <length> body-h: root.height - 96px - 80px;
 
     StatusBar { y: 0; width: parent.width; }
-
+    Text {
+        x: 24px; y: 40px;
+        text: Phone.tab == 0 ? "Phone" : Phone.tab == 1 ? "Recents" : "Contacts";
+        color: Theme.on-surface; font-family: Theme.display; font-size: 30px; font-weight: 500;
+    }
     if !Phone.modem-ok: Rectangle {
-        x: (parent.width - self.width) / 2; y: 28px; height: 24px;
+        x: parent.width - self.width - 20px; y: 46px; height: 28px;
         width: warn.preferred-width + 24px;
-        border-radius: 12px; background: Theme.raised;
-        warn := Text { text: Phone.modem-label; color: Theme.muted; font-family: Theme.body; font-size: 11px; }
+        border-radius: 14px; background: Theme.container-high;
+        warn := Text { text: Phone.modem-label; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 11px; }
     }
 
-    // Tastiera
-    Rectangle {
-        opacity: Phone.tab == 0 ? 1 : 0;
-        visible: self.opacity > 0.01;
-        y: Phone.tab == 0 ? 0px : 12px;
-        animate opacity, y { duration: 220ms; easing: ease-out; }
-        Text {
-            x: 24px; y: 62px; width: parent.width - 96px; height: 56px;
-            text: Phone.dial;
-            color: Theme.text; font-family: Theme.display; font-weight: 500; font-size: Phone.dial.character-count > 11 ? 26px : 34px;
-            horizontal-alignment: center; vertical-alignment: center; overflow: elide;
-        }
-        if Phone.dial != "": RoundButton {
-            x: parent.width - 64px; y: 68px; icon: Icons.back; outlined: false; tint: Theme.muted;
-            clicked => { Phone.dial = ""; }
+    // Tastierino
+    if Phone.tab == 0: Rectangle {
+        y: 96px; height: root.body-h;
+        property <length> gap: 10px;
+        property <length> key-w: (self.width - 48px - 2 * self.gap) / 3;
+        property <length> key-h: min(60px, (self.height - 88px - 88px - 3 * self.gap) / 4);
+        // Numero composto
+        Rectangle {
+            x: 16px; y: 0px; width: parent.width - 32px; height: 72px; border-radius: 28px;
+            background: Theme.container;
+            Text {
+                x: 20px; width: parent.width - 84px; height: parent.height;
+                text: Phone.dial != "" ? Phone.dial : "Enter a number";
+                color: Phone.dial != "" ? Theme.on-surface : Theme.on-surface-variant;
+                font-family: Phone.dial != "" ? Theme.display : Theme.body;
+                font-size: Phone.dial == "" ? 16px : Phone.dial.character-count > 12 ? 26px : 34px;
+                font-weight: Phone.dial != "" ? 500 : 400;
+                vertical-alignment: center; overflow: elide;
+            }
+            if Phone.dial != "": RoundButton {
+                x: parent.width - 56px; y: 14px; icon: Icons.back; tint: Theme.on-surface-variant;
+                clicked => { Phone.dial = ""; }
+            }
         }
         for k[i] in [
             {d: "1", l: ""}, {d: "2", l: "ABC"}, {d: "3", l: "DEF"},
@@ -72,106 +106,120 @@ export component PhoneApp inherits Rectangle {
             {d: "7", l: "PQRS"}, {d: "8", l: "TUV"}, {d: "9", l: "WXYZ"},
             {d: "*", l: ""}, {d: "0", l: "+"}, {d: "#", l: ""}
         ]: Key {
-            x: 24px + mod(i, 3) * root.col-w + (root.col-w - 64px) / 2;
-            y: 134px + floor(i / 3) * 76px;
+            x: 24px + mod(i, 3) * (parent.key-w + parent.gap);
+            y: 88px + floor(i / 3) * (parent.key-h + parent.gap);
+            width: parent.key-w; height: parent.key-h;
             digit: k.d; letters: k.l;
             pressed-key(d) => { Phone.dial += d; }
         }
+        // Chiama: grande pulsante squadrato come quello dell'Orologio
         Rectangle {
-            x: (parent.width - 64px) / 2; y: 446px; width: 64px; height: 64px; border-radius: 32px;
-            background: Phone.dial == "" ? Theme.raised : Theme.accent;
-            animate background { duration: Theme.fast; }
+            property <bool> ready: Phone.dial != "";
+            x: (parent.width - self.width) / 2; y: parent.height - 80px;
+            width: 136px; height: 68px;
+            border-radius: cta.pressed ? 20px : 36px;
+            background: ready ? Theme.primary : Theme.container-high;
+            animate border-radius { duration: 300ms; easing: spring(0.35); }
+            animate background { duration: 200ms; }
             accessible-role: button; accessible-label: "Call";
-            Icon { d: Icons.phone; tint: Phone.dial == "" ? Theme.muted : Theme.on-primary; size: 24px; }
-            TouchArea { clicked => { if (Phone.dial != "") { Phone.call(Phone.dial); } } }
+            Icon { d: Icons.phone-f; tint: ready ? Theme.on-primary : Theme.on-surface-variant; size: 30px; }
+            cta := TouchArea { clicked => { if (Phone.dial != "") { Phone.call(Phone.dial); } } }
         }
     }
 
     // Recenti
-    Rectangle {
-        opacity: Phone.tab == 1 ? 1 : 0;
-        visible: self.opacity > 0.01;
-        y: Phone.tab == 1 ? 0px : 12px;
-        animate opacity, y { duration: 220ms; easing: ease-out; }
-        Title { x: 16px; y: 56px; text: "Recents"; }
+    if Phone.tab == 1: Rectangle {
+        y: 96px; height: root.body-h;
         Flickable {
-            x: 16px; y: 104px; width: parent.width - 32px; height: 430px;
-            content-height: Phone.recents.length * 60px;
-            for c[i] in Phone.recents: Rectangle {
-                y: i * 60px; height: 60px;
-                background: rta.pressed ? Theme.raised : transparent;
-                Rectangle {
-                    x: 0; width: 40px; height: 40px; border-radius: 20px; background: Theme.raised;
-                    Icon {
-                        d: c.dir == "out" ? Icons.out-arrow : Icons.in-arrow;
-                        tint: c.dir == "missed" ? Theme.error : Theme.muted; size: 16px;
-                    }
-                }
-                VerticalLayout {
-                    x: 52px; width: parent.width - 120px; alignment: center; spacing: 2px;
-                    Text { text: c.name; color: c.dir == "missed" ? Theme.error : Theme.text; font-family: Theme.body; font-size: 15px; overflow: elide; }
-                    Text { text: c.number; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
-                }
-                Text { x: parent.width - self.width; height: parent.height; text: c.when; color: Theme.faint; font-family: Theme.body; font-size: 12px; vertical-alignment: center; }
-                rta := TouchArea { clicked => { Phone.call(c.number); } }
+            x: 16px; width: parent.width - 32px; height: parent.height;
+            content-height: Phone.recents.length * 70px + 16px;
+            for c[i] in Phone.recents: PersonRow {
+                y: i * 70px; width: parent.width;
+                border-top-left-radius: i == 0 ? 28px : 6px;
+                border-top-right-radius: i == 0 ? 28px : 6px;
+                border-bottom-left-radius: i == Phone.recents.length - 1 ? 28px : 6px;
+                border-bottom-right-radius: i == Phone.recents.length - 1 ? 28px : 6px;
+                initial: c.initial;
+                name: c.name; detail: c.number; trailing: c.when; hue: i;
+                alert: c.dir == "missed";
+                glyph: c.dir == "out" ? Icons.out-arrow : c.dir == "missed" ? Icons.missed : Icons.in-arrow;
+                clicked => { Phone.call(c.number); }
             }
         }
-        if Phone.recents.length == 0: Icon { x: (parent.width - 48px) / 2; y: 240px; d: Icons.history; size: 48px; tint: Theme.faint; weight: 1.5px; }
+        if Phone.recents.length == 0: VerticalLayout {
+            y: 120px; spacing: 12px; alignment: start;
+            Icon { d: Icons.history; size: 56px; tint: Theme.outline; weight: 1.5px; }
+            Text { text: "No calls yet"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 15px; horizontal-alignment: center; }
+        }
     }
 
     // Contatti
-    Rectangle {
-        opacity: Phone.tab == 2 ? 1 : 0;
-        visible: self.opacity > 0.01;
-        y: Phone.tab == 2 ? 0px : 12px;
-        animate opacity, y { duration: 220ms; easing: ease-out; }
-        Title { x: 16px; y: 56px; text: "Contacts"; }
-        RoundButton {
-            x: parent.width - 60px; y: 54px; icon: root.adding ? Icons.close : Icons.plus;
-            clicked => { root.adding = !root.adding; }
-        }
-        if root.adding: VerticalLayout {
-            x: 16px; y: 108px; width: parent.width - 32px; spacing: 8px; alignment: start;
-            name := Field { placeholder: "Name"; }
-            num := Field { placeholder: "Number"; kind: InputType.number; }
-            Rectangle {
-                height: 44px; border-radius: 22px; background: Theme.accent;
-                Text { text: "Save"; color: Theme.on-primary; font-family: Theme.body; font-size: 14px; font-weight: 600; }
-                TouchArea {
-                    clicked => {
-                        if (name.text != "" && num.text != "") {
-                            Phone.add-contact(name.text, num.text);
-                            root.adding = false;
+    if Phone.tab == 2: Rectangle {
+        y: 96px; height: root.body-h;
+        if root.adding: Rectangle {
+            x: 16px; width: parent.width - 32px; height: 236px; border-radius: 28px;
+            background: Theme.container-high;
+            VerticalLayout {
+                padding: 16px; spacing: 10px; alignment: start;
+                Text { text: "New contact"; color: Theme.on-surface; font-family: Theme.display; font-size: 20px; font-weight: 500; }
+                name := Field { placeholder: "Name"; }
+                num := Field { placeholder: "Number"; kind: InputType.number; }
+                HorizontalLayout {
+                    spacing: 8px; alignment: end;
+                    Rectangle {
+                        width: 96px; height: 44px; border-radius: 22px; background: Theme.container-highest;
+                        Text { text: "Cancel"; color: Theme.on-surface; font-family: Theme.body; font-size: 14px; font-weight: 600; }
+                        TouchArea { clicked => { root.adding = false; } }
+                    }
+                    Rectangle {
+                        width: 96px; height: 44px; border-radius: 22px; background: Theme.primary;
+                        Text { text: "Save"; color: Theme.on-primary; font-family: Theme.body; font-size: 14px; font-weight: 600; }
+                        TouchArea {
+                            clicked => {
+                                if (name.text != "" && num.text != "") {
+                                    Phone.add-contact(name.text, num.text);
+                                    root.adding = false;
+                                }
+                            }
                         }
                     }
                 }
             }
         }
         if !root.adding: Flickable {
-            x: 16px; y: 104px; width: parent.width - 32px; height: 430px;
-            content-height: Phone.contacts.length * 60px;
-            for c[i] in Phone.contacts: Rectangle {
-                y: i * 60px; height: 60px;
-                background: cta.pressed ? Theme.raised : transparent;
-                Avatar { x: 0; initial: c.initial; size: 40px; }
-                VerticalLayout {
-                    x: 52px; width: parent.width - 60px; alignment: center; spacing: 2px;
-                    Text { text: c.name; color: Theme.text; font-family: Theme.body; font-size: 15px; }
-                    Text { text: c.number; color: Theme.muted; font-family: Theme.body; font-size: 12px; }
-                }
-                cta := TouchArea { clicked => { Phone.call(c.number); } }
+            x: 16px; width: parent.width - 32px; height: parent.height;
+            content-height: Phone.contacts.length * 70px + 96px;
+            for c[i] in Phone.contacts: PersonRow {
+                y: i * 70px; width: parent.width;
+                border-top-left-radius: i == 0 ? 28px : 6px;
+                border-top-right-radius: i == 0 ? 28px : 6px;
+                border-bottom-left-radius: i == Phone.contacts.length - 1 ? 28px : 6px;
+                border-bottom-right-radius: i == Phone.contacts.length - 1 ? 28px : 6px;
+                initial: c.initial; name: c.name; detail: c.number; hue: i;
+                glyph: "";
+                clicked => { Phone.call(c.number); }
             }
         }
-        if !root.adding && Phone.contacts.length == 0: Icon { x: (parent.width - 48px) / 2; y: 240px; d: Icons.user; size: 48px; tint: Theme.faint; weight: 1.5px; }
+        if !root.adding && Phone.contacts.length == 0: VerticalLayout {
+            y: 120px; spacing: 12px; alignment: start;
+            Icon { d: Icons.user; size: 56px; tint: Theme.outline; weight: 1.5px; }
+            Text { text: "No contacts yet"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 15px; horizontal-alignment: center; }
+        }
+        if !root.adding: Fab {
+            x: parent.width - self.width - 20px; y: parent.height - self.height - 16px;
+            icon: Icons.plus; label: "Contact";
+            clicked => { root.adding = true; }
+        }
     }
 
-    // Barra schede, solo icone
-    HorizontalLayout {
-        y: parent.height - 84px; height: 44px;
-        alignment: center; spacing: 24px;
-        TabIcon { glyph: Icons.keypad; active: Phone.tab == 0; clicked => { Phone.tab = 0; } }
-        TabIcon { glyph: Icons.history; active: Phone.tab == 1; clicked => { Phone.tab = 1; } }
-        TabIcon { glyph: Icons.user; active: Phone.tab == 2; clicked => { Phone.tab = 2; } }
+    NavBar {
+        y: parent.height - 80px; width: parent.width;
+        selected <=> Phone.tab;
+        items: [
+            { label: "Keypad", icon: Icons.keypad, icon-f: Icons.keypad-f },
+            { label: "Recents", icon: Icons.history, icon-f: Icons.history-f },
+            { label: "Contacts", icon: Icons.user, icon-f: Icons.user-f },
+        ];
     }
 }
 

@@ -7,7 +7,7 @@ export struct RecentItem { id: string, name: string, glyph: string, mem: int, st
 export struct DayCell { n: int, col: int, row: int, in-month: bool, today: bool, selected: bool, has-events: bool }
 export struct EventItem { time: string, title: string }
 export struct NoteItem { id: int, title: string, body: string, pinned: bool, col: int, row: int }
-export struct CallRow { name: string, number: string, when: string, dir: string }
+export struct CallRow { name: string, number: string, when: string, dir: string, initial: string }
 export struct ContactRow { name: string, number: string, initial: string }
 export struct ThreadRow { number: string, name: string, last: string, when: string, unread: int, initial: string }
 export struct Bubble { text: string, when: string, out: bool }
@@ -402,4 +402,25 @@ export global Clock {
     callback sw-reset();
     callback ring-stop();
     callback ring-snooze();
+}
+
+export global Calc {
+    in property <string> expr;
+    in property <string> result;
+    callback key(string);
+}
+
+// Prima accensione: benvenuto, data e ora
+export global Setup {
+    in-out property <bool> show: false;
+    in-out property <int> step: 0;
+    in-out property <int> year: 2026;
+    in-out property <int> month: 1;
+    in-out property <int> day: 1;
+    in-out property <int> hour: 12;
+    in-out property <int> minute: 0;
+    in property <int> first-dow: 0;
+    in property <int> days: 31;
+    callback month-changed(int, int);
+    callback finish();
 }

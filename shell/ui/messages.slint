@@ -1,9 +1,9 @@
 import { Theme } from "theme.slint";
 import { Msg } from "data.slint";
-import { Icon, Icons, StatusBar, RoundButton, Title, Avatar, Field } from "components.slint";
+import { Icon, Icons, StatusBar, RoundButton, Title, Avatar, Field, Fab } from "components.slint";
 
 export component MessagesApp inherits Rectangle {
-    background: Theme.bg;
+    background: Theme.surface;
     property <bool> composing: false;
     property <string> to-number;
     property <bool> in-thread: Msg.open-number != "" || root.composing;
@@ -16,35 +16,46 @@ export component MessagesApp inherits Rectangle {
         opacity: root.in-thread ? 0 : 1;
         animate x { duration: 380ms; easing: Theme.ease; }
         animate opacity { duration: 240ms; }
-        Title { x: 16px; y: 34px; text: "Messages"; }
-        RoundButton {
-            x: parent.width - 60px; y: 32px; icon: Icons.plus; fill: Theme.accent; tint: Theme.on-primary; outlined: false;
-            clicked => { root.composing = true; }
+        Text {
+            x: 24px; y: 40px;
+            text: "Messages";
+            color: Theme.on-surface; font-family: Theme.display; font-size: 30px; font-weight: 500;
         }
+        // Conversazioni in un gruppo di schede, angoli grandi solo agli estremi
         Flickable {
-            x: 16px; y: 92px; width: parent.width - 32px; height: parent.height - 92px - 32px;
-            content-height: Msg.threads.length * 72px;
+            x: 16px; y: 96px; width: parent.width - 32px; height: parent.height - 96px;
+            content-height: Msg.threads.length * 78px + 96px;
             for t[i] in Msg.threads: Rectangle {
-                y: i * 72px; height: 72px;
-                background: ta.pressed ? Theme.raised : transparent;
-                Avatar { x: 0; initial: t.initial; }
+                y: i * 78px; height: 76px;
+                border-top-left-radius: i == 0 ? 28px : 6px;
+                border-top-right-radius: i == 0 ? 28px : 6px;
+                border-bottom-left-radius: i == Msg.threads.length - 1 ? 28px : 6px;
+                border-bottom-right-radius: i == Msg.threads.length - 1 ? 28px : 6px;
+                background: ta.pressed ? Theme.container-highest : t.unread > 0 ? Theme.primary-container.mix(Theme.container-high, 0.25) : Theme.container-high;
+                animate background { duration: 120ms; }
+                Avatar { x: 16px; y: 14px; initial: t.initial; size: 48px; hue: i; }
                 VerticalLayout {
-                    x: 56px; width: parent.width - 110px; alignment: center; spacing: 3px;
-                    Text { text: t.name; color: Theme.text; font-family: Theme.body; font-size: 15px; font-weight: t.unread > 0 ? 600 : 400; overflow: elide; }
-                    Text { text: t.last; color: t.unread > 0 ? Theme.text : Theme.muted; font-family: Theme.body; font-size: 13px; overflow: elide; }
+                    x: 78px; width: parent.width - 78px - 64px; alignment: center; spacing: 3px;
+                    Text { text: t.name; color: t.unread > 0 ? Theme.on-primary-container : Theme.on-surface; font-family: Theme.body; font-size: 16px; font-weight: t.unread > 0 ? 700 : 500; overflow: elide; }
+                    Text { text: t.last; color: t.unread > 0 ? Theme.on-surface : Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; overflow: elide; }
                 }
-                Text { x: parent.width - self.width; y: 16px; text: t.when; color: Theme.faint; font-family: Theme.body; font-size: 11px; }
+                Text { x: parent.width - self.width - 16px; y: 18px; text: t.when; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 12px; }
                 if t.unread > 0: Rectangle {
-                    x: parent.width - 18px; y: 40px; width: 18px; height: 18px; border-radius: 9px; background: Theme.accent;
-                    Text { text: t.unread; color: Theme.on-primary; font-family: Theme.body; font-size: 10px; font-weight: 600; }
+                    x: parent.width - 16px - 22px; y: 40px; width: 22px; height: 22px; border-radius: 11px; background: Theme.primary;
+                    Text { text: t.unread; color: Theme.on-primary; font-family: Theme.body; font-size: 11px; font-weight: 700; }
                 }
                 ta := TouchArea { clicked => { Msg.open-thread(t.number); } }
             }
         }
+        Fab {
+            x: parent.width - self.width - 20px; y: parent.height - self.height - 24px;
+            icon: Icons.message; label: "Start chat";
+            clicked => { root.composing = true; }
+        }
         if Msg.threads.length == 0: VerticalLayout {
-            y: 220px; alignment: start; spacing: 12px;
-            Icon { x: (parent.width - 48px) / 2; d: Icons.message; size: 48px; tint: Theme.faint; weight: 1.5px; }
-            if Msg.status != "": Text { text: Msg.status; color: Theme.faint; font-family: Theme.body; font-size: 13px; horizontal-alignment: center; }
+            y: 200px; alignment: start; spacing: 12px;
+            Icon { d: Icons.message; size: 56px; tint: Theme.outline; weight: 1.5px; }
+            Text { text: Msg.status != "" ? Msg.status : "No conversations yet"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 15px; horizontal-alignment: center; }
         }
     }
 
@@ -52,7 +63,7 @@ export component MessagesApp inherits Rectangle {
     Rectangle {
         x: root.in-thread ? 0px : root.width;
         visible: self.x < root.width;
-        background: Theme.bg;
+        background: Theme.surface;
         animate x { duration: 380ms; easing: Theme.ease; }
         RoundButton {
             x: 12px; y: 30px; icon: Icons.back; outlined: false;
@@ -61,7 +72,7 @@ export component MessagesApp inherits Rectangle {
         if !root.composing: Text {
             x: 64px; y: 30px; height: 44px; width: parent.width - 80px;
             text: Msg.open-name;
-            color: Theme.text; font-family: Theme.display; font-weight: 700; font-size: 20px;
+            color: Theme.on-surface; font-family: Theme.display; font-weight: 500; font-size: 22px;
             vertical-alignment: center; overflow: elide;
         }
         if root.composing: Field {
@@ -82,26 +93,31 @@ export component MessagesApp inherits Rectangle {
                     alignment: m.out ? end : start;
                     Rectangle {
                         max-width: flick.width * 0.8;
-                        border-radius: 18px;
-                        background: m.out ? Theme.accent : Theme.raised;
+                        border-radius: 22px;
+                        border-bottom-right-radius: m.out ? 6px : 22px;
+                        border-bottom-left-radius: m.out ? 22px : 6px;
+                        background: m.out ? Theme.primary : Theme.container-high;
                         VerticalLayout {
                             padding-left: 14px; padding-right: 14px; padding-top: 9px; padding-bottom: 7px;
                             spacing: 2px;
-                            Text { text: m.text; color: m.out ? Theme.on-primary : Theme.text; font-family: Theme.body; font-size: 15px; wrap: word-wrap; }
-                            Text { text: m.when; color: m.out ? Theme.on-primary.with-alpha(0.7) : Theme.faint; font-family: Theme.body; font-size: 10px; horizontal-alignment: right; }
+                            Text { text: m.text; color: m.out ? Theme.on-primary : Theme.on-surface; font-family: Theme.body; font-size: 15px; wrap: word-wrap; }
+                            Text { text: m.when; color: m.out ? Theme.on-primary.with-alpha(0.7) : Theme.on-surface-variant; font-family: Theme.body; font-size: 10px; horizontal-alignment: right; }
                         }
                     }
                 }
             }
         }
 
+        Rectangle {
+            y: parent.height - 80px; height: 80px; background: Theme.container;
+        }
         composer := Field {
-            x: 12px; y: parent.height - 68px; width: parent.width - 80px; height: 48px;
+            x: 12px; y: parent.height - 66px; width: parent.width - 84px; height: 52px;
             placeholder: "Message";
         }
         RoundButton {
-            x: parent.width - 60px; y: parent.height - 66px; size: 44px;
-            icon: Icons.send; fill: Theme.accent; tint: Theme.on-primary; outlined: false;
+            x: parent.width - 64px; y: parent.height - 66px; size: 52px;
+            icon: Icons.send-f; fill: Theme.primary; tint: Theme.on-primary; outlined: false;
             clicked => {
                 if (composer.text != "") {
                     if (root.composing) {

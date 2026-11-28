@@ -222,6 +222,7 @@ pub fn app_tone(id: &str) -> (Color, Color) {
         "clock" => (0x202124, 0x8ab4f8),
         "settings" => (0x5f6368, 0xffffff),
         "log" => (0x263238, 0x80cbc4),
+        "calculator" => (0x4a3b00, 0xffe08a),
         _ => {
             let h = id.bytes().fold(0u32, |a, b| a.wrapping_mul(31).wrapping_add(b as u32));
             let palette = [0x7b1fa2, 0x00897b, 0xef6c00, 0x3949ab, 0xc2185b, 0x2e7d32];

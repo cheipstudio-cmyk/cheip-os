@@ -204,6 +204,17 @@ fn main() {
         return;
     }
     ctx.advance(600);
+    if std::env::var("CHEIP_SETUP").is_ok() {
+        let g = ui.global::<cheip_shell::Setup>();
+        g.set_show(true);
+        for step in 0..4 {
+            g.set_step(step);
+            ctx.advance(500);
+            ctx.shot(&format!("setup-{step}"));
+        }
+        return;
+    }
+    ctx.advance(600);
     if std::env::var("CHEIP_M3").is_ok() {
         let style = ui.global::<Style>();
         let clock = ui.global::<Clock>();
@@ -467,6 +478,18 @@ fn main() {
     open("calendar");
     ctx.advance(700);
     ctx.shot("calendario");
+    shell.invoke_close_app();
+    ctx.advance(600);
+    open("notes");
+    ctx.advance(700);
+    ctx.shot("note");
+    shell.invoke_close_app();
+    ctx.advance(600);
+    open("calculator");
+    ctx.advance(300);
+    for k in ["1", "2", "8", "×", "3", "+", "4", "5"] { ui.global::<cheip_shell::Calc>().invoke_key(k.into()); }
+    ctx.advance(400);
+    ctx.shot("calcolatrice");
 
     shell.invoke_close_app();
     ctx.advance(600);

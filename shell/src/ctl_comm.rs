@@ -34,6 +34,7 @@ pub fn push_phone(ui: &AppWindow, st: &State) {
             .calls
             .iter()
             .map(|c| CallRow {
+                initial: crate::controller::initial(&name_or_number(st, &c.number)),
                 name: name_or_number(st, &c.number).into(),
                 number: c.number.clone().into(),
                 when: when(c.ts, now).into(),
