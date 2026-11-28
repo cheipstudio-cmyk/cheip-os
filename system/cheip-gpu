@@ -37,7 +37,8 @@ touch "$MARK"; sync
 	modprobe msm 2>&1 || echo "modprobe msm failed"
 	sleep 3
 	for n in /dev/dri/*; do echo "device $n"; done
-	dmesg 2>/dev/null | grep -iE "adreno|msm|a3xx|ocmem|carveout|vram|a330_p|headless" | tail -n 20 | cut -c1-110
+	echo "module: $(lsmod 2>/dev/null | grep -E '^msm ' | cut -c1-40)"
+	dmesg 2>/dev/null | grep -iE "adreno|a3xx|ocmem|carveout|vram|a330_p|headless|\[drm|msm_drm|msm_gpu|gdsc|oxili" | grep -viE "msm_serial|msm_hsusb" | tail -n 20 | cut -c1-110
 	chmod 666 /dev/dri/renderD* 2>/dev/null
 	if [ -e /dev/dri/renderD128 ]; then
 		echo "EGL test (surfaceless):"

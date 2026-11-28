@@ -55,6 +55,17 @@ start_pre() {
 		# the charger driver's own messages
 		echo "stop voltage $(cat /sys/class/power_supply/smbb-bif/voltage_max 2>/dev/null) uV, present $(cat /sys/class/power_supply/smbb-bif/present 2>/dev/null)" >> /var/log/cheip-charger.txt
 		dmesg 2>/dev/null | grep -i smbb | tail -n 3 | cut -c1-110 >> /var/log/cheip-charger.txt
+		# PMIC charger registers (CHGR 0x10xx, BAT_IF 0x12xx, USB 0x13xx): what the
+		# hardware itself thinks, read through the regmap debugfs
+		if [ ! -s /var/log/cheip-charger-regs.txt ]; then
+			mountpoint -q /sys/kernel/debug || mount -t debugfs none /sys/kernel/debug 2>/dev/null
+			for r in /sys/kernel/debug/regmap/*/registers; do
+				grep -qE "^1049:" "$r" 2>/dev/null || continue
+				grep -E "^(1008|1009|100a|1010|1040|1041|1044|1045|1047|1049|104a|1052|105d|1208|1209|1210|1249|1308|1309|1310|1340|1342|1344|1346|1347):" "$r" | tr '\n' ' ' > /var/log/cheip-charger-regs.txt
+				break
+			done
+		fi
+		echo "regs $(cat /var/log/cheip-charger-regs.txt 2>/dev/null)" >> /var/log/cheip-charger.txt
 		sleep 10
 	  done ) >/dev/null 2>&1 &
 	# Fastest CPU clock available: the UI renders on the CPU. cpufreq-dt may load
