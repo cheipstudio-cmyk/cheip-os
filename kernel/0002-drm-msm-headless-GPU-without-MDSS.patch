@@ -1,6 +1,6 @@
 --- a/drivers/gpu/drm/msm/adreno/adreno_device.c	2026-11-28 13:28:52.561524304 +0100
-+++ b/drivers/gpu/drm/msm/adreno/adreno_device.c	2026-11-28 13:28:52.563229306 +0100
-@@ -282,6 +282,31 @@
++++ b/drivers/gpu/drm/msm/adreno/adreno_device.c	2026-11-28 22:49:28.947812663 +0100
+@@ -282,6 +282,45 @@
  	platform_device_register_full(&dummy_info);
  }
  
@@ -20,7 +20,21 @@
 +
 +	for (i = 0; i < ARRAY_SIZE(compat); i++) {
 +		for_each_compatible_node(np, NULL, compat[i]) {
-+			if (of_device_is_available(np)) {
++			/* A child (mdp5) of a disabled mdss has no status of its
++			 * own: it counts only if every parent is enabled too */
++			struct device_node *p = of_node_get(np);
++			bool on = true;
++
++			while (p && on) {
++				struct device_node *up = of_get_parent(p);
++
++				if (up && !of_device_is_available(p))
++					on = false;
++				of_node_put(p);
++				p = up;
++			}
++			of_node_put(p);
++			if (on) {
 +				of_node_put(np);
 +				return true;
 +			}
@@ -32,7 +46,7 @@
  static int adreno_probe(struct platform_device *pdev)
  {
  
-@@ -291,8 +316,11 @@
+@@ -291,8 +330,11 @@
  	if (ret)
  		return ret;
  

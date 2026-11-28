@@ -34,6 +34,11 @@ if [ ! -s "$FW/wcnss.mbn" ] || [ ! -s "$NV" ]; then
 		echo "$part firmware images: $(find /mnt/wp \( -iname '*.mbn' -o -iname '*.mdt' -o -iname '*.b00' \) 2>/dev/null | sed 's#.*/##' | sort -u | head -n 40 | tr '\n' ' ')"
 		mbn=$(grep -iE '(wcnss|pronto)[^/]*\.(mbn|mdt)$' /tmp/cheip-fw.txt | head -n 1)
 		nv=$(grep -iE 'wlan[^/]*nv[^/]*\.bin$' /tmp/cheip-fw.txt | head -n 1)
+		# Windows keeps the same WLAN NV data (calibration and settings) as
+		# qcwlan8626cfg.dat next to the firmware
+		[ -n "$nv" ] || nv=$(grep -iE 'qcwlan[^/]*cfg[^/]*\.dat$' /tmp/cheip-fw.txt | head -n 1)
+		[ -n "$nv" ] && echo "NV candidate $nv: $(stat -c %s "$nv") bytes, head $(od -A n -t x1 -N 16 "$nv" | tr -s ' ')"
+		for p in $(find /mnt/wp -iname 'WLAN*.PROVISION' 2>/dev/null); do echo "provision $p: $(stat -c %s "$p") bytes"; done
 		[ -n "$mbn" ] && [ ! -s "$FW/wcnss.mbn" ] && cp "$mbn" "$FW/wcnss.mbn" && echo "copied $mbn"
 		[ -n "$nv" ] && [ ! -s "$NV" ] && cp "$nv" "$NV" && echo "copied $nv"
 		umount /mnt/wp
