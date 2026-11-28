@@ -3,7 +3,7 @@ import { Web } from "data.slint";
 import { Icon, Icons, StatusBar, RoundButton, Title, ListRow } from "components.slint";
 
 export component BrowserApp inherits Rectangle {
-    background: Theme.bg;
+    background: Theme.surface;
     property <bool> show-tabs: false;
     property <int> reset: Web.scroll-reset;
     changed reset => { page.content-y = 0; }
@@ -13,9 +13,11 @@ export component BrowserApp inherits Rectangle {
     // Barra indirizzo
     if Web.can-back: RoundButton { x: 8px; y: 30px; icon: Icons.back; outlined: false; clicked => { Web.back(); } }
     bar := Rectangle {
-        x: Web.can-back ? 56px : 12px; y: 30px; height: 44px;
+        x: Web.can-back ? 56px : 12px; y: 30px; height: 46px;
         width: parent.width - self.x - 108px;
-        border-radius: 22px; background: Theme.raised;
+        border-radius: 23px; background: addr.has-focus ? Theme.container-highest : Theme.container-high;
+        border-width: addr.has-focus ? 2px : 0px; border-color: Theme.primary;
+        animate background { duration: Theme.fast; }
         animate x, width { duration: Theme.fast; easing: Theme.ease; }
         Icon { x: 14px; d: Icons.globe; size: 16px; tint: Theme.muted; }
         Text {
@@ -99,16 +101,50 @@ export component BrowserApp inherits Rectangle {
         }
     }
 
-    // Pagina iniziale: preferiti
-    if Web.url == "" && !Web.loading: Rectangle {
+    // Pagina iniziale: logo, ricerca grande, scorciatoie a tessere e preferiti
+    if Web.url == "" && !Web.loading: Flickable {
         y: 86px; height: parent.height - 86px;
-        Icon { x: (parent.width - 56px) / 2; y: 40px; d: Icons.globe; size: 56px; tint: Theme.faint; weight: 1.2px; }
-        VerticalLayout {
-            x: 16px; y: 128px; width: parent.width - 32px; alignment: start;
-            for bm in Web.bookmarks: ListRow {
-                icon: Icons.star; label: bm.title; detail: bm.url; chevron: false;
-                clicked => { Web.go(bm.url); }
+        content-height: 480px + Web.bookmarks.length * 70px;
+        Rectangle {
+            x: (parent.width - 88px) / 2; y: 28px; width: 88px; height: 88px; border-radius: 30px;
+            background: Theme.primary-container;
+            Icon { d: Icons.globe; size: 44px; tint: Theme.on-primary-container; weight: 1.6px; }
+        }
+        Text {
+            y: 128px; width: parent.width; text: "Browse the web";
+            color: Theme.on-surface; font-family: Theme.display; font-size: 26px; font-weight: 500; horizontal-alignment: center;
+        }
+        Rectangle {
+            x: 20px; y: 176px; width: parent.width - 40px; height: 56px; border-radius: 28px;
+            background: big-ta.pressed ? Theme.container-highest : Theme.container-high;
+            Icon { x: 20px; d: Icons.search; size: 20px; tint: Theme.on-surface-variant; }
+            Text { x: 52px; text: "Search or type a URL"; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 16px; vertical-alignment: center; height: parent.height; }
+            big-ta := TouchArea { clicked => { addr.focus(); } }
+        }
+        if Web.bookmarks.length > 0: Text {
+            x: 24px; y: 256px; text: "Shortcuts";
+            color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px; font-weight: 600;
+        }
+        for bm[i] in Web.bookmarks: Rectangle {
+            property <length> cw: (root.width - 40px) / 4;
+            x: 20px + mod(i, 4) * self.cw; y: 284px + floor(i / 4) * 96px;
+            width: self.cw; height: 92px;
+            Rectangle {
+                x: (parent.width - 56px) / 2; y: 4px; width: 56px; height: 56px;
+                border-radius: sta.pressed ? 16px : 28px;
+                background: mod(i, 3) == 0 ? Theme.primary-container : mod(i, 3) == 1 ? Theme.secondary-container : Theme.tertiary-container;
+                animate border-radius { duration: 300ms; easing: spring(0.35); }
+                Text {
+                    text: bm.title == "" ? "?" : bm.initial;
+                    color: mod(i, 3) == 0 ? Theme.on-primary-container : mod(i, 3) == 1 ? Theme.on-secondary-container : Theme.on-tertiary-container;
+                    font-family: Theme.display; font-size: 22px; font-weight: 600;
+                }
             }
+            Text {
+                y: 66px; width: parent.width; text: bm.title;
+                color: Theme.on-surface; font-family: Theme.body; font-size: 12px; horizontal-alignment: center; overflow: elide;
+            }
+            sta := TouchArea { clicked => { Web.go(bm.url); } }
         }
     }
 

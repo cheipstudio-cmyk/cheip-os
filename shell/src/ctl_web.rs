@@ -40,6 +40,7 @@ pub fn push(ui: &AppWindow, st: &State) {
         st.tabs
             .iter()
             .map(|t| TabRow {
+                initial: crate::controller::initial(&t.page.as_ref().map(|p| p.title.clone()).unwrap_or_default()),
                 title: t.page.as_ref().map(|p| p.title.clone()).unwrap_or_default().into(),
                 url: t.history.last().cloned().unwrap_or_default().into(),
             })
@@ -47,7 +48,7 @@ pub fn push(ui: &AppWindow, st: &State) {
     ));
     w.set_bookmarked(!url.is_empty() && st.store.data.bookmarks.iter().any(|b| b.url == url));
     w.set_bookmarks(model(
-        st.store.data.bookmarks.iter().map(|b| TabRow { title: b.title.clone().into(), url: b.url.clone().into() }).collect(),
+        st.store.data.bookmarks.iter().map(|b| TabRow { initial: crate::controller::initial(&b.title), title: b.title.clone().into(), url: b.url.clone().into() }).collect(),
     ));
     w.set_scroll_reset(st.scroll_gen);
 }

@@ -76,7 +76,8 @@ export global Theme {
     // Lite: software rendering on one core (Lumia). Big transitions become
     // instant and shadows flat, so every touch answers in one frame
     in property <bool> lite: false;
-    out property <duration> slow: self.lite ? 0ms : 380ms;
-    out property <duration> fast: self.lite ? 0ms : 160ms;
-    out property <duration> spatial: self.lite ? 0ms : 420ms;
+    // Lite (phone, software drawing): shorter animations, never none
+    out property <duration> slow: self.lite ? 240ms : 380ms;
+    out property <duration> fast: self.lite ? 120ms : 160ms;
+    out property <duration> spatial: self.lite ? 260ms : 420ms;
 }

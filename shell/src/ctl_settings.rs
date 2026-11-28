@@ -43,7 +43,7 @@ thread_local! {
 }
 
 /// Pagine disegnate a mano nello .slint
-const CUSTOM: [&str; 10] = ["wifi", "sound", "battery", "storage", "android", "update", "appinfo", "style", "display", "datetime"];
+const CUSTOM: [&str; 11] = ["wifi", "sound", "battery", "storage", "android", "update", "appinfo", "style", "display", "datetime", "keyboard"];
 
 fn row(kind: i32, key: &str, title: &str, sub: &str, glyph: SharedString, on: bool, value: f32) -> SRow {
     SRow { kind, key: key.into(), title: title.into(), subtitle: sub.into(), glyph, on, value }
@@ -182,6 +182,7 @@ fn build(ui: &AppWindow, st: &State, page: &str) -> (String, Vec<SRow>) {
         "system" => {
             let mut v = vec![
                 val("", "Languages", "English (United States)"),
+                nav("nav:keyboard", "Keyboard", "Vibration, key popup", i.get_keyboard_f()),
                 nav("nav:datetime", "Date & time", &ui.global::<Settings>().get_timezone(), i.get_clock_f()),
                 nav("nav:update", "System update", "", i.get_update_f()),
                 nav("nav:reset", "Reset options", "", i.get_restart()),

@@ -1,4 +1,5 @@
 import { Theme } from "theme.slint";
+import { Kbd } from "keyboard.slint";
 import { Sys, Settings, Phone, Shell, Style, SRow, Swatch } from "data.slint";
 import { Icon, Icons, Shapes, StatusBar, RoundButton, PillButton, Card, Title, ListRow, Field, Switch, Slider, Segmented, AppIcon } from "components.slint";
 
@@ -293,8 +294,22 @@ export component SettingsApp inherits Rectangle {
         SwitchItem { first: true; label: "Vibrate when ringing"; detail: "Also vibrate for calls"; on: Sys.vibrate-on-ring; toggled(v) => { Sys.vibrate-on-ring = v; } }
         SwitchItem { label: "Charging sound"; detail: "When you plug in the charger"; on: Sys.snd-charge; toggled(v) => { Sys.pref("snd_charge", v ? 1 : 0); } }
         SwitchItem { label: "Low battery alert"; detail: "Sound and notification at 15%"; on: Sys.snd-lowbat; toggled(v) => { Sys.pref("snd_lowbat", v ? 1 : 0); } }
-        SwitchItem { label: "Screen lock sound"; detail: "Power key on and off"; on: Sys.snd-lock; toggled(v) => { Sys.pref("snd_lock", v ? 1 : 0); } }
-        SwitchItem { last: true; label: "Keyboard vibration"; detail: "A light tick on every key"; on: Sys.kbd-vibrate; toggled(v) => { Sys.pref("kbd_vibrate", v ? 1 : 0); } }
+        SwitchItem { last: true; label: "Screen lock sound"; detail: "Power key on and off"; on: Sys.snd-lock; toggled(v) => { Sys.pref("snd_lock", v ? 1 : 0); } }
+    }
+
+    Page {
+        x: Settings.page == "keyboard" ? 0px : root.width;
+        visible: self.x < root.width;
+        animate x { duration: Theme.spatial; easing: Theme.ease; }
+        title: "Keyboard";
+        Header { text: "   Typing"; }
+        SwitchItem { first: true; label: "Vibrate on keypress"; detail: "A light tick on every key"; on: Sys.kbd-vibrate; toggled(v) => { Sys.pref("kbd_vibrate", v ? 1 : 0); } }
+        SwitchItem { last: true; label: "Popup on keypress"; detail: "Show the letter above your finger"; on: Kbd.preview; toggled(v) => { Sys.pref("kbd_preview", v ? 1 : 0); } }
+        Header { text: "   Closing"; }
+        Text {
+            text: "The keyboard closes with the check key, when you go home, switch app or lock the phone.";
+            wrap: word-wrap; color: Theme.on-surface-variant; font-family: Theme.body; font-size: 14px;
+        }
     }
 
     Page {

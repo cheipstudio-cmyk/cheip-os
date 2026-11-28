@@ -48,29 +48,38 @@ component LogApp inherits Rectangle {
 
 // Navigation key: Expressive round touch target, Android-style glyph
 component NavKey inherits Rectangle {
-    in property <int> kind; // 0 back, 1 home, 2 recents
+    in property <int> kind; // 0 back, 1 home (Cheip OS cookie), 2 recents
     in property <color> tint;
     callback tap();
     horizontal-stretch: 1;
+    // Pillola di pressione che si allarga
     Rectangle {
-        width: 64px; height: 40px; border-radius: 20px;
-        background: nta.pressed ? root.tint.with-alpha(0.18) : transparent;
+        width: nta.pressed ? 56px : 36px; height: 32px; border-radius: 16px;
+        background: nta.pressed ? root.tint.with-alpha(0.16) : transparent;
+        animate width { duration: 180ms; easing: ease-out; }
     }
+    // Indietro: freccia con estremi arrotondati
     if root.kind == 0: Path {
-        width: 18px; height: 20px;
-        viewbox-width: 18; viewbox-height: 20;
-        commands: "M 15 2.5 L 3 10 L 15 17.5 Z";
-        stroke: root.tint; stroke-width: 2.4px; fill: transparent;
+        width: 16px; height: 16px;
+        viewbox-width: 16; viewbox-height: 16;
+        commands: "M 10.5 2.5 L 4.5 8 L 10.5 13.5";
+        stroke: root.tint; stroke-width: 2.2px; stroke-line-cap: round; fill: transparent;
     }
-    if root.kind == 1: Rectangle {
-        width: 20px; height: 20px; border-radius: 10px;
-        border-width: 2.4px; border-color: root.tint;
+    // Home: la forma "cookie" del logo Cheip OS
+    if root.kind == 1: Path {
+        width: nta.pressed ? 17px : 19px; height: self.width;
+        viewbox-width: 100; viewbox-height: 100;
+        commands: "M100.00 50.00 L99.70 52.17 L98.86 54.27 L97.57 56.26 L96.02 58.11 L94.40 59.84 L92.90 61.50 L91.68 63.14 L90.84 64.86 L90.38 66.73 L90.25 68.77 L90.34 71.00 L90.47 73.36 L90.47 75.78 L90.17 78.13 L89.47 80.29 L88.30 82.14 L86.68 83.61 L84.68 84.68 L82.42 85.38 L80.04 85.80 L77.68 86.08 L75.48 86.38 L73.48 86.86 L71.73 87.64 L70.18 88.77 L68.77 90.25 L67.40 92.02 L65.98 93.91 L64.43 95.76 L62.69 97.37 L60.77 98.57 L58.68 99.24 L56.49 99.33 L54.27 98.86 L52.09 97.94 L50.00 96.73 L48.02 95.43 L46.13 94.25 L44.30 93.33 L42.45 92.80 L40.54 92.67 L38.50 92.90 L36.32 93.37 L34.02 93.91 L31.64 94.33 L29.27 94.45 L27.03 94.13 L25.00 93.30 L23.27 91.96 L21.87 90.17 L20.79 88.07 L19.96 85.80 L19.28 83.53 L18.59 81.41 L17.78 79.53 L16.71 77.93 L15.32 76.61 L13.62 75.48 L11.64 74.43 L9.53 73.36 L7.44 72.16 L5.55 70.73 L4.04 69.04 L3.02 67.10 L2.55 64.96 L2.63 62.69 L3.16 60.38 L3.98 58.11 L4.91 55.94 L5.75 53.87 L6.33 51.91 L6.54 50.00 L6.33 48.09 L5.75 46.13 L4.91 44.06 L3.98 41.89 L3.16 39.62 L2.63 37.31 L2.55 35.04 L3.02 32.90 L4.04 30.96 L5.55 29.27 L7.44 27.84 L9.53 26.64 L11.64 25.57 L13.62 24.52 L15.32 23.39 L16.71 22.07 L17.78 20.47 L18.59 18.59 L19.28 16.47 L19.96 14.20 L20.79 11.93 L21.87 9.83 L23.27 8.04 L25.00 6.70 L27.03 5.87 L29.27 5.55 L31.64 5.67 L34.02 6.09 L36.32 6.63 L38.50 7.10 L40.54 7.33 L42.45 7.20 L44.30 6.67 L46.13 5.75 L48.02 4.57 L50.00 3.27 L52.09 2.06 L54.27 1.14 L56.49 0.67 L58.68 0.76 L60.77 1.43 L62.69 2.63 L64.43 4.24 L65.98 6.09 L67.40 7.98 L68.77 9.75 L70.18 11.23 L71.73 12.36 L73.48 13.14 L75.48 13.62 L77.68 13.92 L80.04 14.20 L82.42 14.62 L84.68 15.32 L86.68 16.39 L88.30 17.86 L89.47 19.71 L90.17 21.87 L90.47 24.22 L90.47 26.64 L90.34 29.00 L90.25 31.23 L90.38 33.27 L90.84 35.14 L91.68 36.86 L92.90 38.50 L94.40 40.16 L96.02 41.89 L97.57 43.74 L98.86 45.73 L99.70 47.83 Z";
+        stroke: root.tint; stroke-width: 2.2px; fill: transparent;
+        animate width { duration: 160ms; easing: ease-out; }
     }
+    // Recenti: due schede sovrapposte
     if root.kind == 2: Rectangle {
-        width: 17px; height: 17px; border-radius: 5px;
-        border-width: 2.4px; border-color: root.tint;
+        width: 18px; height: 16px;
+        Rectangle { x: 5px; y: 0px; width: 11px; height: 11px; border-radius: 3px; border-width: 2px; border-color: root.tint.with-alpha(0.55); }
+        Rectangle { x: 1px; y: 4px; width: 11px; height: 11px; border-radius: 3px; border-width: 2.2px; border-color: root.tint; background: transparent; }
     }
-    nta := TouchArea { clicked => { root.tap(); } }
+    nta := TouchArea { clicked => { Shell.haptic(); root.tap(); } }
 }
 
 export component AppWindow inherits Window {
@@ -89,7 +98,7 @@ export component AppWindow inherits Window {
     // On-screen keyboard: open while a text field has focus, apps shrink above it
     property <bool> kb-open: TextInputInterface.text-input-focused;
     property <length> kb-h: root.kb-open ? kb.height : 0px;
-    property <length> nav-h: Sys.nav-buttons ? 48px : 0px;
+    property <length> nav-h: Sys.nav-buttons ? 40px : 0px;
     // Space at the bottom taken by the keyboard or the navigation buttons
     property <length> bottom-h: root.kb-open ? root.kb-h : (root.unlocked ? root.nav-h : 0px);
 
@@ -253,7 +262,7 @@ export component AppWindow inherits Window {
     controls := ControlsPanel {
         width: root.width; height: root.height;
         y: Shell.controls-open ? -self.lift : -root.height + min(root.height, Shell.controls-drag * 1.15);
-        animate y { duration: (Shell.controls-drag > 0px || self.lift > 0px) ? 0ms : (Theme.lite ? 0ms : 380ms); easing: spring(0.15); }
+        animate y { duration: (Shell.controls-drag > 0px || self.lift > 0px) ? 0ms : (Theme.lite ? 260ms : 380ms); easing: Theme.lite ? ease-out : spring(0.15); }
     }
 
     // Notifica a comparsa: scende dall'alto, tocca per aprire, scorri su per chiudere
@@ -262,7 +271,7 @@ export component AppWindow inherits Window {
         x: 8px; width: root.width - 16px; height: 80px;
         y: Shell.headsup-shown && Shell.screen != ScreenId.lock ? 8px - self.lift : -110px;
         transform-scale: Shell.headsup-shown ? 1 : 0.9;
-        animate y { duration: self.lift > 0px || Theme.lite ? 0ms : 520ms; easing: spring(0.3); }
+        animate y { duration: self.lift > 0px ? 0ms : (Theme.lite ? 260ms : 520ms); easing: Theme.lite ? ease-out : spring(0.3); }
         animate transform-scale { duration: Theme.lite ? 0ms : 520ms; easing: spring(0.3); }
         border-radius: 28px; background: Theme.container-high;
         drop-shadow-blur: Theme.lite ? 0px : 18px; drop-shadow-offset-y: 6px; drop-shadow-color: #00000050;
@@ -367,7 +376,19 @@ export component AppWindow inherits Window {
         }
     }
 
+    // Takes the focus away from text fields so the keyboard closes
+    kb-sink := FocusScope { width: 0px; height: 0px; }
+    // ...also by itself: going home, switching app, opening the switcher, locking
+    property <bool> app-open-now: Shell.app-open;
+    property <string> app-now: Shell.app-id;
+    property <ScreenId> screen-now: Shell.screen;
+    property <bool> off-now: Shell.screen-off;
+    changed app-open-now => { kb-sink.focus(); }
+    changed app-now => { kb-sink.focus(); }
+    changed screen-now => { kb-sink.focus(); }
+    changed off-now => { kb-sink.focus(); }
     kb := Keyboard {
+        done => { kb-sink.focus(); }
         width: root.width;
         y: root.kb-open ? root.height - self.height : root.height;
         animate y { duration: Theme.fast; easing: Theme.ease; }

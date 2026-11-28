@@ -12,7 +12,7 @@ export struct ContactRow { name: string, number: string, initial: string }
 export struct ThreadRow { number: string, name: string, last: string, when: string, unread: int, initial: string }
 export struct Bubble { text: string, when: string, out: bool }
 export struct WebBlock { kind: int, text: string, href: string }
-export struct TabRow { title: string, url: string }
+export struct TabRow { title: string, url: string, initial: string }
 export struct FileRow { name: string, info: string, kind: int, thumb: image, has-thumb: bool }
 export struct CatRow { id: string, label: string, glyph: string, detail: string }
 export struct WifiRow { ssid: string, signal: int, secure: bool, active: bool }
@@ -49,7 +49,7 @@ export global Sys {
     in-out property <bool> snd-charge: true;
     in-out property <bool> snd-lowbat: true;
     in-out property <bool> snd-lock: true;
-    in-out property <bool> kbd-vibrate: true;
+    in-out property <bool> kbd-vibrate: false;
     in-out property <bool> boost: false;
     // System navigation: true = Back/Home/Recents buttons, false = gestures
     in-out property <bool> nav-buttons: true;
@@ -113,6 +113,8 @@ export global Sys {
 }
 
 export global Shell {
+    // Short vibration for system buttons
+    callback haptic();
     // Boot animation (off in the web demo screenshots)
     in-out property <bool> show-splash: true;
     in-out property <ScreenId> screen: ScreenId.lock;

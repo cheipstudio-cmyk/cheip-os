@@ -520,6 +520,19 @@ pub fn push_clock(ui: &AppWindow, now: NaiveDateTime) {
     s.set_hours(format!("{:02}", hour).into());
     s.set_minutes(format!("{:02}", now.minute()).into());
     s.set_date(cal::long_label(now.date()).into());
+    // The date changed (midnight, or the time was just set): move the calendar to today
+    if let Some(st) = shared() {
+        if let Ok(mut st) = st.try_borrow_mut() {
+            let today = now.date();
+            if st.today != today {
+                st.today = today;
+                st.cal_year = today.year();
+                st.cal_month = today.month();
+                st.cal_sel = today.day();
+                push_calendar(ui, &st);
+            }
+        }
+    }
 }
 
 /// Hardware state read on a background thread: process spawns (waydroid,
@@ -1068,6 +1081,7 @@ fn set_pref_ui(ui: &AppWindow, k: &str, v: i32) {
         "snd_lowbat" => s.set_snd_lowbat(v != 0),
         "snd_lock" => s.set_snd_lock(v != 0),
         "kbd_vibrate" => s.set_kbd_vibrate(v != 0),
+        "kbd_preview" => ui.global::<Kbd>().set_preview(v != 0),
         "boost" => s.set_boost(v != 0),
         "nav_buttons" => s.set_nav_buttons(v != 0),
         "w_show" => s.set_w_show(v != 0),
@@ -1242,6 +1256,7 @@ pub fn wire(ui: &AppWindow, store: Store, now: NaiveDateTime, live: bool) -> Sha
             }
         });
         ui.global::<Sys>().on_preview_tone(|i| crate::feedback::play(crate::feedback::Sound::Tone(i), 0.7));
+        ui.global::<Shell>().on_haptic(|| crate::feedback::vibrate(12));
         let w = ui.as_weak();
         ui.global::<Kbd>().on_click(move || {
             if let Some(ui) = w.upgrade() {
