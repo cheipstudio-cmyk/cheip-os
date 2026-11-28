@@ -59,6 +59,18 @@ sleep 15
 for r in /sys/class/remoteproc/remoteproc*; do
 	[ -e "$r/name" ] && echo "after start: $(cat "$r/name"): $(cat "$r/state")"
 done
+# Without a usable calibration file the Wi-Fi core crashes and restarts every
+# 45 s forever, eating CPU: if no wlan0 after a minute, stop the restarts
+( sleep 60
+if ! ip link show wlan0 >/dev/null 2>&1; then
+	mountpoint -q /sys/kernel/debug || mount -t debugfs none /sys/kernel/debug 2>/dev/null
+	for d in /sys/kernel/debug/remoteproc/remoteproc*; do
+		[ -e "$d/recovery" ] && echo disabled > "$d/recovery"
+	done
+	echo "no wlan0 after 75 s: Wi-Fi core restarts stopped" >> "$LOG"
+else
+	echo "wlan0 is up" >> "$LOG"
+fi ) &
 dmesg | grep -iE "wcnss|pronto|wcn36xx|remoteproc|scm" | tail -n 15
 ip -o link | cut -d: -f2 | tr '\n' ' '
 echo

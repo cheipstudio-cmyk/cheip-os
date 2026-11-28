@@ -6,7 +6,7 @@ pkgdesc="Shell di Cheip OS: home, controlli, app di sistema, OTA"
 url="https://cheipstudio.org"
 arch="armv7 aarch64 x86_64"
 license="GPL-3.0-or-later"
-depends="cloud-utils-growpart e2fsprogs-extra lsblk findmnt doas mesa-dri-gallium mesa-egl mesa-gbm mesa-utils busybox-extras networkmanager-cli util-linux-misc modemmanager bluez alsa-utils
+depends="cloud-utils-growpart e2fsprogs-extra lsblk findmnt doas mesa-dri-gallium mesa-egl mesa-gbm mesa-utils busybox-extras wireless-regdb networkmanager-cli util-linux-misc modemmanager bluez alsa-utils
 	gst-plugins-base gst-plugins-good gst-libav mupdf-tools"
 makedepends="linux-firmware-qcom cargo eudev-dev libinput-dev libdrm-dev mesa-dev libxkbcommon-dev fontconfig-dev libseat-dev
 	gstreamer-dev gst-plugins-base-dev"
