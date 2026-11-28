@@ -6,7 +6,7 @@ pkgdesc="Shell di Cheip OS: home, controlli, app di sistema, OTA"
 url="https://cheipstudio.org"
 arch="armv7 aarch64 x86_64"
 license="GPL-3.0-or-later"
-depends="cloud-utils-growpart e2fsprogs-extra lsblk findmnt doas mesa-dri-gallium mesa-egl mesa-gbm mesa-utils networkmanager-cli util-linux-misc modemmanager bluez alsa-utils
+depends="cloud-utils-growpart e2fsprogs-extra lsblk findmnt doas mesa-dri-gallium mesa-egl mesa-gbm mesa-utils busybox-extras networkmanager-cli util-linux-misc modemmanager bluez alsa-utils
 	gst-plugins-base gst-plugins-good gst-libav mupdf-tools"
 makedepends="linux-firmware-qcom cargo eudev-dev libinput-dev libdrm-dev mesa-dev libxkbcommon-dev fontconfig-dev libseat-dev
 	gstreamer-dev gst-plugins-base-dev"
@@ -44,6 +44,8 @@ package() {
 	install -Dm755 system/cheip-usb "$pkgdir"/usr/libexec/cheip/cheip-usb
 	install -Dm755 system/cheip-usb.initd "$pkgdir"/etc/init.d/cheip-usb
 	install -Dm755 system/cheip-gpu "$pkgdir"/usr/libexec/cheip/cheip-gpu
+	install -Dm644 system/www/index.html "$pkgdir"/usr/share/cheip/www/index.html
+	install -Dm755 system/www/cgi-bin/log "$pkgdir"/usr/share/cheip/www/cgi-bin/log
 	install -Dm644 system/cheip-gpu.modprobe "$pkgdir"/etc/modprobe.d/cheip-gpu.conf
 	# Adreno 305B microcode (the A305B uses the A330 one). In firmware/updates so
 	# it never clashes with a linux-firmware package in the image

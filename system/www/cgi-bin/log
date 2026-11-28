@@ -1,0 +1,14 @@
+#!/bin/sh
+# Everything needed to debug the phone, in one text file, over USB
+if [ "${QUERY_STRING#*dl=1}" != "$QUERY_STRING" ]; then
+	printf 'Content-Type: text/plain; charset=utf-8\r\nContent-Disposition: attachment; filename="cheip-phone-log.txt"\r\n\r\n'
+else
+	printf 'Content-Type: text/plain; charset=utf-8\r\n\r\n'
+fi
+echo "== $(apk info -v 2>/dev/null | grep "^cheip-shell-") $(uname -r) $(date)"
+for f in /var/log/cheip-*.txt; do echo; echo "== $f"; cat "$f"; done
+echo; echo "== power_supply"
+for d in /sys/class/power_supply/*; do echo "$(basename $d): $(cat $d/uevent 2>/dev/null | tr '\n' ' ')"; done
+echo; echo "== deferred probes"; cat /sys/kernel/debug/devices_deferred 2>/dev/null
+echo; echo "== lsmod"; lsmod
+echo; echo "== dmesg"; dmesg

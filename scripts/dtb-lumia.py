@@ -77,8 +77,17 @@ def main():
     reg_start = dts.index("qcom,rpm-pm8226-regulators")
     reg_node_start = dts.rfind("regulators {", 0, reg_start)
     reg_end = block(dts, reg_node_start)
+    # Windows (DSDT, \_SB.RIVA power votes) also keeps L13 at 1.8 V for the
+    # Wi-Fi chip; the Linux DT leaves it out, so add it
+    if not re.compile(r"^\t+l13 \{", re.M).search(dts, reg_node_start, reg_end):
+        l8 = re.compile(r"^(\t+)l8 \{", re.M).search(dts, reg_node_start, reg_end)
+        ind = l8.group(1)
+        node = (f"{ind}l13 {{\n{ind}\tregulator-min-microvolt = <1800000>;\n"
+                f"{ind}\tregulator-max-microvolt = <1800000>;\n{ind}\tregulator-always-on;\n{ind}}};\n")
+        dts = dts[: l8.start()] + node + dts[l8.start():]
+        reg_end += len(node)
     ph = {}
-    for ldo in ["l3", "l6", "l10", "l16", "l24"]:
+    for ldo in ["l3", "l6", "l8", "l10", "l16", "l24"]:
         m = re.compile(rf"^(\t+){ldo} \{{", re.M).search(dts, reg_node_start, reg_end)
         if not m:
             raise SystemExit(f"regulator {ldo} missing")
@@ -105,7 +114,11 @@ def main():
         iris = set_prop(iris, "vddxo-supply", f"<{ph['l10']:#x}>")
         iris = set_prop(iris, "vddrfa-supply", f"<{ph['l24']:#x}>")
         iris = set_prop(iris, "vddpa-supply", f"<{ph['l16']:#x}>")
-        iris = set_prop(iris, "vdddig-supply", f"<{ph['l24']:#x}>")
+        # Lumia 735 Wi-Fi is single band 2.4 GHz: WCN3620, 19.2 MHz XO (the
+        # SoC default "wcn3660a" programs the 48 MHz XO). Digital rail 1.8 V
+        # like the other WCN3620 phones, from L8 (Windows votes L8 and L13)
+        iris = set_prop(iris, "compatible", '"qcom,wcn3620"')
+        iris = set_prop(iris, "vdddig-supply", f"<{ph['l8']:#x}>")
         body = body[:i] + iris + body[e:]
         i = body.index("wcnss {")
         e = block(body, i)

@@ -140,6 +140,10 @@ code { background: var(--c3); padding: 2px 8px; border-radius: 6px; font-size: 1
 @keyframes pulse { from { opacity: .4 } to { opacity: 1 } }
 .phone-status .t { font-weight: 700; font-size: 18px; }
 .phone-status .h { color: var(--on2); font-size: 14px; margin-top: 2px; }
+.phone-status .ps-text { flex: 1; min-width: 0; }
+.ps-bar { height: 8px; border-radius: 4px; background: var(--c3); overflow: hidden; margin-top: 10px; display: none; }
+.ps-bar > i { display: block; height: 100%; width: 0; background: var(--primary); transition: width .2s; }
+.ps-pct { font-size: 13px; color: var(--on2); margin-top: 4px; font-variant-numeric: tabular-nums; }
 .usb { background: var(--c2); border-radius: 22px; padding: 18px; margin-top: 16px; }
 .usb .state { display: flex; align-items: center; gap: 10px; font-weight: 600; margin-bottom: 12px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--outline); }
@@ -247,7 +251,7 @@ footer p { margin-bottom: 6px; }
     <p class="lead">About 20 minutes the first time, with the phone connected to a Windows PC. After the unlock, everything happens on this page.</p>
     <div class="phone-status" id="phone-status" data-kind="idle">
       <div class="big-dot"></div>
-      <div><div class="t" id="ps-title">Phone not detected</div><div class="h" id="ps-hint">This box always says what the phone is doing and what to do next.</div></div>
+      <div class="ps-text"><div class="t" id="ps-title">Phone not detected</div><div class="h" id="ps-hint">This box always says what the phone is doing and what to do next.</div><div class="ps-bar" id="ps-bar"><i></i></div><div class="ps-pct" id="ps-pct"></div></div>
     </div>
 
     <div class="steps">
@@ -327,7 +331,8 @@ footer p { margin-bottom: 6px; }
             <div class="bar" id="usb-bar"><i></i></div>
             <pre class="log" id="usb-out"></pre>
             <details>
-              <summary>Advanced</summary>
+              <summary>Phone tools: logs and Windows data</summary>
+              <p class="note">For troubleshooting only. Turn on Debug, restart the phone (Power + Volume down): the site keeps it in the bootloader and saves its logs to Downloads. Then the buttons below work. Turn Debug off afterwards, or the phone never starts Cheip OS.</p>
               <label class="check"><input type="checkbox" id="usb-watch"> Debug: when the phone appears, keep it in the bootloader and read its logs</label>
               <label class="check"><input type="checkbox" id="auto-install"> Install by itself as soon as the phone appears (with Debug on)</label>
               <div class="note">Debug test image (booted right after the logs): <input type="file" id="test-img" accept=".img"></div>
@@ -352,7 +357,9 @@ footer p { margin-bottom: 6px; }
         <div class="num">5</div>
         <div class="body">
           <h3>Start Cheip OS</h3>
-          <p>The phone restarts into Cheip OS. The first start takes a little longer while the system grows to fill the microSD. To use Windows Phone again, repeat step 3 and press <b>Start Windows Phone by default</b>.</p>
+          <p>The phone starts Cheip OS by itself. The first start takes a little longer while the system grows to fill the microSD.</p>
+          <p><b>Logs from the PC:</b> with Cheip OS running and the cable connected, the PC sees the phone as a network card. Open <a href="http://172.16.42.1" target="_blank" rel="noopener">http://172.16.42.1</a> and press <b>Download the full log</b>.</p>
+          <p>To use Windows Phone again, repeat step 3 and press <b>Start Windows Phone by default</b>.</p>
           <label class="check"><input type="checkbox"> Cheip OS is running</label>
         </div>
         <div class="art"><div class="lumia mini green"><div class="glass"><div class="screen"><img src="img/lock.webp" alt="Cheip OS lock screen" loading="lazy"></div></div></div></div>

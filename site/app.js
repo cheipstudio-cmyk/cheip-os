@@ -210,7 +210,15 @@ function markStep(n) {
 // ---------- Step 4: install over USB (lk1st fastboot, WebUSB) ----------
 const log = logTo($("#usb-out"));
 const bar = $("#usb-bar");
-const progress = (p) => { bar.style.display = "block"; bar.firstElementChild.style.width = (p * 100).toFixed(1) + "%"; };
+const progress = (p) => {
+  bar.style.display = "block";
+  bar.firstElementChild.style.width = (p * 100).toFixed(1) + "%";
+  // Same progress inside the status box, which stays on screen while scrolling
+  const pb = $("#ps-bar");
+  pb.style.display = "block";
+  pb.firstElementChild.style.width = (p * 100).toFixed(1) + "%";
+  $("#ps-pct").textContent = Math.floor(p * 100) + "%";
+};
 let dev = null, sd = null, busy = false;
 
 // The phone can be opened by two parties at once right after it appears (the
@@ -229,6 +237,7 @@ async function connectRetry(d) {
 
 // Big status box at the top of the install section: what the phone is doing, what to do next
 function phone(kind, title, hint) {
+  if (kind !== "busy") { $("#ps-bar").style.display = "none"; $("#ps-pct").textContent = ""; }
   const el = $("#phone-status");
   if (!el) return;
   el.dataset.kind = kind;
@@ -308,12 +317,12 @@ async function startInstall() {
   if (!confirm("Everything on the microSD inside the phone will be erased and replaced by Cheip OS. Continue?")) return;
   store.set("cheip-pending", true);
   log("Install armed. Restart the phone now.");
-  phone("busy", "Waiting for the phone", "Restart it now: hold Power + Volume down until it vibrates, then let go. The install starts by itself when the bootloader appears.");
+  phone("busy", "1 of 4 · Waiting for the phone", "Restart it now: hold Power + Volume down until it vibrates, then let go. The install starts by itself when the bootloader appears.");
 }
 async function autoInstall() {
   if (busy) return;
   store.set("cheip-pending", false);
-  phone("busy", "Phone found · starting the install", "Keep the cable connected and don't touch the phone.");
+  phone("busy", "2 of 4 · Phone found, starting", "Keep the cable connected and don't touch the phone.");
   try {
     setDebugLevel(0);
     dev = new FastbootDevice();
@@ -334,7 +343,7 @@ async function installOs(auto) {
   if (manifest.size > sd.bytes) return log("The microSD is too small for Cheip OS.");
   if (!auto && !confirm(`Everything on the ${human(sd.bytes)} microSD inside the phone will be erased and replaced by Cheip OS ${manifest.version}. Continue?`)) return;
   busy = true; setConnected(true, "Installing…");
-  phone("busy", "Installing Cheip OS…", "Keep the cable connected and don't touch the phone.");
+  phone("busy", "3 of 4 · Writing Cheip OS to the microSD", "Keep the cable connected and don't touch the phone.");
   const total = manifest.data;
   let done = 0;
   const t0 = performance.now();
@@ -357,7 +366,7 @@ async function installOs(auto) {
     setConnected(true, "Installed");
     markStep(4);
     log("Restarting into Cheip OS…");
-    phone("busy", "Cheip OS is starting", "Cheip OS starts by itself. Wait a couple of minutes and look at its screen.");
+    phone("ok", "4 of 4 · Done, Cheip OS is starting", "Cheip OS starts by itself. Wait a couple of minutes and look at its screen.");
     // "continue" boots Cheip OS straight from the bootloader. A reset instead
     // goes back through the Nokia UEFI, which on the Lumia stops and waits for
     // Power + Volume down.

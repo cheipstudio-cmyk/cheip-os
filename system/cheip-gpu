@@ -38,6 +38,15 @@ touch "$MARK"; sync
 	sleep 3
 	for n in /dev/dri/*; do echo "device $n"; done
 	echo "module: $(lsmod 2>/dev/null | grep -E '^msm ' | cut -c1-40)"
+	# Why the GPU device has no driver: DT status, binding, deferred probes
+	g=/sys/bus/platform/devices/fdb00000.gpu
+	echo "dt status: $(tr -d '\0' < /proc/device-tree/soc/gpu@fdb00000/status 2>/dev/null)"
+	echo "device: $([ -e $g ] && echo present || echo missing), driver: $(basename "$(readlink $g/driver 2>/dev/null)" 2>/dev/null)"
+	echo "waiting for supplier: $(cat $g/waiting_for_supplier 2>/dev/null)"
+	ls $g/ 2>/dev/null | grep -E "^supplier:" | tr '\n' ' '; echo
+	echo "mmcc driver: $(basename "$(readlink /sys/bus/platform/devices/fd8c0000.clock-controller/driver 2>/dev/null)" 2>/dev/null)"
+	mountpoint -q /sys/kernel/debug || mount -t debugfs none /sys/kernel/debug 2>/dev/null
+	echo "deferred:"; cut -c1-100 /sys/kernel/debug/devices_deferred 2>/dev/null | head -n 8
 	dmesg 2>/dev/null | grep -iE "adreno|a3xx|ocmem|carveout|vram|a330_p|headless|\[drm|msm_drm|msm_gpu|gdsc|oxili" | grep -viE "msm_serial|msm_hsusb" | tail -n 20 | cut -c1-110
 	chmod 666 /dev/dri/renderD* 2>/dev/null
 	if [ -e /dev/dri/renderD128 ]; then
